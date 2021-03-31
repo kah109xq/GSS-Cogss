@@ -1,0 +1,1 @@
+# Auto-generated file based on standard validation CSVW tests from https://w3c.github.io/csvw/tests/manifest-validation.jsonld
