@@ -32,6 +32,8 @@ libraryDependencies += "info.cukes" % "cucumber-junit" % "1.2.4"
 libraryDependencies += "junit" % "junit" % "4.12"
 libraryDependencies += "io.spray" %%  "spray-json" % "1.3.5"
 
+libraryDependencies += "org.apache.jena" % "jena-arq" % "3.14.0"
+
 // Here, `libraryDependencies` is a set of dependencies, and by using `+=`,
 // we're adding the scala-parser-combinators dependency to the set of dependencies
 // that sbt will go and fetch when it starts up.
