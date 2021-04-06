@@ -1,0 +1,34 @@
+<rdf:RDF
+    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+    xmlns:vCard="http://www.w3.org/2001/vcard-rdf/3.0#">
+  <rdf:Description rdf:about="http://somewhere/SarahJones">
+    <vCard:N rdf:parseType="Resource">
+      <vCard:Given>Sarah</vCard:Given>
+      <vCard:Family>Jones</vCard:Family>
+    </vCard:N>
+    <vCard:FN>Sarah Jones</vCard:FN>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://somewhere/JohnSmith">
+    <vCard:NICKNAME>Adman</vCard:NICKNAME>
+    <vCard:NICKNAME>Ajay Joseph</vCard:NICKNAME>
+    <vCard:N rdf:parseType="Resource">
+      <vCard:Given>John</vCard:Given>
+      <vCard:Family>Smith</vCard:Family>
+    </vCard:N>
+    <vCard:FN>John Smith</vCard:FN>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://somewhere/MattJones">
+    <vCard:N rdf:parseType="Resource">
+      <vCard:Given>Matthew</vCard:Given>
+      <vCard:Family>Jones</vCard:Family>
+    </vCard:N>
+    <vCard:FN>Matt Jones</vCard:FN>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://somewhere/RebeccaSmith">
+    <vCard:N rdf:parseType="Resource">
+      <vCard:Given>Rebecca</vCard:Given>
+      <vCard:Family>Smith</vCard:Family>
+    </vCard:N>
+    <vCard:FN>Becky Smith</vCard:FN>
+  </rdf:Description>
+</rdf:RDF>
