@@ -278,15 +278,15 @@
         <mf:action rdf:resource="https://w3c.github.io/csvw/tests/test034/csv-metadata.json"/>
         <mf:implicit rdf:resource="https://w3c.github.io/csvw/tests/test034/gov.uk/schema/organizations.json"/>
         <mf:implicit rdf:resource="https://w3c.github.io/csvw/tests/test034/gov.uk/schema/professions.json"/>
-        <csvt:option rdf:parseType="Resource">
-          <csvt:noProv rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean"
-          >true</csvt:noProv>
-        </csvt:option>
         <rdft:approval rdf:resource="http://www.w3.org/ns/rdftest#Approved"/>
         <mf:implicit rdf:resource="https://w3c.github.io/csvw/tests/test034/gov.uk/data/professions.csv"/>
         <mf:implicit rdf:resource="https://w3c.github.io/csvw/tests/test034/gov.uk/schema/senior-roles.json"/>
         <rdfs:comment>Public Sector Roles example with referenced schemas. Validation fails because organization.csv intentionally contains an invalid reference.</rdfs:comment>
         <mf:name>roles example</mf:name>
+        <csvt:option rdf:parseType="Resource">
+          <csvt:noProv rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean"
+          >true</csvt:noProv>
+        </csvt:option>
         <mf:implicit rdf:resource="https://w3c.github.io/csvw/tests/test034/gov.uk/data/organizations.csv"/>
         <mf:implicit rdf:resource="https://w3c.github.io/csvw/tests/test034/gov.uk/schema/junior-roles.json"/>
         <mf:implicit rdf:resource="https://w3c.github.io/csvw/tests/test034/junior-roles.csv"/>
@@ -294,14 +294,14 @@
       </csvt:NegativeValidationTest>
       <csvt:NegativeValidationTest rdf:about="https://w3c.github.io/csvw/tests/manifest-validation#test035">
         <mf:implicit rdf:resource="https://w3c.github.io/csvw/tests/test035/gov.uk/schema/junior-roles.json"/>
-        <mf:implicit rdf:resource="https://w3c.github.io/csvw/tests/test035/gov.uk/schema/senior-roles.json"/>
-        <mf:implicit rdf:resource="https://w3c.github.io/csvw/tests/test035/gov.uk/schema/professions.json"/>
         <csvt:option rdf:parseType="Resource">
           <csvt:noProv rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean"
           >true</csvt:noProv>
           <csvt:minimal rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean"
           >true</csvt:minimal>
         </csvt:option>
+        <mf:implicit rdf:resource="https://w3c.github.io/csvw/tests/test035/gov.uk/schema/senior-roles.json"/>
+        <mf:implicit rdf:resource="https://w3c.github.io/csvw/tests/test035/gov.uk/schema/professions.json"/>
         <mf:implicit rdf:resource="https://w3c.github.io/csvw/tests/test035/gov.uk/data/professions.csv"/>
         <mf:implicit rdf:resource="https://w3c.github.io/csvw/tests/test035/junior-roles.csv"/>
         <mf:implicit rdf:resource="https://w3c.github.io/csvw/tests/test035/gov.uk/data/organizations.csv"/>

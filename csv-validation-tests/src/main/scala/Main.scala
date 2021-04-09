@@ -26,7 +26,7 @@ object Main extends App {
   val pw = new PrintWriter(new File(validationFeatureFilePath ))
   val manifestValidationUrl = s"${baseUrl}manifest-validation.jsonld"
   println(manifestValidationUrl)
-  pw.write(s"# Auto-generated file based on standard validation CSVW tests from ${baseUrl}manifest-validation.jsonld")
+  pw.write(s"# Auto-generated file based on standard validation CSVW tests from ${baseUrl}manifest-validation.jsonld \n\n")
 
   fileDownloader(manifestValidationUrl, "manifest-validation.jsonld")
 
@@ -37,8 +37,25 @@ object Main extends App {
   model.write(pw2)
   pw2.close
   val manifest = model.getResource("https://w3c.github.io/csvw/tests/manifest-validation")
-  val comment = manifest.getProperty(RDFS.comment).getString
-  println(comment)
+  val label = manifest.getProperty(RDFS.label).getString
+  pw.write(s"Feature: ${label} \n\n")
+
+  val entries = model.getProperty("http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#entries")
+  val entriesList = manifest.getProperty(entries).getList()
+
+  val items = entriesList.iterator
+  while ( {
+    items.hasNext
+  }) {
+    val item = items.next.asResource
+    pw.write(s"\t# ${item.getProperty(RDFS.comment).getString} \n")
+    pw.write(s"\t# ${item.getURI} \n\n")
+//    val value1 = item.getRequiredProperty(myitemvalue1).getObject
+//    val value2 = item.getRequiredProperty(myitemvalue2).getObject
+//    System.out.println(item + " has:\n\tvalue1: " + value1 + "\n\tvalue2: " + value2)
+  }
+// String substitution scala
+    //.replace("${begindate}", begindate)
 
 //  Sample rdf graph read working code in scala
 //  private val modelExample = ModelFactory.createDefaultModel
@@ -52,6 +69,5 @@ object Main extends App {
 //  pw2.close
 //  val fullName: String = vcard.getProperty(VCARD.FN).getString
 //  println(fullName)
-
   pw.close
 }
