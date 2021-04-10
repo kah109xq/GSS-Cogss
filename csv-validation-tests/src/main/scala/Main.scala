@@ -52,8 +52,8 @@ object Main extends App {
     val item = items.next.asResource
     pw.write(s"\t# ${item.getProperty(RDFS.comment).getString} \n")
     pw.write(s"\t# ${item.getURI} \n")
-
-    pw.write(s"\tScenario: ${item.getURI.split("tests/").last} ${item.getProperty(name).getString}\n")
+    val scenarioName = (item.getProperty(name).getString).replace("<", "less than")
+    pw.write(s"\tScenario: ${item.getURI.split("tests/").last} ${scenarioName} \n\n")
 //    file.puts "\tScenario: #{entry["id"]} #{entry["name"].gsub("<", "less than")}"
 //    val value1 = item.getRequiredProperty(myitemvalue1).getObject
 //    val value2 = item.getRequiredProperty(myitemvalue2).getObject
