@@ -16,6 +16,10 @@ object Main extends App {
   def fileDownloader(url: String, filename: String) = {
     new URL(url) #> new File(filename) !!
   }
+
+//  def cacheFile(fileName: String): (String, String) = {
+//
+//  }
   println("Lets valid ate csv's..!")
 
   val baseUrl = "https://w3c.github.io/csvw/tests/"
@@ -43,6 +47,7 @@ object Main extends App {
   val entries = model.getProperty("http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#entries")
   val entriesList = manifest.getProperty(entries).getList()
   val name = model.createProperty("http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#name")
+  val action = model.createProperty("http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#action")
 
 
   val items = entriesList.iterator
@@ -53,9 +58,14 @@ object Main extends App {
     pw.write(s"\t# ${item.getProperty(RDFS.comment).getString} \n")
     pw.write(s"\t# ${item.getURI} \n")
     val scenarioName = (item.getProperty(name).getString).replace("<", "less than")
-    pw.write(s"\tScenario: ${item.getURI.split("tests/").last} ${scenarioName} \n\n")
-//    file.puts "\tScenario: #{entry["id"]} #{entry["name"].gsub("<", "less than")}"
-//    val value1 = item.getRequiredProperty(myitemvalue1).getObject
+    pw.write(s"\tScenario: ${item.getURI.split("tests/").last} ${scenarioName} \n")
+    val actionResource = item.getProperty(action).getResource.toString
+    if (actionResource.endsWith(".json") == true) {
+      // Corrections to be made after introducing file caching
+      pw.write(s"\t\tGiven I have a metadata file called ${actionResource} \n")
+      pw.write(s"\t\tAnd the metadata is stored at the url ${actionResource} \n\n")
+    }
+//    val value1 = item.getRequiredPropery(myitemvalue1).getObject
 //    val value2 = item.getRequiredProperty(myitemvalue2).getObject
 //    System.out.println(item + " has:\n\tvalue1: " + value1 + "\n\tvalue2: " + value2)
   }
