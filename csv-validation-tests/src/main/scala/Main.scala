@@ -17,6 +17,19 @@ object Main extends App {
     new URL(url) #> new File(filename) !!
   }
 
+  def metadataExtractor(resource: org.apache.jena.rdf.model.Resource): String = {
+    var metadataObject: String = ""
+    try{
+      metadataObject = resource.getProperty(metadata).getResource.toString
+      println("Yeahh!!! metadata found")
+    }
+    catch{
+      case e: java.lang.NullPointerException => println("metadata not found")
+    }
+    println(metadataObject)
+    metadataObject
+  }
+
 //  def cacheFile(fileName: String): (String, String) = {
 //
 //  }
@@ -48,7 +61,9 @@ object Main extends App {
   val entriesList = manifest.getProperty(entries).getList()
   val name = model.createProperty("http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#name")
   val action = model.createProperty("http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#action")
-
+  val httpLink = model.createProperty("http://www.w3.org/2013/csvw/tests/vocab#httpLink")
+  val option = model.createProperty("http://www.w3.org/2013/csvw/tests/vocab#option")
+  val metadata = model.createProperty("http://www.w3.org/2013/csvw/tests/vocab#metadata")
 
   val items = entriesList.iterator
   while ( {
@@ -64,7 +79,24 @@ object Main extends App {
       // Corrections to be made after introducing file caching
       pw.write(s"\t\tGiven I have a metadata file called ${actionResource} \n")
       pw.write(s"\t\tAnd the metadata is stored at the url ${actionResource} \n\n")
+    } else {
+      pw.write(s"\t\tGiven I have a csv file called ${actionResource} \n")
+      val httpLinkObject = item.getProperty(httpLink)
+      if (httpLinkObject != null){
+        pw.write(s"\t\tAnd it has a Link header holding ${httpLinkObject.getString}\n")
+      }
+      pw.write("And it is stored at the url ACTION_URI\n") // Corrections to be made after introducing file caching
+      val optionObject = item.getProperty(option)
+
+      if(optionObject != null){
+        val metadataObject = metadataExtractor(item)
+        println(metadataObject)
+
+        // no need to store the file here, as it will be listed in the 'implicit' list, which all get stored
+        pw.write(s"And I have a metadata file called ${metadataObject}")
+      }
     }
+
 //    val value1 = item.getRequiredPropery(myitemvalue1).getObject
 //    val value2 = item.getRequiredProperty(myitemvalue2).getObject
 //    System.out.println(item + " has:\n\tvalue1: " + value1 + "\n\tvalue2: " + value2)
