@@ -21,6 +21,7 @@ version := "1.0"
 // mostly only necessary if you intend to publish your library's binaries on a
 // place like Sonatype or Bintray.
 
+autoCompilerPlugins := true
 
 // Want to use a published library in your project?
 // You can define other libraries as dependencies in your build like this:
@@ -82,3 +83,11 @@ libraryDependencies += "org.apache.jena" % "jena-arq" % "3.14.0"
 
 // To learn more about multi-project builds, head over to the official sbt
 // documentation at http://www.scala-sbt.org/documentation.html
+
+Compile / resourceGenerators += Def.task {
+  import sys.process._
+  val path = "pwd".!!.trim
+  s"$path/src/main/shell/GenerateTests.sh".!
+  val file = (Compile / resourceManaged).value/".."/".."/".."/".."/"src"/"test"/"resources"/"features"/"csvw_validation_tests.feature"
+  Seq(file)
+}.taskValue
