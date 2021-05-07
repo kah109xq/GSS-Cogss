@@ -1,9 +1,9 @@
-import io.cucumber.scala.{ScalaDsl, EN}
+import io.cucumber.scala.{EN, ScalaDsl}
 
 class StepDefinitions extends ScalaDsl with EN {
 
   Given("I have a CSV file called {String}") { fileName: String =>
-    val contents = io.Source.fromFile(fileName).mkString
+//    val contents = io.Source.fromFile(fileName).mkString
   }
 
   Given("I have a metadata file called {String}") { filename: String =>

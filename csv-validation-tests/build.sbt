@@ -28,9 +28,11 @@ autoCompilerPlugins := true
 
 libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.2"
 
-libraryDependencies += "info.cukes" % "cucumber-scala_2.11" % "1.2.4"  
-libraryDependencies += "info.cukes" % "cucumber-junit" % "1.2.4"  
+libraryDependencies += "io.cucumber" %% "cucumber-scala" % "6.8.1" % Test
+libraryDependencies += "info.cukes" %  "cucumber-junit" % "1.2.4"
 libraryDependencies += "junit" % "junit" % "4.12"
+libraryDependencies += "com.novocode" % "junit-interface" % "0.11" % Test
+
 libraryDependencies += "io.spray" %%  "spray-json" % "1.3.5"
 
 libraryDependencies += "org.apache.jena" % "jena-arq" % "3.14.0"
