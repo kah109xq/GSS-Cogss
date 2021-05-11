@@ -13,13 +13,9 @@ scalaVersion := "2.13.1"
 
 // It's possible to define many kinds of settings, such as:
 
-name := "hello-world"
-organization := "ch.epfl.scala"
-version := "1.0"
-
-// Note, it's not required for you to define these three settings. These are
-// mostly only necessary if you intend to publish your library's binaries on a
-// place like Sonatype or Bintray.
+name := "CSV-Validation"
+organization := "ONS"
+version := "0.1"
 
 autoCompilerPlugins := true
 
@@ -28,13 +24,15 @@ autoCompilerPlugins := true
 
 libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.2"
 
-libraryDependencies += "io.cucumber" %% "cucumber-scala" % "6.8.1" % Test
-libraryDependencies += "info.cukes" %  "cucumber-junit" % "1.2.4"
-libraryDependencies += "junit" % "junit" % "4.12"
+libraryDependencies += "io.cucumber" %% "cucumber-scala" % "6.8.2" % Test
+libraryDependencies += "io.cucumber" % "cucumber-junit" % "6.8.2" % Test
+
+//libraryDependencies += "io.cucumber" %% "cucumber-scala" % "6.8.1" % Test
+//libraryDependencies += "info.cukes" %  "cucumber-junit" % "1.2.4"
+//libraryDependencies += "junit" % "junit" % "4.12"
 libraryDependencies += "com.novocode" % "junit-interface" % "0.11" % Test
 
 libraryDependencies += "io.spray" %%  "spray-json" % "1.3.5"
-
 libraryDependencies += "org.apache.jena" % "jena-arq" % "3.14.0"
 
 // Here, `libraryDependencies` is a set of dependencies, and by using `+=`,
