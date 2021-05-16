@@ -26,14 +26,12 @@ libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % 
 
 libraryDependencies += "io.cucumber" %% "cucumber-scala" % "6.8.2" % Test
 libraryDependencies += "io.cucumber" % "cucumber-junit" % "6.8.2" % Test
-
-//libraryDependencies += "io.cucumber" %% "cucumber-scala" % "6.8.1" % Test
-//libraryDependencies += "info.cukes" %  "cucumber-junit" % "1.2.4"
-//libraryDependencies += "junit" % "junit" % "4.12"
 libraryDependencies += "com.novocode" % "junit-interface" % "0.11" % Test
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.8" % Test
 
 libraryDependencies += "io.spray" %%  "spray-json" % "1.3.5"
 libraryDependencies += "org.apache.jena" % "jena-arq" % "3.14.0"
+libraryDependencies += "joda-time" % "joda-time" % "2.10.8"
 
 // Here, `libraryDependencies` is a set of dependencies, and by using `+=`,
 // we're adding the scala-parser-combinators dependency to the set of dependencies
