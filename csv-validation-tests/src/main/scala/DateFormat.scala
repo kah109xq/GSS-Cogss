@@ -16,7 +16,8 @@ case class DateFormat(pattern: String, dataType: Option[String] = None) {
     "XXX" -> "/(?<timezone>Z|[-+]((0[0-9]|1[0-3]):[0-5][0-9]|14:00))/".r,
     "x" -> "/(?<timezone>[-+]((0[0-9]|1[0-3])([0-5][0-9])?|14(00)?))/".r,
     "xx" -> "/(?<timezone>[-+]((0[0-9]|1[0-3])[0-5][0-9]|1400))/".r,
-    "xxx" -> "/(?<timezone>[-+]((0[0-9]|1[0-3]):[0-5][0-9]|14:00))/".r)
+    "xxx" -> "/(?<timezone>[-+]((0[0-9]|1[0-3]):[0-5][0-9]|14:00))/".r
+  )
   private var datePatternRegExp = HashMap(
     "yyyy-MM-dd" -> raw"""^$fields("yyyy")-$fields("MM")-$fields("dd")$$""".r,
     "yyyyMMdd" -> raw"""^$fields("yyyy")$fields("MM")$fields("dd")$$""".r,
@@ -34,10 +35,14 @@ case class DateFormat(pattern: String, dataType: Option[String] = None) {
     "M.d.yyyy" -> raw"""^$fields("M").$fields("d").$fields("yyyy")$$""".r
   )
   private var timePatternRegExp = HashMap(
-      "HH:mm:ss" -> raw"""^$fields("HH"):$fields("mm"):(?<second>$fields("ss"))$$""".r,
-      "HHmmss" -> raw"""^$fields("HH")$fields("mm")(?<second>$fields("ss"))$$""".r,
-      "HH:mm" -> raw"""^$fields("HH"):$fields("mm")$$""".r,
-      "HHmm" -> raw"""^$fields("HH")$fields("mm")$$""".r
+    "HH:mm:ss" -> raw"""^$fields("HH"):$fields("mm"):(?<second>$fields("ss"))$$""".r,
+    "HHmmss" -> raw"""^$fields("HH")$fields("mm")(?<second>$fields("ss"))$$""".r,
+    "HH:mm" -> raw"""^$fields("HH"):$fields("mm")$$""".r,
+    "HHmm" -> raw"""^$fields("HH")$fields("mm")$$""".r
+  )
+  private var dateTimePatternRegExp = HashMap(
+    "yyyy-MM-ddTHH:mm:ss" -> raw"""^$fields("yyyy")-$fields("MM")-$fields("dd")T$fields("HH"):$fields("mm"):(?<second>$fields("ss"))$$""".r,
+    "yyyy-MM-ddTHH:mm" -> raw"""^$fields("yyyy")-$fields("MM")-$fields("dd")T$fields("HH"):$fields("mm")$$""".r
   )
 
   def parse(value: String): HashMap[String, Any]= {
