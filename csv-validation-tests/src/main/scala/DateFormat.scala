@@ -44,6 +44,17 @@ case class DateFormat(pattern: String, dataType: Option[String] = None) {
     "yyyy-MM-ddTHH:mm:ss" -> raw"""^$fields("yyyy")-$fields("MM")-$fields("dd")T$fields("HH"):$fields("mm"):(?<second>$fields("ss"))$$""".r,
     "yyyy-MM-ddTHH:mm" -> raw"""^$fields("yyyy")-$fields("MM")-$fields("dd")T$fields("HH"):$fields("mm")$$""".r
   )
+  private var defaultRegExp = HashMap(
+    "http://www.w3.org/2001/XMLSchema#date" -> raw"""^$fields("yyyy")-$fields("MM")-$fields("dd")$fields("XXX")?$$""".r,
+    "http://www.w3.org/2001/XMLSchema#dateTime" -> raw"""^$fields("yyyy")-$fields("MM")-$fields("dd")T$fields("HH"):$fields("mm"):(?<second>$fields("ss")(\.[0-9]+)?)$fields("XXX")?$$""".r,
+    "http://www.w3.org/2001/XMLSchema#dateTimeStamp" -> raw"""^$fields("yyyy")-$fields("MM")-$fields("dd")T$fields("HH"):$fields("mm"):(?<second>$fields("ss")(\.[0-9]+)?)$fields("XXX")$$""".r,
+    "http://www.w3.org/2001/XMLSchema#gDay" -> raw"""^---$fields("dd")$fields("XXX")?$$""".r,
+    "http://www.w3.org/2001/XMLSchema#gMonth" -> raw"""$fields("MM")$fields("XXX")?$$""".r,
+    "http://www.w3.org/2001/XMLSchema#gMonthDay" -> raw"""^--$fields("MM")-$fields("dd")$fields("XXX")?$$""".r,
+    "http://www.w3.org/2001/XMLSchema#gYear" -> raw"""FIELDS["yyyy")$fields("XXX")?$$""".r,
+    "http://www.w3.org/2001/XMLSchema#gYearMonth" -> raw"""^$fields("yyyy")-$fields("MM")$fields("XXX")?$$""".r,
+    "http://www.w3.org/2001/XMLSchema#time" -> raw"""FIELDS["HH"):$fields("mm"):(?<second>$fields("ss")(\.[0-9]+)?)$fields("XXX")?$$""".r
+  )
 
   def parse(value: String): HashMap[String, Any]= {
     throw new NotImplementedError()
