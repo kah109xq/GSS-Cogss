@@ -1,72 +1,10 @@
 import scala.util.matching.Regex
 import scala.collection.mutable.HashMap
 
-case class DateFormat(pattern: Option[String] = None, dataType: Option[String] = None) {
-  private var dataTypeClone = None
-  private var regExp = None
-  private var testPattern = None
-  if(pattern == None){
-    regExp = defaultRegExp(dataType)
-    dataTypeClone = dataType
-  } else {
-    testPattern = pattern
-    testPattern.replaceAll("/S+/", "")
-    val iterableMap = fields.toSeq.sortBy(_._1.length).reverse
-    for ((k, v) <- iterableMap) testPattern.replaceAll(k, "")
-    "/[GyYuUrQqMLlwWdDFgEecahHKkjJmsSAzZOvVXx]/".r.findAllMatchIn(testPattern) match {
-      case None => throw new DateFormatError("Unrecognised date field symbols in date format")
-    }
-    regExp = datePatternRegExp(pattern)
-    dataTypeClone = if (regExp == None) "http://www.w3.org/2001/XMLSchema#time" else "http://www.w3.org/2001/XMLSchema#date"
-    if (regExp == None) regExp = timePatternRegExp(pattern)
-    dataTypeClone = if (regExp == None) "http://www.w3.org/2001/XMLSchema#dateTime" else dataTypeClone
-    if (regExp == None) regExp = dateTimePatternRegExp(pattern)
-    if (regExp == None) {
-      regExp = pattern
-      "/HH/".r.findAllMatchIn(regExp) match {
-        case None => "/yyyy/".r.findAllMatchIn(regExp) match {
-          case Some => dataTypeClone = "http://www.w3.org/2001/XMLSchema#date"
-        }
-      }
-      "/HH/".r.findAllMatchIn(regExp) match {
-        case Some => "/yyyy/".r.findAllMatchIn(regExp) match {
-          case None => dataTypeClone = "http://www.w3.org/2001/XMLSchema#time"
-        }
-      }
-      "/HH/".r.findAllMatchIn(regExp) match {
-        case Some => "/yyyy/".r.findAllMatchIn(regExp) match {
-          case Some => dataTypeClone = "http://www.w3.org/2001/XMLSchema#dateTime"
-        }
-      }
-      regExp = regExp.replaceFirst("HH", fields("HH").toString())
-      regExp = regExp.replaceFirst("mm", fields("mm").toString())
-      "/ss\\.S+/".r.findAllMatchIn(pattern) match {
-        case Some =>
-          val maxFractionalSeconds = pattern.split(".").last.length()
-          regExp = regExp.replaceFirst("/ss\\.S+$/", raw"""(?<second>$fields("ss")(\\.[0-9]{1,$fields})?)""")
-        case None => regExp.replaceFirst("ss", raw"""(?<second>$fields("ss")""")
-      }
-
-      "/yyyy/".r.findAllMatchIn(regExp) match {
-        case Some =>
-          regExp = regExp.replaceFirst("yyyy", fields("yyyy").toString())
-          regExp = regExp.replaceFirst("MM", fields("MM").toString())
-          regExp = regExp.replaceFirst("M", fields("M").toString())
-          regExp = regExp.replaceFirst("dd", fields("dd").toString())
-          regExp = regExp.replaceFirst("/d(?=[-T \\/\\.])/", fields("d").toString())
-      }
-
-      regExp = regExp.replaceFirst("XXX", fields("XXX").toString())
-      regExp = regExp.replaceFirst("XX", fields("XX").toString())
-      regExp = regExp.replaceFirst("X", fields("XXX").toString())
-      regExp = regExp.replaceFirst("xxx", fields("xxx").toString())
-      regExp = regExp.replaceFirst("xx", fields("xx").toString())
-      regExp = regExp.replaceFirst("/x(?!:)/", fields("d").toString())
-
-      regExp = raw"""^$regExp$$""".r
-    }
-  }
-  
+case class DateFormat(pattern: String, dataType: String) {
+  private var dataTypeClone:String = _
+  private var regExp:Regex = _
+  private var testPattern:String = _
   private var fields = HashMap(
     "yyyy" -> "/(?<year>-?([1-9][0-9]{3,}|0[0-9]{3}))/".r,
     "MM" -> "/(?<month>0[1-9]|1[0-2])/".r,
@@ -120,6 +58,68 @@ case class DateFormat(pattern: Option[String] = None, dataType: Option[String] =
     "http://www.w3.org/2001/XMLSchema#gYearMonth" -> raw"""^$fields("yyyy")-$fields("MM")$fields("XXX")?$$""".r,
     "http://www.w3.org/2001/XMLSchema#time" -> raw"""FIELDS["HH"):$fields("mm"):(?<second>$fields("ss")(\.[0-9]+)?)$fields("XXX")?$$""".r
   )
+
+  if(pattern == None && dataType != None){
+    regExp = defaultRegExp(dataType)
+    dataTypeClone = dataType
+  } else {
+    testPattern = pattern
+    testPattern.replaceAll("/S+/", "")
+    val iterableMap = fields.toSeq.sortBy(_._1.length).reverse
+    for ((k, v) <- iterableMap) testPattern.replaceAll(k, "")
+    Option("/[GyYuUrQqMLlwWdDFgEecahHKkjJmsSAzZOvVXx]/".r.findAllMatchIn(testPattern).toArray) match {
+      case None => throw new DateFormatError("Unrecognised date field symbols in date format") // When empty array
+    }
+    regExp = datePatternRegExp(pattern)
+    dataTypeClone = if (regExp == None) "http://www.w3.org/2001/XMLSchema#time" else "http://www.w3.org/2001/XMLSchema#date"
+    if (regExp == None) regExp = timePatternRegExp(pattern)
+    dataTypeClone = if (regExp == None) "http://www.w3.org/2001/XMLSchema#dateTime" else dataTypeClone
+    if (regExp == None) regExp = dateTimePatternRegExp(pattern)
+    if (regExp == None) {
+      regExp = pattern.r
+      Option("/HH/".r.findAllMatchIn(regExp.toString()).toArray) match {
+        case None => Option("/yyyy/".r.findAllMatchIn(regExp.toString()).toArray) match {
+          case Some(_)=> dataTypeClone = "http://www.w3.org/2001/XMLSchema#date"
+        }
+      }
+      Option("/HH/".r.findAllMatchIn(regExp.toString().toArray)) match {
+        case Some(_) => Option("/yyyy/".r.findAllMatchIn(regExp.toString()).toArray) match {
+          case None => dataTypeClone = "http://www.w3.org/2001/XMLSchema#time"
+        }
+      }
+      Option("/HH/".r.findAllMatchIn(regExp.toString().toArray)) match {
+        case Some(_) => Option("/yyyy/".r.findAllMatchIn(regExp.toString()).toArray) match {
+          case Some(_) => dataTypeClone = "http://www.w3.org/2001/XMLSchema#dateTime"
+        }
+      }
+      regExp = (regExp.toString().replaceFirst("HH", fields("HH").toString())).r
+      regExp = (regExp.toString().replaceFirst("mm", fields("mm").toString())).r
+      Option("/ss\\.S+/".r.findAllMatchIn(pattern.toString).toArray) match {
+        case Some(_) =>
+          val maxFractionalSeconds = pattern.split(".").last.length()
+          regExp = (regExp.toString().replaceFirst("/ss\\.S+$/", raw"""(?<second>$fields("ss")(\\.[0-9]{1,$fields})?)""")).r
+        case None => regExp = (regExp.toString().replaceFirst("ss", raw"""(?<second>$fields("ss")""")).r
+      }
+
+      Option("/yyyy/".r.findAllMatchIn(regExp.toString()).toArray) match {
+        case Some(_) =>
+          regExp = (regExp.toString().replaceFirst("yyyy", fields("yyyy").toString())).r
+          regExp = (regExp.toString().replaceFirst("MM", fields("MM").toString())).r
+          regExp = (regExp.toString().replaceFirst("M", fields("M").toString())).r
+          regExp = (regExp.toString().replaceFirst("dd", fields("dd").toString())).r
+          regExp = (regExp.toString().replaceFirst("/d(?=[-T \\/\\.])/", fields("d").toString())).r
+      }
+
+      regExp = (regExp.toString().replaceFirst("XXX", fields("XXX").toString())).r
+      regExp = (regExp.toString().replaceFirst("XX", fields("XX").toString())).r
+      regExp = (regExp.toString().replaceFirst("X", fields("XXX").toString())).r
+      regExp = (regExp.toString().replaceFirst("xxx", fields("xxx").toString())).r
+      regExp = (regExp.toString().replaceFirst("xx", fields("xx").toString())).r
+      regExp = (regExp.toString().replaceFirst("/x(?!:)/", fields("d").toString())).r
+
+      regExp = raw"""^$regExp$$""".r
+    }
+  }
 
   def parse(value: String): HashMap[String, Any]= {
     throw new NotImplementedError()
