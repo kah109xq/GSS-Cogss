@@ -34,6 +34,8 @@ libraryDependencies += "org.apache.jena" % "jena-arq" % "3.14.0"
 libraryDependencies += "joda-time" % "joda-time" % "2.10.8"
 libraryDependencies += "com.github.scopt" %% "scopt" % "4.0.0"
 libraryDependencies += "com.typesafe.akka" %% "akka-stream" % "2.6.10"
+libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3"
+libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2"
 
 // Here, `libraryDependencies` is a set of dependencies, and by using `+=`,
 // we're adding the scala-parser-combinators dependency to the set of dependencies

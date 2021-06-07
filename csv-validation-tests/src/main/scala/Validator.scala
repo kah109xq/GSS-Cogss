@@ -29,7 +29,7 @@ class Validator(var source: String, var schema: String = "") {
       .via(lineDelimiter)
       .map(byteString => byteString.utf8String)
       .mapAsyncUnordered(parallelism = 10)(processRowValue(_))
-      .runWith(Sink.foreach(println))
+      .runWith(Sink.foreach(doNothing))
       .onComplete(_ => system.terminate())
 
     var errors = Array[String]()
@@ -39,6 +39,7 @@ class Validator(var source: String, var schema: String = "") {
   }
 
 
+  def doNothing(x: String) = None
   def isAllDigits(x: String) = x forall Character.isDigit
 
   def processRowValue(str: String): Future[String] = Future {
