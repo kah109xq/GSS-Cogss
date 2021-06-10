@@ -11,10 +11,12 @@ import akka.util.ByteString
 import java.nio.file.Paths
 import java.nio.file.Path
 
+// This is only a skeleton for the core Validator class to be created. It is planned to accept the source csv and
+// schema and return errors and warnings collection when validate method is invoked. Changes to this signature can be
+// made in the due course or as per requirements
 class Validator(var source: String, var schema: String = "") {
-  def validate(): (Array[String], Array[String])  = {
+  def validate(): (Array[String], Array[String]) = {
 
-    println(source)
     implicit val system = ActorSystem("actor-system")
     implicit val materialzier = ActorMaterializer()
     val lineDelimiter: Flow[ByteString, ByteString, NotUsed] =
@@ -32,15 +34,19 @@ class Validator(var source: String, var schema: String = "") {
       .runWith(Sink.foreach(doNothing))
       .onComplete(_ => system.terminate())
 
-    var errors = Array[String]()
-    errors = errors:+ "Sample Error"
-    var warnings = Array[String]()
-    return (errors, warnings)
+    setErrorsAndWarnings()
   }
 
 
   def doNothing(x: String) = None
   def isAllDigits(x: String) = x forall Character.isDigit
+
+  def setErrorsAndWarnings(): (Array[String], Array[String]) = {
+    var errors = Array[String]()
+    errors = errors:+ "Sample Error"
+    var warnings = Array[String]()
+    return (errors, warnings)
+  }
 
   def processRowValue(str: String): Future[String] = Future {
     var columnValues = str.split(",")
