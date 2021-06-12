@@ -6,12 +6,13 @@ object Main extends App {
   val logger = Logger("Root")
   val parser = new scopt.OptionParser[Config]("csvwvalidation") {
     head("CSVW-Validation", "1.0")
-    arg[String]("<file_path>") action { (x, c) =>
-      c.copy(inputCSV = x)
-    } text "filename of source csv"
-    arg[String]("<file_path>") action { (x, c) =>
-      c.copy(inputSchema = x)
-    } text "filename of schema"
+    arg[String]("<source_file_path>")
+      .action { (x, c) => c.copy(inputCSV = x) }
+      .text("filename of source csv")
+    arg[String]("<schema_file_path>")
+      .action { (x, c) => c.copy(inputSchema = x) }
+      .text("filename of schema")
+      .optional()
   }
 
   parser.parse(args, Config()) match {
