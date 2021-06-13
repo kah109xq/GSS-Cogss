@@ -20,8 +20,10 @@ object Main extends App {
       var validator = new Validator(config.inputCSV)
       val (errors, warnings) = validator.validate()
       logger.info("Hello there!")
-      println(Console.BLUE + errors(0))
-      logger.error(errors(0))
+      println(Console.YELLOW + "Warnings")
+      warnings.map(x => logger.warn(x))
+      println(Console.RED + "Errors")
+      errors.map(x => logger.error(x))
     case None =>
   }
 }
