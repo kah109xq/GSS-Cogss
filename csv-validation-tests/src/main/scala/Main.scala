@@ -19,7 +19,6 @@ object Main extends App {
     case Some(config) =>
       var validator = new Validator(config.inputCSV)
       val (errors, warnings) = validator.validate()
-      logger.info("Hello there!")
       println(Console.YELLOW + "Warnings")
       warnings.map(x => logger.warn(x))
       println(Console.RED + "Errors")

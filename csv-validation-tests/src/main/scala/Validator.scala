@@ -16,34 +16,36 @@ import java.nio.file.Path
 // made in the due course or as per requirements
 class Validator(var source: String, var schema: String = "") {
   def validate(): (Array[String], Array[String]) = {
-
-    implicit val system = ActorSystem("actor-system")
-    implicit val materialzier = ActorMaterializer()
     val lineDelimiter: Flow[ByteString, ByteString, NotUsed] =
       Framing.delimiter(
         ByteString("\n"),
         maximumFrameLength = 256,
         allowTruncation = true
       )
-    val p1 = Paths.get(source)
-    FileIO
-      .fromPath(p1)
-      .via(lineDelimiter)
-      .map(byteString => byteString.utf8String)
-      .mapAsyncUnordered(parallelism = 10)(processRowValue(_))
-      .runWith(Sink.foreach(doNothing))
-      .onComplete(_ => system.terminate())
-
-    setErrorsAndWarnings()
+    if (scala.reflect.io.File(source).exists) {
+      implicit val system = ActorSystem("actor-system")
+      implicit val materialzier = ActorMaterializer()
+      val p1 = Paths.get(source)
+      FileIO
+        .fromPath(p1)
+        .via(lineDelimiter)
+        .map(byteString => byteString.utf8String)
+        .mapAsyncUnordered(parallelism = 10)(processRowValue(_))
+        .runWith(Sink.foreach(doNothing))
+        .onComplete(_ => system.terminate())
+      setErrorsAndWarnings(Array[String]())
+    } else {
+      var errors = Array[String]()
+      errors = errors:+ "File not found"
+      setErrorsAndWarnings(errors)
+    }
   }
 
 
   def doNothing(x: String) = None
   def isAllDigits(x: String) = x forall Character.isDigit
 
-  def setErrorsAndWarnings(): (Array[String], Array[String]) = {
-    var errors = Array[String]()
-    errors = errors:+ "Sample Error"
+  def setErrorsAndWarnings(errors: Array[String]): (Array[String], Array[String]) = {
     var warnings = Array[String]()
     return (errors, warnings)
   }
