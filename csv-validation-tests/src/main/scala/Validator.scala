@@ -16,28 +16,37 @@ import java.nio.file.Path
 // made in the due course or as per requirements
 class Validator(var source: String, var schema: String = "") {
   def validate(): (Array[String], Array[String]) = {
-    val lineDelimiter: Flow[ByteString, ByteString, NotUsed] =
-      Framing.delimiter(
-        ByteString("\n"),
-        maximumFrameLength = 256,
-        allowTruncation = true
-      )
-    if (scala.reflect.io.File(source).exists) {
-      implicit val system = ActorSystem("actor-system")
-      implicit val materialzier = ActorMaterializer()
-      val p1 = Paths.get(source)
-      FileIO
-        .fromPath(p1)
-        .via(lineDelimiter)
-        .map(byteString => byteString.utf8String)
-        .mapAsyncUnordered(parallelism = 10)(processRowValue(_))
-        .runWith(Sink.foreach(doNothing))
-        .onComplete(_ => system.terminate())
-      setErrorsAndWarnings(Array[String]())
-    } else {
+    try {
       var errors = Array[String]()
-      errors = errors:+ "File not found"
-      setErrorsAndWarnings(errors)
+      val lineDelimiter: Flow[ByteString, ByteString, NotUsed] =
+        Framing.delimiter(
+          ByteString("\n"),
+          maximumFrameLength = 256,
+          allowTruncation = true
+        )
+      if (scala.reflect.io.File(source).exists) {
+        implicit val system = ActorSystem("actor-system")
+        implicit val materialzier = ActorMaterializer()
+        val p1 = Paths.get(source)
+        FileIO
+          .fromPath(p1)
+          .via(lineDelimiter)
+          .map(byteString => byteString.utf8String)
+          .mapAsyncUnordered(parallelism = 10)(processRowValue(_))
+          .runWith(Sink.foreach(doNothing))
+          .onComplete(_ => system.terminate())
+        setErrorsAndWarnings(Array[String]())
+      } else {
+        errors = errors:+ "File not found"
+        setErrorsAndWarnings(errors)
+      }
+    } catch {
+      // Catch specific exceptions and handle them here
+      case _: Throwable => {
+        var errors = Array[String]()
+        errors = errors:+ "Some unknown error occured"
+        setErrorsAndWarnings(errors)
+      }
     }
   }
 
