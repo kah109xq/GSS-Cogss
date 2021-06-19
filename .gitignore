@@ -19,5 +19,6 @@ project/plugins/project/
 .idea
 
 # Other
+csv-validation-tests/src/test/resources/features/fixtures/*
 csv-validation-tests/model.txt
 *.txt
