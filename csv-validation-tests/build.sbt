@@ -89,7 +89,7 @@ libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2"
 Compile / resourceGenerators += Def.task {
   import sys.process._
   val path = "pwd".!!.trim
-  s"$path/src/main/shell/GenerateTests.sh".!
+  s"$path/src/main/ruby/GenerateTests.rb".!
   val file = (Compile / resourceManaged).value/".."/".."/".."/".."/"src"/"test"/"resources"/"features"/"csvw_validation_tests.feature"
   Seq(file)
 }.taskValue
