@@ -35,17 +35,17 @@ class Validator(var source: String, var schema: String = "") {
           .mapAsyncUnordered(parallelism = 10)(processRowValue(_))
           .runWith(Sink.foreach(doNothing))
           .onComplete(_ => system.terminate())
-        setErrorsAndWarnings(Array[String]())
+        returnErrorsAndWarnings(Array[String]())
       } else {
         errors = errors:+ "File not found"
-        setErrorsAndWarnings(errors)
+        returnErrorsAndWarnings(errors)
       }
     } catch {
       // Catch specific exceptions and handle them here
       case _: Throwable => {
         var errors = Array[String]()
         errors = errors:+ "Some unknown error occured"
-        setErrorsAndWarnings(errors)
+        returnErrorsAndWarnings(errors)
       }
     }
   }
@@ -54,7 +54,7 @@ class Validator(var source: String, var schema: String = "") {
   def doNothing(x: String) = None
   def isAllDigits(x: String) = x forall Character.isDigit
 
-  def setErrorsAndWarnings(errors: Array[String]): (Array[String], Array[String]) = {
+  def returnErrorsAndWarnings(errors: Array[String]): (Array[String], Array[String]) = {
     var warnings = Array[String]()
     return (errors, warnings)
   }
