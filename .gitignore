@@ -20,5 +20,6 @@ project/plugins/project/
 
 # Other
 csv-validation-tests/src/test/resources/features/fixtures/*
+csv-validation-tests/src/main/bin/run-csvw-tests
 csv-validation-tests/model.txt
 *.txt
