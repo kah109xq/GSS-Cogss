@@ -1,9 +1,9 @@
 #!/usr/bin/env ruby
+
+# Taken from the project Data-Liberation-Front/csvlint.rb (https://github.com/Data-Liberation-Front/csvlint.rb/blob/master/features/support/load_tests.rb)
 require 'json'
 require 'open-uri'
 require 'uri'
-
-
 
 BASE_URI = "https://w3c.github.io/csvw/tests/"
 FEATURE_BASE_PATH = File.join(File.dirname(__FILE__), "..")
