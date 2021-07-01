@@ -22,4 +22,6 @@ project/plugins/project/
 csv-validation-tests/src/test/resources/features/fixtures/*
 csv-validation-tests/src/main/bin/run-csvw-tests
 csv-validation-tests/model.txt
+csv-validation-tests/hw_25000.csv
+csv-validation-tests/manifest-validation.jsonld
 *.txt
