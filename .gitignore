@@ -1,0 +1,27 @@
+*.class
+*.log
+.DS_Store
+
+# sbt specific
+.cache/
+.history/
+.lib/
+dist/*
+target/
+lib_managed/
+src_managed/
+project/boot/
+project/plugins/project/
+
+# Scala-IDE specific
+.scala_dependencies
+.worksheet
+.idea
+
+# Other
+csv-validation-tests/src/test/resources/features/fixtures/*
+csv-validation-tests/src/main/bin/run-csvw-tests
+csv-validation-tests/model.txt
+csv-validation-tests/hw_25000.csv
+csv-validation-tests/manifest-validation.jsonld
+*.txt
