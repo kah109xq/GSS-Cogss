@@ -47,7 +47,7 @@ class PropertyCheckerTest extends FunSuite {
   }
 
   test("link property checker should return joined url after validation if baseUrl supplied") {
-    val propertyChecker = new PropertyChecker("@base", "csv-w", "https://www.w3.org/", "und")
+    val propertyChecker = new PropertyChecker("@id", "csv-w", "https://www.w3.org/", "und")
     val result = propertyChecker.checkProperty()
     assert(result._1 === "https://www.w3.org/csv-w")
   }

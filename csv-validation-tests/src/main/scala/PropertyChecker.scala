@@ -24,7 +24,7 @@ class PropertyChecker(property:String, value:Any, baseUrl:String, lang:String) {
     "@language" -> languageProperty(PropertyType.Context),
     "@base" -> linkProperty(PropertyType.Context),
     // common properties
-    //    "@id" -> linkProperty("common"),
+    "@id" -> linkProperty(PropertyType.Common),
     // Notes to implement - figure out how to handle different types of values
     "suppressOutput" -> booleanProperty(PropertyType.Common)
   )
