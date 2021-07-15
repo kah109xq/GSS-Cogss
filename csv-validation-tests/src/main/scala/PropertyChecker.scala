@@ -26,7 +26,8 @@ class PropertyChecker(property:String, value:Any, baseUrl:String, lang:String) {
     // common properties
     "@id" -> linkProperty(PropertyType.Common),
     // Notes to implement - figure out how to handle different types of values
-    "suppressOutput" -> booleanProperty(PropertyType.Common)
+    "suppressOutput" -> booleanProperty(PropertyType.Common),
+    "lang" -> languageProperty(PropertyType.Inherited),
   )
 
   def checkProperty(): (Any, Any, PropertyType.Value) = {
