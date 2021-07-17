@@ -1,5 +1,5 @@
 package CSVValidation
 
 object PropertyType extends Enumeration {
-  val Context, Common, Inherited = Value
+  val Context, Common, Inherited, Dialect = Value
 }

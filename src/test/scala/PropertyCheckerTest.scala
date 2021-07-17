@@ -1,7 +1,5 @@
 package CSVValidation
 import org.scalatest.FunSuite
-import org.scalatest._
-import io.circe._, io.circe.generic.auto._, io.circe.parser._, io.circe.syntax._
 
 class PropertyCheckerTest extends FunSuite {
   test("boolean property checker should return correct types") {
@@ -67,15 +65,27 @@ class PropertyCheckerTest extends FunSuite {
   }
 
   test("notes property checker returns values, warnings array for valid input") {
-//    val notesArray = Array("firstNote", "SecondNote", "ThirdNote")
-//    val propertyChecker = new PropertyChecker("notes", notesArray, "", "und")
-//    val (value, warnings, typeString) = propertyChecker.checkProperty()
-//
-//    val thing: String = (value.asInstanceOf[Array[String]]).asJson.toString
-//    throw new Exception(thing)
-//    assert(value.isInstanceOf[Array[String]])
-//    assert(warnings.isInstanceOf[Array[String]])
+    val notesArray = Array("firstNote", "SecondNote", "ThirdNote")
+    val propertyChecker = new PropertyChecker("notes", notesArray, "", "und")
+    val (values, warnings, typeString) = propertyChecker.checkProperty()
+    assert(values.isInstanceOf[Array[_]])
+    assert(warnings.isInstanceOf[Array[_]])
+    // TODO test if the values array is same as what is expected
   }
+
+  test("string property checker returns invalid warning if passed value is not string") {
+    val propertyChecker = new PropertyChecker("default", false, "", "und")
+    val (value, warnings, typeString) = propertyChecker.checkProperty()
+    assert(warnings === "invalid_value")
+  }
+
+  test("string property checker returns string value without warnings if passed value is string") {
+    val propertyChecker = new PropertyChecker("default", "sample string", "", "und")
+    val (value, warnings, typeString) = propertyChecker.checkProperty()
+    assert(warnings === null)
+    assert(value === "sample string")
+  }
+
 
 
 }

@@ -33,6 +33,10 @@ class PropertyChecker(property:String, value:Any, baseUrl:String, lang:String) {
     "notes" -> notesProperty(PropertyType.Common),
     "suppressOutput" -> booleanProperty(PropertyType.Common),
     "lang" -> languageProperty(PropertyType.Inherited),
+    "default" -> stringProperty(PropertyType.Inherited),
+    "commentPrefix" -> stringProperty(PropertyType.Dialect),
+    "delimiter" -> stringProperty(PropertyType.Dialect),
+    "quoteChar" -> stringProperty(PropertyType.Dialect)
   )
 
   def checkProperty(): (Any, Any, PropertyType.Value) = {
@@ -78,6 +82,13 @@ class PropertyChecker(property:String, value:Any, baseUrl:String, lang:String) {
     return value match {
       case b: Boolean => (b, "", typeString)
       case _ => (false, "invalid_value", typeString)
+    }
+  }
+
+  def stringProperty(typeString: PropertyType.Value):(String, Any, PropertyType.Value) = {
+    value match {
+      case s:String => return (s, null, typeString)
+      case _ => return ("", "invalid_value", typeString)
     }
   }
 
