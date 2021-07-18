@@ -86,6 +86,19 @@ class PropertyCheckerTest extends FunSuite {
     assert(value === "sample string")
   }
 
+  test("numeric property returns invalid on negative values") {
+    val propertyChecker = new PropertyChecker("headerRowCount", -10, "", "und")
+    val (value, warnings, typeString) = propertyChecker.checkProperty()
+    assert(warnings === "invalid_value")
+  }
+
+  test("numeric property returns value without warnings on valid value") {
+    val propertyChecker = new PropertyChecker("headerRowCount", 5, "", "und")
+    val (value, warnings, typeString) = propertyChecker.checkProperty()
+    assert(warnings === null)
+    assert(value === 5)
+  }
+
 
 
 }

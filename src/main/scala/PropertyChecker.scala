@@ -36,7 +36,10 @@ class PropertyChecker(property:String, value:Any, baseUrl:String, lang:String) {
     "default" -> stringProperty(PropertyType.Inherited),
     "commentPrefix" -> stringProperty(PropertyType.Dialect),
     "delimiter" -> stringProperty(PropertyType.Dialect),
-    "quoteChar" -> stringProperty(PropertyType.Dialect)
+    "quoteChar" -> stringProperty(PropertyType.Dialect),
+    "headerRowCount" -> numericProperty(PropertyType.Dialect),
+    "skipColumns" -> numericProperty(PropertyType.Dialect),
+    "skipRows" -> numericProperty(PropertyType.Dialect)
   )
 
   def checkProperty(): (Any, Any, PropertyType.Value) = {
@@ -89,6 +92,14 @@ class PropertyChecker(property:String, value:Any, baseUrl:String, lang:String) {
     value match {
       case s:String => return (s, null, typeString)
       case _ => return ("", "invalid_value", typeString)
+    }
+  }
+
+  def numericProperty(typeString: PropertyType.Value):(Any, Any, PropertyType.Value) = {
+    value match {
+      case x: Int if (x >= 0) => return (x, null, typeString)
+      case x: Int if (x < 0) => return (null, "invalid_value", typeString)
+      case _ => return (null, "invalid_value", typeString)
     }
   }
 
