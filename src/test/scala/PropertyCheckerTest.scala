@@ -99,8 +99,27 @@ class PropertyCheckerTest extends FunSuite {
     assert(value === 5)
   }
 
+  test("null property returns value in array without warnings on valid value") {
+    val propertyChecker = new PropertyChecker("null", "sample value", "", "und")
+    val (values, warnings, typeString) = propertyChecker.checkProperty()
+    val expectedValues = Array[String]("sample value")
+    assert(warnings === null)
+    assert(values === expectedValues)
+  }
 
+  test("null property returns warnings for invalid value (non string type)") {
+    val propertyChecker = new PropertyChecker("null", false, "", "und")
+    val (value, warnings, typeString) = propertyChecker.checkProperty()
+    assert(warnings === "invalid_value")
+  }
 
+  test("null property with values array holding different types") {
+    val values:Array[Any] = Array("sample", false)
+    val propertyChecker = new PropertyChecker("null", values, "", "und")
+    val (returnedValues, warnings, typeString) = propertyChecker.checkProperty()
+    assert(warnings === Array[String]("invalid_value"))
+    assert(returnedValues === Array[String]("sample"))
+  }
 }
 
 

@@ -32,6 +32,7 @@ class PropertyChecker(property:String, value:Any, baseUrl:String, lang:String) {
     // Notes to implement - figure out how to handle different types of values
     "notes" -> notesProperty(PropertyType.Common),
     "suppressOutput" -> booleanProperty(PropertyType.Common),
+    "null" -> nullProperty(PropertyType.Inherited),
     "lang" -> languageProperty(PropertyType.Inherited),
     "default" -> stringProperty(PropertyType.Inherited),
     "commentPrefix" -> stringProperty(PropertyType.Dialect),
@@ -111,6 +112,24 @@ class PropertyChecker(property:String, value:Any, baseUrl:String, lang:String) {
         return (values, warnings, typeString)
       }
       case _ => return (false, "invalid_value", typeString)
+    }
+  }
+
+  def nullProperty(typeString:PropertyType.Value):(Array[String], Any, PropertyType.Value) = {
+    value match {
+      case s: String => return (Array[String](s), null, typeString)
+      case sa: Array[Any] => {
+        var values = Array[String]()
+        var warnings = Array[String]()
+        for (x <- sa) {
+          x match {
+            case xs: String => values = values :+ xs
+            case _ => warnings = warnings :+ "invalid_value"
+          }
+        }
+        return (values, warnings, typeString)
+      }
+      case _ => return (Array[String](""), "invalid_value", typeString)
     }
   }
 
