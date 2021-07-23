@@ -120,6 +120,18 @@ class PropertyCheckerTest extends FunSuite {
     assert(warnings === Array[String]("invalid_value"))
     assert(returnedValues === Array[String]("sample"))
   }
+
+  test("separator property returns invalid warning if not of type string or null") {
+    val propertyChecker = new PropertyChecker("separator", false, "", "und")
+    val (returnedValues, warnings, typeString) = propertyChecker.checkProperty()
+    assert(warnings === "invalid_value")
+  }
+
+  test("separator property returns value on valid case") {
+    val propertyChecker = new PropertyChecker("separator", null, "", "und")
+    val (returnedValue, warnings, typeString) = propertyChecker.checkProperty()
+    assert(returnedValue === null)
+  }
 }
 
 

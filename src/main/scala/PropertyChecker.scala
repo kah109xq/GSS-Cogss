@@ -33,6 +33,7 @@ class PropertyChecker(property:String, value:Any, baseUrl:String, lang:String) {
     "notes" -> notesProperty(PropertyType.Common),
     "suppressOutput" -> booleanProperty(PropertyType.Common),
     "null" -> nullProperty(PropertyType.Inherited),
+    "separator" -> separatorProperty(PropertyType.Inherited),
     "lang" -> languageProperty(PropertyType.Inherited),
     "default" -> stringProperty(PropertyType.Inherited),
     "commentPrefix" -> stringProperty(PropertyType.Dialect),
@@ -130,6 +131,14 @@ class PropertyChecker(property:String, value:Any, baseUrl:String, lang:String) {
         return (values, warnings, typeString)
       }
       case _ => return (Array[String](""), "invalid_value", typeString)
+    }
+  }
+
+  def separatorProperty(typeString:PropertyType.Value):(Any, Any, PropertyType.Value) = {
+    return value match {
+      case s:String => (s, null, typeString)
+      case null => (value, null, typeString)
+      case _ => (null, "invalid_value", typeString)
     }
   }
 
