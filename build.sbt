@@ -23,15 +23,10 @@ libraryDependencies += "com.github.scopt" %% "scopt" % "4.0.0"
 libraryDependencies += "com.typesafe.akka" %% "akka-stream" % "2.6.10"
 libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3"
 libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2"
+libraryDependencies += "com.fasterxml.jackson.core" % "jackson-databind" % "2.12.1"
+libraryDependencies += "com.fasterxml.jackson.core" % "jackson-annotations" % "2.12.1"
+libraryDependencies += "com.fasterxml.jackson.core" %"jackson-core" % "2.12.1"
 
-
-val circeVersion = "0.12.3"
-
-libraryDependencies ++= Seq(
-  "io.circe" %% "circe-core",
-  "io.circe" %% "circe-generic",
-  "io.circe" %% "circe-parser"
-).map(_ % circeVersion)
 
 // Here, `libraryDependencies` is a set of dependencies, and by using `+=`,
 // we're adding the scala-parser-combinators dependency to the set of dependencies
