@@ -193,31 +193,30 @@ object PropertyChecker {
 
 class PropertyChecker(property:String, value: JsonNode, baseUrl:String, lang:String) {
 
-  val Properties = HashMap(
-    // Context Properties
-    "@language" -> languageProperty(PropertyType.Context),
-    "@base" -> linkProperty(PropertyType.Context),
-    // common properties
-    "@id" -> linkProperty(PropertyType.Common),
-    // Notes to implement - figure out how to handle different types of values
-    "notes" -> notesProperty(PropertyType.Common),
-    "suppressOutput" -> booleanProperty(PropertyType.Common),
-    "null" -> nullProperty(PropertyType.Inherited),
-    "separator" -> separatorProperty(PropertyType.Inherited),
-    "lang" -> languageProperty(PropertyType.Inherited),
-    "default" -> stringProperty(PropertyType.Inherited),
-    "commentPrefix" -> stringProperty(PropertyType.Dialect),
-    "delimiter" -> stringProperty(PropertyType.Dialect),
-    "quoteChar" -> stringProperty(PropertyType.Dialect),
-    "headerRowCount" -> numericProperty(PropertyType.Dialect),
-    "skipColumns" -> numericProperty(PropertyType.Dialect),
-    "skipRows" -> numericProperty(PropertyType.Dialect),
-    "datatype" -> datatypeProperty(PropertyType.Inherited)
-  )
+  def propertiesValidation(property:String): (Any, Any, PropertyType.Value) = {
+    property match {
+      case "@language" => languageProperty(PropertyType.Context)
+      case "@base" => linkProperty(PropertyType.Context)
+      case "@id" => linkProperty(PropertyType.Common)
+      case "notes" => notesProperty(PropertyType.Common)
+      case "suppressOutput" => booleanProperty(PropertyType.Common)
+      case "null" => nullProperty(PropertyType.Inherited)
+      case "separator" => separatorProperty(PropertyType.Inherited)
+      case "lang" => languageProperty(PropertyType.Inherited)
+      case "default" => stringProperty(PropertyType.Inherited)
+      case "commentPrefix" => stringProperty(PropertyType.Dialect)
+      case "delimiter" => stringProperty(PropertyType.Dialect)
+      case "quoteChar" => stringProperty(PropertyType.Dialect)
+      case "headerRowCount" => numericProperty(PropertyType.Dialect)
+      case "skipColumns" => numericProperty(PropertyType.Dialect)
+      case "skipRows" => numericProperty(PropertyType.Dialect)
+      case "datatype" => datatypeProperty(PropertyType.Inherited)
+    }
+  }
 
   def checkProperty(): (Any, Any, PropertyType.Value) = {
     // More conditions and logic to add here.
-    val f = Properties(property)
+    val f = propertiesValidation(property)
     return f
   }
 
