@@ -1,4 +1,5 @@
 package CSVValidation
+import CSVValidation.PropertyType.Context
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.fasterxml.jackson.databind.node.{ArrayNode, JsonNodeFactory, ObjectNode, TextNode}
@@ -193,31 +194,33 @@ object PropertyChecker {
 
 class PropertyChecker(property:String, value: JsonNode, baseUrl:String, lang:String) {
 
-  def propertiesValidation(property:String): (Any, Any, PropertyType.Value) = {
-    property match {
-      case "@language" => languageProperty(PropertyType.Context)
-      case "@base" => linkProperty(PropertyType.Context)
-      case "@id" => linkProperty(PropertyType.Common)
-      case "notes" => notesProperty(PropertyType.Common)
-      case "suppressOutput" => booleanProperty(PropertyType.Common)
-      case "null" => nullProperty(PropertyType.Inherited)
-      case "separator" => separatorProperty(PropertyType.Inherited)
-      case "lang" => languageProperty(PropertyType.Inherited)
-      case "default" => stringProperty(PropertyType.Inherited)
-      case "commentPrefix" => stringProperty(PropertyType.Dialect)
-      case "delimiter" => stringProperty(PropertyType.Dialect)
-      case "quoteChar" => stringProperty(PropertyType.Dialect)
-      case "headerRowCount" => numericProperty(PropertyType.Dialect)
-      case "skipColumns" => numericProperty(PropertyType.Dialect)
-      case "skipRows" => numericProperty(PropertyType.Dialect)
-      case "datatype" => datatypeProperty(PropertyType.Inherited)
-    }
-  }
+  val Properties = Map(
+    "@language" -> languageProperty (PropertyType.Context),
+       // Context Properties
+//       ,Properties
+       "@base" -> linkProperty(PropertyType.Context),
+//       // common properties
+       "@id" -> linkProperty(PropertyType.Common),
+//       // Notes to implement - figure out how to handle different types of values
+       "notes" -> notesProperty(PropertyType.Common),
+       "suppressOutput" -> booleanProperty(PropertyType.Common),
+       "null" -> nullProperty(PropertyType.Inherited),
+       "separator" -> separatorProperty(PropertyType.Inherited),
+       "lang" -> languageProperty(PropertyType.Inherited),
+       "default" -> stringProperty(PropertyType.Inherited),
+       "commentPrefix" -> stringProperty(PropertyType.Dialect),
+       "delimiter" -> stringProperty(PropertyType.Dialect),
+       "quoteChar" -> stringProperty(PropertyType.Dialect),
+       "headerRowCount" -> numericProperty(PropertyType.Dialect),
+       "skipColumns" -> numericProperty(PropertyType.Dialect),
+       "skipRows" -> numericProperty(PropertyType.Dialect),
+       "datatype" -> datatypeProperty(PropertyType.Inherited)
+     )
 
   def checkProperty(): (Any, Any, PropertyType.Value) = {
     // More conditions and logic to add here.
-    val f = propertiesValidation(property)
-    return f
+    val f = Properties(property)
+    return f()
   }
 
 //  JsonNode - primitive values + ObjectNodes + ArrayNode
@@ -259,305 +262,324 @@ class PropertyChecker(property:String, value: JsonNode, baseUrl:String, lang:Str
     return Array[String]()
   }
 
-  def booleanProperty(typeString:PropertyType.Value):(Boolean, Any, PropertyType.Value) = {
-    if(value.isBoolean) {
-      return (value.asBoolean(), "", typeString)
-    } else {
-      return (false, "invalid_value", typeString)
-    }
-  }
-
-  def stringProperty(typeString: PropertyType.Value):(String, Any, PropertyType.Value) = {
-    if(value.isTextual) {
-      return (value.asText(), null, typeString)
-    } else {
-      return ("", "invalid_value", typeString)
-    }
-  }
-
-  def numericProperty(typeString: PropertyType.Value):(Any, Any, PropertyType.Value) = {
-    if(value.isInt && value.asInt >= 0) {
-      return (value.asInt(), null, typeString)
-    } else if(value.isInt && value.asInt < 0) {
-      return (null, "invalid_value", typeString)
-    } else {
-      return (null, "invalid_value", typeString)
-    }
-  }
-
-  def notesProperty(typeString:PropertyType.Value):(Any, Any, PropertyType.Value) = {
-    if(value.isArray) {
-      val arrayValue = value.asInstanceOf[ArrayNode]
-      val elements = arrayValue.elements().asScala
-      if (elements forall (_.isTextual())) {
-        /**
-         * [(1,2), (3,4), (5,6)] => ([1,3,5], [2,4,6])
-         */
-        val (values, warnings) = Array.from(elements.map(x => checkCommonPropertyValue(x, baseUrl, lang))).unzip
-        return (values, warnings, typeString)
+  def booleanProperty(typeString:PropertyType.Value):() => (Boolean, Any, PropertyType.Value) = {
+    return () => {
+      if(value.isBoolean) {
+        (value.asBoolean(), "", typeString)
+      } else {
+        (false, "invalid_value", typeString)
       }
     }
-    return (false, "invalid_value", typeString)
   }
 
-  def nullProperty(typeString:PropertyType.Value):(Array[String], Any, PropertyType.Value) = {
-    if(value.isTextual) {
-      return (Array[String](value.asText()), null, typeString)
-    } else if(value.isArray) {
-      var values = Array[String]()
+  def stringProperty(typeString: PropertyType.Value):() => (String, Any, PropertyType.Value) = {
+    return () => {
+      if (value.isTextual) {
+         (value.asText(), null, typeString)
+      } else {
+         ("", "invalid_value", typeString)
+      }
+    }
+  }
+
+  def numericProperty(typeString: PropertyType.Value):() => (Any, Any, PropertyType.Value) = {
+     return () => {
+      if (value.isInt && value.asInt >= 0) {
+         (value.asInt(), null, typeString)
+      } else if (value.isInt && value.asInt < 0) {
+         (null, "invalid_value", typeString)
+      } else {
+         (null, "invalid_value", typeString)
+      }
+    }
+  }
+
+  def notesProperty(typeString:PropertyType.Value):() => (Any, Any, PropertyType.Value) = {
+     def notesPropertyInternal (): (Any, Any, PropertyType.Value) = {
+      if (value.isArray) {
+        val arrayValue = value.asInstanceOf[ArrayNode]
+        val elements = arrayValue.elements().asScala
+        if (elements forall (_.isTextual())) {
+          /**
+           * [(1,2), (3,4), (5,6)] => ([1,3,5], [2,4,6])
+           */
+          val (values, warnings) = Array.from(elements.map(x => checkCommonPropertyValue(x, baseUrl, lang))).unzip
+          return (values, warnings, typeString)
+        }
+      }
+       (false, "invalid_value", typeString)
+    }
+    return notesPropertyInternal
+  }
+
+  def nullProperty(typeString:PropertyType.Value):() => (Array[String], Any, PropertyType.Value) = {
+     () => {
+      if (value.isTextual) {
+         (Array[String](value.asText()), null, typeString)
+      } else if (value.isArray) {
+        var values = Array[String]()
+        var warnings = Array[String]()
+        for (x <- value.elements().asScala) {
+          x match {
+            case xs if xs.isTextual => values = values :+ xs.asText()
+            case _ => warnings = warnings :+ "invalid_value"
+          }
+        }
+         (values, warnings, typeString)
+      } else {
+         (Array[String](""), "invalid_value", typeString)
+      }
+    }
+  }
+
+  def separatorProperty(typeString:PropertyType.Value):() => (Any, Any, PropertyType.Value) = {
+     () => {
+       value match {
+        case s if s.isTextual => (s.asText, null, typeString)
+        case s if s.isNull => (s, null, typeString)
+        case _ => (null, "invalid_value", typeString)
+      }
+    }
+  }
+
+  def linkProperty(typeString:PropertyType.Value, v:JsonNode = value):() => (String, String, PropertyType.Value) = {
+     () => {
+      var baseUrlCopy = ""
+      v match {
+        case s if s.isTextual => {
+          val matcher = "^_:.*".r.pattern.matcher(s.asText())
+          if (matcher.matches) {
+            throw new MetadataError(s"URL ${s.asText} starts with _:")
+          }
+          baseUrlCopy = baseUrl match {
+            case "" => s.asText()
+            case _ => baseUrl + s.asText()
+          }
+           (baseUrlCopy, "", typeString)
+        }
+        case _ =>  ("", "invalid_value", typeString)
+      }
+    }
+  }
+
+  def languageProperty (typeString:PropertyType.Value) : () => (String, Any, PropertyType.Value) = {
+     () => {
+      value match {
+        case s if s.isTextual && PropertyChecker.Bcp47LanguagetagRegExp.pattern.matcher(s.asText()).matches => (s.asText(), "", typeString)
+        case _ => ("", "invalid_value", typeString)
+      }
+    }
+  }
+
+  def datatypeProperty(typeString: PropertyType.Value):() => (Any, Any, PropertyType.Value) = {
+     () => {
       var warnings = Array[String]()
-      for (x <- value.elements().asScala) {
-        x match {
-          case xs if xs.isTextual => values = values :+ xs.asText()
-          case _ => warnings = warnings :+ "invalid_value"
-        }
-      }
-      return (values, warnings, typeString)
-    } else {
-      return (Array[String](""), "invalid_value", typeString)
-    }
-  }
-
-  def separatorProperty(typeString:PropertyType.Value):(Any, Any, PropertyType.Value) = {
-    return value match {
-      case s if s.isTextual => (s.asText, null, typeString)
-      case s if s.isNull => (s, null, typeString)
-      case _ => (null, "invalid_value", typeString)
-    }
-  }
-
-  def linkProperty(typeString:PropertyType.Value, v:JsonNode = value):(String, String, PropertyType.Value) = {
-    var baseUrlCopy = ""
-    v match {
-      case s if s.isTextual => {
-        val matcher = "^_:.*".r.pattern.matcher(s.asText())
-        if(matcher.matches) {
-          throw new MetadataError(s"URL ${s.asText} starts with _:")
-        }
-        baseUrlCopy = baseUrl match {
-          case "" => s.asText()
-          case _ => baseUrl + s.asText()
-        }
-        return (baseUrlCopy, "", typeString)
-      }
-      case _ => return("", "invalid_value", typeString)
-    }
-  }
-
-  def languageProperty(typeString:PropertyType.Value):(String, Any, PropertyType.Value) = {
-    return value match {
-      case s if s.isTextual && PropertyChecker.Bcp47LanguagetagRegExp.pattern.matcher(s.asText()).matches => (s.asText(), "", typeString)
-      case _ => ("", "invalid_value", typeString)
-    }
-  }
-
-  def datatypeProperty(typeString: PropertyType.Value):(Any, Any, PropertyType.Value) = {
-    var warnings = Array[String]()
-    var valueCopy = value.deepCopy()
-      .asInstanceOf[JsonNode] // Just coz its a json node
-    valueCopy match {
-      case v if v.isObject => {
-        val objectNode = v.asInstanceOf[ObjectNode]
-        if (!objectNode.path("@id").isMissingNode) {
-          val idValue = objectNode.get("@id").asText()
-          if (PropertyChecker.BuiltInDataTypes.contains(idValue)) { // check this coz contains just checks in keys
-            throw new MetadataError(s"datatype @id must not be the id of a built-in datatype ($idValue)")
-          } else {
-            val (_, w, _) = linkProperty(PropertyType.Common, objectNode.get("@id")) // assign warnings in val w
-            if (w != "") {
-              warnings = warnings :+ w
-              objectNode.remove("@id")
+      var valueCopy = value.deepCopy()
+        .asInstanceOf[JsonNode] // Just coz its a json node
+      valueCopy match {
+        case v if v.isObject => {
+          val objectNode = v.asInstanceOf[ObjectNode]
+          if (!objectNode.path("@id").isMissingNode) {
+            val idValue = objectNode.get("@id").asText()
+            if (PropertyChecker.BuiltInDataTypes.contains(idValue)) { // check this coz contains just checks in keys
+              throw new MetadataError(s"datatype @id must not be the id of a built-in datatype ($idValue)")
+            } else {
+              val (_, w, _) = linkProperty(PropertyType.Common, objectNode.get("@id"))() // assign warnings in val w
+              if (w != "") {
+                warnings = warnings :+ w
+                objectNode.remove("@id")
+              }
             }
           }
-        }
 
-        if (!objectNode.path("base").isMissingNode) {
-          val baseValue = objectNode.get("base").asText()
-          if (PropertyChecker.BuiltInDataTypes.contains(baseValue)) {
-            objectNode.put("base", PropertyChecker.BuiltInDataTypes(baseValue))
+          if (!objectNode.path("base").isMissingNode) {
+            val baseValue = objectNode.get("base").asText()
+            if (PropertyChecker.BuiltInDataTypes.contains(baseValue)) {
+              objectNode.put("base", PropertyChecker.BuiltInDataTypes(baseValue))
+            } else {
+              objectNode.put("base", PropertyChecker.BuiltInDataTypes("string"))
+              warnings = warnings :+ "invalid_datatype_base"
+            }
           } else {
             objectNode.put("base", PropertyChecker.BuiltInDataTypes("string"))
-            warnings = warnings :+ "invalid_datatype_base"
           }
+        }
+        case x if x.isTextual && (PropertyChecker.BuiltInDataTypes.contains(x.asText())) => {
+          val objectNode = PropertyChecker.mapper.createObjectNode
+          objectNode.put("@id", PropertyChecker.BuiltInDataTypes(x.asText()))
+          valueCopy = objectNode
+        }
+        case x if x.isTextual => {
+          val objectNode = PropertyChecker.mapper.createObjectNode
+          objectNode.put("@id", PropertyChecker.BuiltInDataTypes("string"))
+          valueCopy = objectNode
+          warnings = warnings :+ "invalid_value"
+        }
+      }
+      val objectNode = valueCopy.asInstanceOf[ObjectNode]
+      if (!objectNode.path("base").isMissingNode) {
+        val baseValue = objectNode.get("base").asText()
+        if (!PropertyChecker.StringDataTypes.contains(baseValue) || !PropertyChecker.BinaryDataTypes.contains(baseValue)) {
+          if (!objectNode.path("length").isMissingNode) {
+            throw new MetadataError(s"datatypes based on $baseValue cannot have a length facet")
+          }
+          if (!objectNode.path("minLength").isMissingNode) {
+            throw new MetadataError(s"datatypes based on $baseValue cannot have a minLength facet")
+          }
+          if (!objectNode.path("maxLength").isMissingNode) {
+            throw new MetadataError(s"datatypes based on $baseValue cannot have a maxLength facet")
+          }
+        }
+      }
+
+      if (!objectNode.path("minimum").isMissingNode) {
+        objectNode.put("minInclusive", valueCopy.get("minimum").asText())
+        objectNode.remove("minimum")
+      }
+
+      if (!objectNode.path("maximum").isMissingNode) {
+        objectNode.put("maxInclusive", valueCopy.get("maximum").asText())
+        objectNode.remove("maximum")
+      }
+
+      val baseValue = if (objectNode.path("base").isMissingNode) {
+        ""
+      } else {
+        objectNode.get("base").asText
+      }
+
+      warnings :+ convertValueFacet(objectNode, "minInclusive", baseValue)
+      warnings :+ convertValueFacet(objectNode, "minExclusive", baseValue)
+      warnings :+ convertValueFacet(objectNode, "maxInclusive", baseValue)
+      warnings :+ convertValueFacet(objectNode, "maxExclusive", baseValue)
+
+      val minInclusive = if (valueCopy.path("minInclusive").path("dateTime").isMissingNode) {
+        if (objectNode.path("minInclusive").isMissingNode) {
+          null
         } else {
-          objectNode.put("base", PropertyChecker.BuiltInDataTypes("string"))
+          objectNode.get("minInclusive").asText()
+        }
+      } else {
+        if (objectNode.path("minInclusive").path("dateTime").isMissingNode) {
+          null
+        } else {
+          objectNode.get("minInclusive").get("dateTime").asText()
         }
       }
-      case x if x.isTextual && (PropertyChecker.BuiltInDataTypes.contains(x.asText())) => {
-        val objectNode = PropertyChecker.mapper.createObjectNode
-        objectNode.put("@id", PropertyChecker.BuiltInDataTypes(x.asText()))
-        valueCopy = objectNode
-      }
-      case x if x.isTextual => {
-        val objectNode = PropertyChecker.mapper.createObjectNode
-        objectNode.put("@id", PropertyChecker.BuiltInDataTypes("string"))
-        valueCopy = objectNode
-        warnings = warnings :+ "invalid_value"
-      }
-    }
-    val objectNode = valueCopy.asInstanceOf[ObjectNode]
-    if(!objectNode.path("base").isMissingNode) {
-      val baseValue = objectNode.get("base").asText()
-      if (!PropertyChecker.StringDataTypes.contains(baseValue) || !PropertyChecker.BinaryDataTypes.contains(baseValue)) {
-        if (!objectNode.path("length").isMissingNode) {
-          throw new MetadataError(s"datatypes based on $baseValue cannot have a length facet")
+
+      val maxInclusive = if (objectNode.path("maxInclusive").path("dateTime").isMissingNode) {
+        if (objectNode.path("maxInclusive").isMissingNode) {
+          null
+        } else {
+          objectNode.get("maxInclusive").asText()
         }
-        if (!objectNode.path("minLength").isMissingNode) {
-          throw new MetadataError(s"datatypes based on $baseValue cannot have a minLength facet")
-        }
-        if (!objectNode.path("maxLength").isMissingNode) {
-          throw new MetadataError(s"datatypes based on $baseValue cannot have a maxLength facet")
+      } else {
+        if (objectNode.path("maxInclusive").path("dateTime").isMissingNode) {
+          null
+        } else {
+          objectNode.get("maxInclusive").get("dateTime").asText()
         }
       }
-    }
 
-    if (!objectNode.path("minimum").isMissingNode) {
-      objectNode.put("minInclusive", valueCopy.get("minimum").asText())
-      objectNode.remove("minimum")
-    }
-
-    if (!objectNode.path("maximum").isMissingNode) {
-      objectNode.put("maxInclusive", valueCopy.get("maximum").asText())
-      objectNode.remove("maximum")
-    }
-
-    val baseValue = if(objectNode.path("base").isMissingNode) {
-      ""
-    } else {
-      objectNode.get("base").asText
-    }
-
-    warnings :+ convertValueFacet(objectNode, "minInclusive", baseValue)
-    warnings :+ convertValueFacet(objectNode, "minExclusive", baseValue)
-    warnings :+ convertValueFacet(objectNode, "maxInclusive", baseValue)
-    warnings :+ convertValueFacet(objectNode, "maxExclusive", baseValue)
-
-    val minInclusive = if(valueCopy.path("minInclusive").path("dateTime").isMissingNode) {
-      if(objectNode.path("minInclusive").isMissingNode) {
-        null
+      val minExclusive = if (objectNode.path("minExclusive").path("dateTime").isMissingNode) {
+        if (objectNode.path("minExclusive").isMissingNode) {
+          null
+        } else {
+          objectNode.get("minExclusive").asText()
+        }
       } else {
-        objectNode.get("minInclusive").asText()
+        if (objectNode.get("minExclusive").path("dateTime").isMissingNode) {
+          null
+        } else {
+          objectNode.get("minExclusive").get("dateTime").asText()
+        }
       }
-    } else {
-      if(objectNode.path("minInclusive").path("dateTime").isMissingNode) {
-        null
+
+      val maxExclusive = if (objectNode.path("maxExclusive").path("dateTime").isMissingNode) {
+        if (objectNode.path("maxExclusive").isMissingNode) {
+          null
+        } else {
+          objectNode.get("maxExclusive").asText()
+        }
       } else {
-        objectNode.get("minInclusive").get("dateTime").asText()
+        if (objectNode.path("maxExclusive").path("dateTime").isMissingNode) {
+          null
+        } else {
+          objectNode.get("maxExclusive").get("dateTime").asText()
+        }
       }
-    }
 
-    val maxInclusive = if(objectNode.path("maxInclusive").path("dateTime").isMissingNode) {
-      if(objectNode.path("maxInclusive").isMissingNode) {
-        null
-      } else {
-        objectNode.get("maxInclusive").asText()
+
+      if (minInclusive != null && minExclusive != null) {
+        throw new MetadataError(s"datatype cannot specify both minimum/minInclusive ($minInclusive) and minExclusive ($minExclusive)")
       }
-    } else {
-      if(objectNode.path("maxInclusive").path("dateTime").isMissingNode) {
-        null
-      } else {
-        objectNode.get("maxInclusive").get("dateTime").asText()
+
+      if (maxInclusive != null && maxExclusive != null) {
+        throw new MetadataError(s"datatype cannot specify both maximum/maxInclusive ($maxInclusive) and maxExclusive ($maxExclusive)")
       }
-    }
 
-    val minExclusive = if(objectNode.path("minExclusive").path("dateTime").isMissingNode) {
-      if(objectNode.path("minExclusive").isMissingNode) {
-        null
-      } else {
-        objectNode.get("minExclusive").asText()
+      if (minInclusive != null && maxInclusive != null && minInclusive > maxInclusive) {
+        throw new MetadataError(s"datatype minInclusive ($minInclusive) cannot be more than maxInclusive ($maxInclusive)")
       }
-    } else {
-      if(objectNode.get("minExclusive").path("dateTime").isMissingNode) {
-        null
-      } else {
-        objectNode.get("minExclusive").get("dateTime").asText()
+
+      if (minInclusive != null && maxExclusive != null && minInclusive >= maxExclusive) {
+        throw new MetadataError(s"datatype minInclusive $minInclusive) cannot be more than or equal to maxExclusive ($maxExclusive)")
       }
-    }
 
-    val maxExclusive = if(objectNode.path("maxExclusive").path("dateTime").isMissingNode) {
-      if(objectNode.path("maxExclusive").isMissingNode) {
-        null
-      } else {
-        objectNode.get("maxExclusive").asText()
+      if (minExclusive != null && maxExclusive != null && minExclusive > maxExclusive) {
+        throw new MetadataError(s"datatype minExclusive ($minExclusive) cannot be more than or equal to maxExclusive ($maxExclusive)")
       }
-    } else {
-      if(objectNode.path("maxExclusive").path("dateTime").isMissingNode) {
-        null
-      } else {
-        objectNode.get("maxExclusive").get("dateTime").asText()
+
+      if (minExclusive != null && maxInclusive != null && minExclusive >= maxInclusive) {
+        throw new MetadataError(s"datatype minExclusive ($minExclusive) cannot be more than maxInclusive ($maxInclusive)")
       }
-    }
 
+      val minLength = objectNode.path("minLength")
+      val maxLength = objectNode.path("maxLength")
+      val length = objectNode.path("length")
+      if (!length.isMissingNode && !minLength.isMissingNode && length.asInt < minLength.asInt) {
+        throw new MetadataError(s"datatype length ($length) cannot be less than minLength ($minLength)")
+      }
+      if (!length.isMissingNode && !maxLength.isMissingNode && length.asInt > maxLength.asInt) {
+        throw new MetadataError(s"datatype length ($length) cannot be more than maxLength ($maxLength)")
+      }
+      if (!minLength.isMissingNode && !maxLength.isMissingNode && minLength.asInt > maxLength.asInt) {
+        throw new MetadataError(s"datatype minLength ($minLength) cannot be more than maxLength ($maxLength)")
+      }
 
-    if(minInclusive != null && minExclusive != null) {
-      throw new MetadataError(s"datatype cannot specify both minimum/minInclusive ($minInclusive) and minExclusive ($minExclusive)")
-    }
-
-    if(maxInclusive != null && maxExclusive != null) {
-      throw new MetadataError(s"datatype cannot specify both maximum/maxInclusive ($maxInclusive) and maxExclusive ($maxExclusive)")
-    }
-
-    if(minInclusive != null && maxInclusive != null && minInclusive > maxInclusive) {
-      throw new MetadataError(s"datatype minInclusive ($minInclusive) cannot be more than maxInclusive ($maxInclusive)")
-    }
-
-    if(minInclusive != null && maxExclusive != null && minInclusive >= maxExclusive) {
-      throw new MetadataError(s"datatype minInclusive $minInclusive) cannot be more than or equal to maxExclusive ($maxExclusive)")
-    }
-
-    if(minExclusive != null && maxExclusive != null && minExclusive > maxExclusive) {
-      throw new MetadataError(s"datatype minExclusive ($minExclusive) cannot be more than or equal to maxExclusive ($maxExclusive)")
-    }
-
-    if(minExclusive != null && maxInclusive != null && minExclusive >= maxInclusive) {
-      throw new MetadataError(s"datatype minExclusive ($minExclusive) cannot be more than maxInclusive ($maxInclusive)")
-    }
-
-    val minLength = objectNode.path("minLength")
-    val maxLength = objectNode.path("maxLength")
-    val length = objectNode.path("length")
-    if(!length.isMissingNode && !minLength.isMissingNode && length.asInt < minLength.asInt) {
-      throw new MetadataError(s"datatype length ($length) cannot be less than minLength ($minLength)")
-    }
-    if(!length.isMissingNode && !maxLength.isMissingNode && length.asInt > maxLength.asInt) {
-      throw new MetadataError(s"datatype length ($length) cannot be more than maxLength ($maxLength)")
-    }
-    if(!minLength.isMissingNode && !maxLength.isMissingNode && minLength.asInt > maxLength.asInt) {
-      throw new MetadataError(s"datatype minLength ($minLength) cannot be more than maxLength ($maxLength)")
-    }
-
-    if(!objectNode.path("format").isMissingNode) {
-      val baseValue = objectNode.get("base").asText()
-      if (PropertyChecker.RegExpFormatDataTypes.contains(baseValue)) {
-        try {
-          // In ruby regexp is stored in format key. Also regexp validated. Determine how to handle this in scala
-          // value["format"] = Regexp.new(value["format"])
-          objectNode.set("format", new TextNode(objectNode.get("format").asText))
-        } catch {
-          case e: Exception => {
-            objectNode.remove("format")
-            warnings :+ "invalid_regex"
+      if (!objectNode.path("format").isMissingNode) {
+        val baseValue = objectNode.get("base").asText()
+        if (PropertyChecker.RegExpFormatDataTypes.contains(baseValue)) {
+          try {
+            // In ruby regexp is stored in format key. Also regexp validated. Determine how to handle this in scala
+            // value["format"] = Regexp.new(value["format"])
+            objectNode.set("format", new TextNode(objectNode.get("format").asText))
+          } catch {
+            case e: Exception => {
+              objectNode.remove("format")
+              warnings :+ "invalid_regex"
+            }
           }
-        }
-      } else if (PropertyChecker.NumericFormatDataTypes.contains(baseValue)) {
-        throw new NotImplementedError() // Implement after adding NumberFormat class
-      } else if (baseValue == "http://www.w3.org/2001/XMLSchema#boolean") {
-        if (objectNode.get("format").isTextual) {
-          val formatValues = objectNode.get("format").asText.split(" ")
-          if (formatValues.length != 2) {
-            objectNode.remove("format")
-            warnings :+ "invalid_boolean_format"
-          } else {
-            // Use a better way to create arrayNodeObject
-            val arrayNodeObject = JsonNodeFactory.instance.arrayNode()
-            arrayNodeObject.add(formatValues(0))
-            arrayNodeObject.add(formatValues(1))
+        } else if (PropertyChecker.NumericFormatDataTypes.contains(baseValue)) {
+          throw new NotImplementedError() // Implement after adding NumberFormat class
+        } else if (baseValue == "http://www.w3.org/2001/XMLSchema#boolean") {
+          if (objectNode.get("format").isTextual) {
+            val formatValues = objectNode.get("format").asText.split(" ")
+            if (formatValues.length != 2) {
+              objectNode.remove("format")
+              warnings :+ "invalid_boolean_format"
+            } else {
+              // Use a better way to create arrayNodeObject
+              val arrayNodeObject = JsonNodeFactory.instance.arrayNode()
+              arrayNodeObject.add(formatValues(0))
+              arrayNodeObject.add(formatValues(1))
+            }
           }
+        } else if (PropertyChecker.DateFormatDataTypes.contains(baseValue)) {
+          throw new NotImplementedError() // Implement after adding DateFormat class
         }
-      } else if (PropertyChecker.DateFormatDataTypes.contains(baseValue)) {
-        throw new NotImplementedError() // Implement after adding DateFormat class
       }
+       (objectNode, warnings, typeString)
     }
-    return (objectNode, warnings, typeString)
   }
 }
