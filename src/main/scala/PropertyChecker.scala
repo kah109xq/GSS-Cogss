@@ -201,26 +201,26 @@ object PropertyChecker {
   val Properties = Map(
     "@language" -> languageProperty (PropertyType.Context),
        // Context Properties
-//       ,Properties
-       "@base" -> linkProperty(PropertyType.Context),
+
+    "@base" -> linkProperty(PropertyType.Context),
 //       // common properties
-       "@id" -> linkProperty(PropertyType.Common),
+    "@id" -> linkProperty(PropertyType.Common),
 //       // Notes to implement - figure out how to handle different types of values
-       "notes" -> notesProperty(PropertyType.Common),
-       "suppressOutput" -> booleanProperty(PropertyType.Common),
-       "null" -> nullProperty(PropertyType.Inherited),
-       "separator" -> separatorProperty(PropertyType.Inherited),
-       "lang" -> languageProperty(PropertyType.Inherited),
-       "default" -> stringProperty(PropertyType.Inherited),
-       "commentPrefix" -> stringProperty(PropertyType.Dialect),
-       "delimiter" -> stringProperty(PropertyType.Dialect),
-       "quoteChar" -> stringProperty(PropertyType.Dialect),
-       "headerRowCount" -> numericProperty(PropertyType.Dialect),
-       "skipColumns" -> numericProperty(PropertyType.Dialect),
-       "skipRows" -> numericProperty(PropertyType.Dialect),
-       "datatype" -> datatypeProperty(PropertyType.Inherited),
-       "tableSchema" -> tableSchemaProperty(PropertyType.Table)
-     )
+    "notes" -> notesProperty(PropertyType.Common),
+    "suppressOutput" -> booleanProperty(PropertyType.Common),
+    "null" -> nullProperty(PropertyType.Inherited),
+    "separator" -> separatorProperty(PropertyType.Inherited),
+    "lang" -> languageProperty(PropertyType.Inherited),
+    "default" -> stringProperty(PropertyType.Inherited),
+    "commentPrefix" -> stringProperty(PropertyType.Dialect),
+    "delimiter" -> stringProperty(PropertyType.Dialect),
+    "quoteChar" -> stringProperty(PropertyType.Dialect),
+    "headerRowCount" -> numericProperty(PropertyType.Dialect),
+    "skipColumns" -> numericProperty(PropertyType.Dialect),
+    "skipRows" -> numericProperty(PropertyType.Dialect),
+    "datatype" -> datatypeProperty(PropertyType.Inherited),
+    "tableSchema" -> tableSchemaProperty(PropertyType.Table),
+    "foreignKeys" -> foreignKeysProperty(PropertyType.Schema))
 
   def checkProperty(property: String, value: JsonNode, baseUrl:String, lang:String): (JsonNode, Array[String], PropertyType.Value) = {
     // More conditions and logic to add here.
@@ -342,8 +342,7 @@ object PropertyChecker {
   def separatorProperty(typeString:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
      (value, baseUrl, lang) => {
        value match {
-        case s if s.isTextual => (s, null, typeString)
-        case s if s.isNull => (s, null, typeString)
+        case s if s.isTextual || s.isNull => (s, Array[String](), typeString)
         case _ => (NullNode.getInstance(), Array[String]("invalid_value"), typeString)
       }
     }
