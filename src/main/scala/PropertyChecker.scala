@@ -342,8 +342,7 @@ object PropertyChecker {
   def separatorProperty(typeString:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
      (value, baseUrl, lang) => {
        value match {
-        case s if s.isTextual => (s, null, typeString)
-        case s if s.isNull => (s, null, typeString)
+        case s if s.isTextual || s.isNull => (s, Array[String](), typeString)
         case _ => (NullNode.getInstance(), Array[String]("invalid_value"), typeString)
       }
     }

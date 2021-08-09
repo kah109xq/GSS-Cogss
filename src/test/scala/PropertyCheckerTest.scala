@@ -497,5 +497,33 @@ class PropertyCheckerTest extends FunSuite {
     assert(warnings === Array[String]("invalid_value"))
   }
 
+  test("return expected schemaJson after validation (remove properties test)") {
+    val json = """
+                 |{
+                 | "@id": "https://chickenburgers.com",
+                 | "notes": "notesContent"
+                 | }
+                 |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    jsonNode.asInstanceOf[ObjectNode].remove("notes")
+    val (schema, warnings, _) = PropertyChecker.checkProperty("tableSchema", jsonNode, baseUrl = "https://chickenburgers.com", "und")
 
+    assert(warnings === Array[String]())
+    assert(schema === jsonNode) // Notes property should be stripped of after validation as it does not come under schema or inherited
+  }
+
+  test("return expected schemaJson after validation") {
+    val json = """
+                 |{
+                 | "@id": "https://chickenburgers.com",
+                 | "separator": "separatorContent"
+                 | }
+                 |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val (schema, warnings, _) = PropertyChecker.checkProperty("tableSchema", jsonNode, baseUrl = "https://chickenburgers.com", "und")
+
+    assert(warnings === Array[String]())
+    assert(schema === jsonNode) // separator property should Not be stripped of after validation as it comes under inherited
+  }
+  
 }
