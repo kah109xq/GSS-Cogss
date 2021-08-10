@@ -1,8 +1,10 @@
 package CSVValidation
-import CSVValidation.PropertyType.Context
+import java.io.File
+import java.net.{URI, URL}
+
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
-import com.fasterxml.jackson.databind.node.{ArrayNode, JsonNodeFactory, ObjectNode, TextNode}
+import com.fasterxml.jackson.databind.node.{ArrayNode, BooleanNode, JsonNodeFactory, NullNode, ObjectNode, TextNode}
 
 import scala.collection.IterableOnce.iterableOnceExtensionMethods
 import scala.jdk.CollectionConverters._
@@ -10,8 +12,13 @@ import scala.util.matching.Regex
 import scala.collection.mutable.HashMap
 import com.fasterxml.jackson.databind.ObjectMapper
 
+import scala.io.Source
+import scala.util.Using
+
 
 object PropertyChecker {
+  val startsWithUnderscore = "^_:.*".r
+  val containsColon = ".*:.*".r
   val mapper = new ObjectMapper
   val Bcp47Regular = "(art-lojban|cel-gaulish|no-bok|no-nyn|zh-guoyu|zh-hakka|zh-min|zh-min-nan|zh-xiang)"
   val Bcp47Irregular = "(en-GB-oed|i-ami|i-bnn|i-default|i-enochian|i-hak|i-klingon|i-lux|i-mingo|i-navajo|i-pwn|i-tao|i-tay|i-tsu|sgn-BE-FR|sgn-BE-NL|sgn-CH-DE)"
@@ -190,9 +197,6 @@ object PropertyChecker {
     "vcard" -> "http://www.w3.org/2006/vcard/ns#",
     "schema" -> "http://schema.org/"
     )
-}
-
-class PropertyChecker(property:String, value: JsonNode, baseUrl:String, lang:String) {
 
   val Properties = Map(
     "@language" -> languageProperty (PropertyType.Context),
@@ -217,29 +221,29 @@ class PropertyChecker(property:String, value: JsonNode, baseUrl:String, lang:Str
        "datatype" -> datatypeProperty(PropertyType.Inherited)
      )
 
-  def checkProperty(): (Any, Any, PropertyType.Value) = {
+  def checkProperty(property: String, value: JsonNode, baseUrl:String, lang:String): (JsonNode, Array[String], PropertyType.Value) = {
     // More conditions and logic to add here.
     val f = Properties(property)
-    return f()
+    return f(value, baseUrl, lang)
   }
 
 //  JsonNode - primitive values + ObjectNodes + ArrayNode
 //  ObjectNode
 //  ArrayNode
 
-  def checkCommonPropertyValue(value: JsonNode, baseUrl: String, lang: String):(Any, Any) = {
+  def checkCommonPropertyValue(value: JsonNode, baseUrl: String, lang: String):(Any, String) = {
     if(value.isObject) {
       throw new NotImplementedError("to be implemented later")
     }
     else if(value.isTextual) {
       val s = value.asText()
       lang match {
-        case "und" => return (s, null)
+        case "und" => return (s, "")
         case _ => {
           val h = HashMap(
             "@value" -> s, "@language" -> lang
           )
-          return (h, null)
+          return (h, "")
         }
       }
     } else if(value.isArray) {
@@ -262,40 +266,40 @@ class PropertyChecker(property:String, value: JsonNode, baseUrl:String, lang:Str
     return Array[String]()
   }
 
-  def booleanProperty(typeString:PropertyType.Value):() => (Boolean, Any, PropertyType.Value) = {
-    return () => {
+  def booleanProperty(typeString:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+    return (value, baseUrl, lang) => {
       if(value.isBoolean) {
-        (value.asBoolean(), "", typeString)
+        (value, Array[String](), typeString)
       } else {
-        (false, "invalid_value", typeString)
+        (BooleanNode.getFalse, Array[String]("invalid_value"), typeString)
       }
     }
   }
 
-  def stringProperty(typeString: PropertyType.Value):() => (String, Any, PropertyType.Value) = {
-    return () => {
+  def stringProperty(typeString: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+    return (value, baseUrl, lang) => {
       if (value.isTextual) {
-         (value.asText(), null, typeString)
+         (value, Array[String](), typeString)
       } else {
-         ("", "invalid_value", typeString)
+         (new TextNode(""), Array[String]("invalid_value"), typeString)
       }
     }
   }
 
-  def numericProperty(typeString: PropertyType.Value):() => (Any, Any, PropertyType.Value) = {
-     return () => {
+  def numericProperty(typeString: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+     return (value, baseUrl, lang) => {
       if (value.isInt && value.asInt >= 0) {
-         (value.asInt(), null, typeString)
+         (value, Array[String](), typeString)
       } else if (value.isInt && value.asInt < 0) {
-         (null, "invalid_value", typeString)
+         (NullNode.getInstance(), Array[String]("invalid_value"), typeString)
       } else {
-         (null, "invalid_value", typeString)
+         (NullNode.getInstance(), Array[String]("invalid_value"), typeString)
       }
     }
   }
 
-  def notesProperty(typeString:PropertyType.Value):() => (Any, Any, PropertyType.Value) = {
-     def notesPropertyInternal (): (Any, Any, PropertyType.Value) = {
+  def notesProperty(typeString:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+     def notesPropertyInternal (value: JsonNode, baseUrl: String, lang: String): (JsonNode, Array[String], PropertyType.Value) = {
       if (value.isArray) {
         val arrayValue = value.asInstanceOf[ArrayNode]
         val elements = arrayValue.elements().asScala
@@ -304,18 +308,19 @@ class PropertyChecker(property:String, value: JsonNode, baseUrl:String, lang:Str
            * [(1,2), (3,4), (5,6)] => ([1,3,5], [2,4,6])
            */
           val (values, warnings) = Array.from(elements.map(x => checkCommonPropertyValue(x, baseUrl, lang))).unzip
-          return (values, warnings, typeString)
+          val arrayNode:ArrayNode = PropertyChecker.mapper.valueToTree(values)
+          return (arrayNode, warnings, typeString)
         }
       }
-       (false, "invalid_value", typeString)
+       (BooleanNode.getFalse, Array[String]("invalid_value"), typeString)
     }
     return notesPropertyInternal
   }
 
-  def nullProperty(typeString:PropertyType.Value):() => (Array[String], Any, PropertyType.Value) = {
-     () => {
+  def nullProperty(typeString:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+     (value, baseUrl, lang) => {
       if (value.isTextual) {
-         (Array[String](value.asText()), null, typeString)
+         (value, Array[String](), typeString)
       } else if (value.isArray) {
         var values = Array[String]()
         var warnings = Array[String]()
@@ -325,29 +330,30 @@ class PropertyChecker(property:String, value: JsonNode, baseUrl:String, lang:Str
             case _ => warnings = warnings :+ "invalid_value"
           }
         }
-         (values, warnings, typeString)
+        val arrayNode:ArrayNode = PropertyChecker.mapper.valueToTree(values)
+         (arrayNode, warnings, typeString)
       } else {
-         (Array[String](""), "invalid_value", typeString)
+         (NullNode.getInstance(), Array[String]("invalid_value"), typeString)
       }
     }
   }
 
-  def separatorProperty(typeString:PropertyType.Value):() => (Any, Any, PropertyType.Value) = {
-     () => {
+  def separatorProperty(typeString:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+     (value, baseUrl, lang) => {
        value match {
-        case s if s.isTextual => (s.asText, null, typeString)
+        case s if s.isTextual => (s, null, typeString)
         case s if s.isNull => (s, null, typeString)
-        case _ => (null, "invalid_value", typeString)
+        case _ => (NullNode.getInstance(), Array[String]("invalid_value"), typeString)
       }
     }
   }
 
-  def linkProperty(typeString:PropertyType.Value, v:JsonNode = value):() => (String, String, PropertyType.Value) = {
-     () => {
+  def linkProperty(typeString:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+     (v, baseUrl, lang) => {
       var baseUrlCopy = ""
       v match {
         case s if s.isTextual => {
-          val matcher = "^_:.*".r.pattern.matcher(s.asText())
+          val matcher = PropertyChecker.startsWithUnderscore.pattern.matcher(s.asText())
           if (matcher.matches) {
             throw new MetadataError(s"URL ${s.asText} starts with _:")
           }
@@ -355,24 +361,24 @@ class PropertyChecker(property:String, value: JsonNode, baseUrl:String, lang:Str
             case "" => s.asText()
             case _ => baseUrl + s.asText()
           }
-           (baseUrlCopy, "", typeString)
+           (new TextNode(baseUrlCopy), Array[String](""), typeString)
         }
-        case _ =>  ("", "invalid_value", typeString)
+        case _ =>  (new TextNode(""), Array[String]("invalid_value"), typeString)
       }
     }
   }
 
-  def languageProperty (typeString:PropertyType.Value) : () => (String, Any, PropertyType.Value) = {
-     () => {
+  def languageProperty (typeString:PropertyType.Value) : (JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+     (value, baseUrl, lang) => {
       value match {
-        case s if s.isTextual && PropertyChecker.Bcp47LanguagetagRegExp.pattern.matcher(s.asText()).matches => (s.asText(), "", typeString)
-        case _ => ("", "invalid_value", typeString)
+        case s if s.isTextual && PropertyChecker.Bcp47LanguagetagRegExp.pattern.matcher(s.asText()).matches => (s, Array[String](), typeString)
+        case _ => (new TextNode(""), Array[String]("invalid_value"), typeString)
       }
     }
   }
 
-  def datatypeProperty(typeString: PropertyType.Value):() => (Any, Any, PropertyType.Value) = {
-     () => {
+  def datatypeProperty(typeString: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+     (value, baseUrl, lang) => {
       var warnings = Array[String]()
       var valueCopy = value.deepCopy()
         .asInstanceOf[JsonNode] // Just coz its a json node
@@ -384,9 +390,9 @@ class PropertyChecker(property:String, value: JsonNode, baseUrl:String, lang:Str
             if (PropertyChecker.BuiltInDataTypes.contains(idValue)) { // check this coz contains just checks in keys
               throw new MetadataError(s"datatype @id must not be the id of a built-in datatype ($idValue)")
             } else {
-              val (_, w, _) = linkProperty(PropertyType.Common, objectNode.get("@id"))() // assign warnings in val w
-              if (w != "") {
-                warnings = warnings :+ w
+              val (_, w, _) = linkProperty(PropertyType.Common)(objectNode.get("@id"), baseUrl, lang) // assign warnings in val w
+              if (!w.isEmpty) {
+                warnings = Array.concat(warnings, w)
                 objectNode.remove("@id")
               }
             }
@@ -457,7 +463,7 @@ class PropertyChecker(property:String, value: JsonNode, baseUrl:String, lang:Str
         if (objectNode.path("minInclusive").isMissingNode) {
           null
         } else {
-          objectNode.get("minInclusive").asText()
+          objectNode.get("minInclusive").asInt()
         }
       } else {
         if (objectNode.path("minInclusive").path("dateTime").isMissingNode) {
@@ -471,7 +477,7 @@ class PropertyChecker(property:String, value: JsonNode, baseUrl:String, lang:Str
         if (objectNode.path("maxInclusive").isMissingNode) {
           null
         } else {
-          objectNode.get("maxInclusive").asText()
+          objectNode.get("maxInclusive").asInt()
         }
       } else {
         if (objectNode.path("maxInclusive").path("dateTime").isMissingNode) {
@@ -485,7 +491,7 @@ class PropertyChecker(property:String, value: JsonNode, baseUrl:String, lang:Str
         if (objectNode.path("minExclusive").isMissingNode) {
           null
         } else {
-          objectNode.get("minExclusive").asText()
+          objectNode.get("minExclusive").asInt()
         }
       } else {
         if (objectNode.get("minExclusive").path("dateTime").isMissingNode) {
@@ -499,7 +505,7 @@ class PropertyChecker(property:String, value: JsonNode, baseUrl:String, lang:Str
         if (objectNode.path("maxExclusive").isMissingNode) {
           null
         } else {
-          objectNode.get("maxExclusive").asText()
+          objectNode.get("maxExclusive").asInt()
         }
       } else {
         if (objectNode.path("maxExclusive").path("dateTime").isMissingNode) {
@@ -518,20 +524,20 @@ class PropertyChecker(property:String, value: JsonNode, baseUrl:String, lang:Str
         throw new MetadataError(s"datatype cannot specify both maximum/maxInclusive ($maxInclusive) and maxExclusive ($maxExclusive)")
       }
 
-      if (minInclusive != null && maxInclusive != null && minInclusive > maxInclusive) {
+      if (minInclusive != null && maxInclusive != null && minInclusive.asInstanceOf[Int] > maxInclusive.asInstanceOf[Int]) {
         throw new MetadataError(s"datatype minInclusive ($minInclusive) cannot be more than maxInclusive ($maxInclusive)")
       }
 
-      if (minInclusive != null && maxExclusive != null && minInclusive >= maxExclusive) {
-        throw new MetadataError(s"datatype minInclusive $minInclusive) cannot be more than or equal to maxExclusive ($maxExclusive)")
+      if (minInclusive != null && maxExclusive != null && minInclusive.asInstanceOf[Int] >= maxExclusive.asInstanceOf[Int]) {
+        throw new MetadataError(s"datatype minInclusive ($minInclusive) cannot be greater than or equal to maxExclusive ($maxExclusive)")
       }
 
-      if (minExclusive != null && maxExclusive != null && minExclusive > maxExclusive) {
-        throw new MetadataError(s"datatype minExclusive ($minExclusive) cannot be more than or equal to maxExclusive ($maxExclusive)")
+      if (minExclusive != null && maxExclusive != null && minExclusive.asInstanceOf[Int] > maxExclusive.asInstanceOf[Int]) {
+        throw new MetadataError(s"datatype minExclusive ($minExclusive) cannot be greater than or equal to maxExclusive ($maxExclusive)")
       }
 
-      if (minExclusive != null && maxInclusive != null && minExclusive >= maxInclusive) {
-        throw new MetadataError(s"datatype minExclusive ($minExclusive) cannot be more than maxInclusive ($maxInclusive)")
+      if (minExclusive != null && maxInclusive != null && minExclusive.asInstanceOf[Int] >= maxInclusive.asInstanceOf[Int]) {
+        throw new MetadataError(s"datatype minExclusive ($minExclusive) cannot be greater than maxInclusive ($maxInclusive)")
       }
 
       val minLength = objectNode.path("minLength")
@@ -557,22 +563,23 @@ class PropertyChecker(property:String, value: JsonNode, baseUrl:String, lang:Str
           } catch {
             case e: Exception => {
               objectNode.remove("format")
-              warnings :+ "invalid_regex"
+              warnings = warnings :+ "invalid_regex"
             }
           }
         } else if (PropertyChecker.NumericFormatDataTypes.contains(baseValue)) {
           throw new NotImplementedError() // Implement after adding NumberFormat class
         } else if (baseValue == "http://www.w3.org/2001/XMLSchema#boolean") {
           if (objectNode.get("format").isTextual) {
-            val formatValues = objectNode.get("format").asText.split(" ")
+            val formatValues = objectNode.get("format").asText.split("""\|""")
             if (formatValues.length != 2) {
               objectNode.remove("format")
-              warnings :+ "invalid_boolean_format"
+              warnings = warnings :+ "invalid_boolean_format"
             } else {
               // Use a better way to create arrayNodeObject
               val arrayNodeObject = JsonNodeFactory.instance.arrayNode()
               arrayNodeObject.add(formatValues(0))
               arrayNodeObject.add(formatValues(1))
+              objectNode.replace("format", arrayNodeObject)
             }
           }
         } else if (PropertyChecker.DateFormatDataTypes.contains(baseValue)) {
