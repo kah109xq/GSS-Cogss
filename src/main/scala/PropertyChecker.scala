@@ -1,19 +1,10 @@
 package CSVValidation
-import java.io.File
-import java.net.{URI, URL}
-
-import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
-import com.fasterxml.jackson.databind.node.{ArrayNode, BooleanNode, JsonNodeFactory, NullNode, ObjectNode, TextNode}
+import com.fasterxml.jackson.databind.node._
 
-import scala.collection.IterableOnce.iterableOnceExtensionMethods
+import scala.collection.mutable.HashMap
 import scala.jdk.CollectionConverters._
 import scala.util.matching.Regex
-import scala.collection.mutable.HashMap
-import com.fasterxml.jackson.databind.ObjectMapper
-
-import scala.io.Source
-import scala.util.Using
 
 
 object PropertyChecker {

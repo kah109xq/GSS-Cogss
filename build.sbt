@@ -1,4 +1,4 @@
-name := "csv-validation-new"
+name := "csv-validation"
 
 organization := "ONS"
 version := "0.1"

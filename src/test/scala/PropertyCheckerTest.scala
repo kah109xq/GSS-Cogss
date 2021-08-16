@@ -1,7 +1,7 @@
 package CSVValidation
-import com.fasterxml.jackson.databind.node.{ArrayNode, BooleanNode, IntNode, JsonNodeFactory, NullNode, ObjectNode, TextNode, ValueNode}
-import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
-import org.scalatest.{BeforeAndAfter, FunSuite, Tag}
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.node._
+import org.scalatest.{FunSuite, Tag}
 
 
 class PropertyCheckerTest extends FunSuite {
