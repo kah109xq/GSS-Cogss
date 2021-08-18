@@ -25,55 +25,6 @@ object PropertyChecker {
   val Bcp47Langtag = "(" + Bcp47Language + "(-" + Bcp47Script + ")?" + "(-" + Bcp47Region + ")?" + "(-" + Bcp47Variant + ")*" + "(-" + Bcp47Extension + ")*" + "(-" + Bcp47PrivateUse + ")?" + ")"
   val Bcp47LanguagetagRegExp: Regex = ("^(" + Bcp47Grandfathered + "|" + Bcp47Langtag + "|" + Bcp47PrivateUse + ")").r
 
-  val BuiltInDataTypes = HashMap(
-    "number" -> "http://www.w3.org/2001/XMLSchema#double",
-    "binary" -> "http://www.w3.org/2001/XMLSchema#base64Binary",
-    "datetime" -> "http://www.w3.org/2001/XMLSchema#dateTime",
-    "any" -> "http://www.w3.org/2001/XMLSchema#anyAtomicType",
-    "xml" -> "http://www.w3.org/1999/02/22-rdf-syntax-ns#XMLLiteral",
-    "html" -> "http://www.w3.org/1999/02/22-rdf-syntax-ns#HTML",
-    "json" -> "http://www.w3.org/ns/csvw#JSON",
-    "anyAtomicType" -> "http://www.w3.org/2001/XMLSchema#anyAtomicType",
-    "anyURI" -> "http://www.w3.org/2001/XMLSchema#anyURI",
-    "base64Binary" -> "http://www.w3.org/2001/XMLSchema#base64Binary",
-    "boolean" -> "http://www.w3.org/2001/XMLSchema#boolean",
-    "date" -> "http://www.w3.org/2001/XMLSchema#date",
-    "dateTime" -> "http://www.w3.org/2001/XMLSchema#dateTime",
-    "dateTimeStamp" -> "http://www.w3.org/2001/XMLSchema#dateTimeStamp",
-    "decimal" -> "http://www.w3.org/2001/XMLSchema#decimal",
-    "integer" -> "http://www.w3.org/2001/XMLSchema#integer",
-    "long" -> "http://www.w3.org/2001/XMLSchema#long",
-    "int" -> "http://www.w3.org/2001/XMLSchema#int",
-    "short" -> "http://www.w3.org/2001/XMLSchema#short",
-    "byte" -> "http://www.w3.org/2001/XMLSchema#byte",
-    "nonNegativeInteger" -> "http://www.w3.org/2001/XMLSchema#nonNegativeInteger",
-    "positiveInteger" -> "http://www.w3.org/2001/XMLSchema#positiveInteger",
-    "unsignedLong" -> "http://www.w3.org/2001/XMLSchema#unsignedLong",
-    "unsignedInt" -> "http://www.w3.org/2001/XMLSchema#unsignedInt",
-    "unsignedShort" -> "http://www.w3.org/2001/XMLSchema#unsignedShort",
-    "unsignedByte" -> "http://www.w3.org/2001/XMLSchema#unsignedByte",
-    "nonPositiveInteger" -> "http://www.w3.org/2001/XMLSchema#nonPositiveInteger",
-    "negativeInteger" -> "http://www.w3.org/2001/XMLSchema#negativeInteger",
-    "double" -> "http://www.w3.org/2001/XMLSchema#double",
-    "duration" -> "http://www.w3.org/2001/XMLSchema#duration",
-    "dayTimeDuration" -> "http://www.w3.org/2001/XMLSchema#dayTimeDuration",
-    "yearMonthDuration" -> "http://www.w3.org/2001/XMLSchema#yearMonthDuration",
-    "float" -> "http://www.w3.org/2001/XMLSchema#float",
-    "gDay" -> "http://www.w3.org/2001/XMLSchema#gDay",
-    "gMonth" -> "http://www.w3.org/2001/XMLSchema#gMonth",
-    "gMonthDay" -> "http://www.w3.org/2001/XMLSchema#gMonthDay",
-    "gYear" -> "http://www.w3.org/2001/XMLSchema#gYear",
-    "gYearMonth" -> "http://www.w3.org/2001/XMLSchema#gYearMonth",
-    "hexBinary" -> "http://www.w3.org/2001/XMLSchema#hexBinary",
-    "QName" -> "http://www.w3.org/2001/XMLSchema#QName",
-    "string" -> "http://www.w3.org/2001/XMLSchema#string",
-    "normalizedString" -> "http://www.w3.org/2001/XMLSchema#normalizedString",
-    "token" -> "http://www.w3.org/2001/XMLSchema#token",
-    "language" -> "http://www.w3.org/2001/XMLSchema#language",
-    "Name" -> "http://www.w3.org/2001/XMLSchema#Name",
-    "NMTOKEN" -> "http://www.w3.org/2001/XMLSchema#NMTOKEN",
-    "time" -> "http://www.w3.org/2001/XMLSchema#time"
-  )
 
   val StringDataTypes = Array[String](
   "http://www.w3.org/1999/02/22-rdf-syntax-ns#XMLLiteral",
@@ -144,50 +95,6 @@ object PropertyChecker {
   val BuiltInTypes = Array[String]("TableGroup", "Table", "Schema", "Column", "Dialect", "Template", "Datatype")
 
   val NameRegExp = "^([A-Za-z0-9]|(%[A-F0-9][A-F0-9]))([A-Za-z0-9_]|(%[A-F0-9][A-F0-9]))*$".r
-
-  val NameSpaces = HashMap(
-    "dcat" -> "http://www.w3.org/ns/dcat#",
-    "qb" -> "http://purl.org/linked-data/cube#",
-    "grddl" -> "http://www.w3.org/2003/g/data-view#",
-    "ma" -> "http://www.w3.org/ns/ma-ont#",
-    "org" -> "http://www.w3.org/ns/org#",
-    "owl" -> "http://www.w3.org/2002/07/owl#",
-    "prov" -> "http://www.w3.org/ns/prov#",
-    "rdf" -> "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-    "rdfa" -> "http://www.w3.org/ns/rdfa#",
-    "rdfs" -> "http://www.w3.org/2000/01/rdf-schema#",
-    "rif" -> "http://www.w3.org/2007/rif#",
-    "rr" -> "http://www.w3.org/ns/r2rml#",
-    "sd" -> "http://www.w3.org/ns/sparql-service-description#",
-    "skos" -> "http://www.w3.org/2004/02/skos/core#",
-    "skosxl" -> "http://www.w3.org/2008/05/skos-xl#",
-    "wdr" -> "http://www.w3.org/2007/05/powder#",
-    "void" -> "http://rdfs.org/ns/void#",
-    "wdrs" -> "http://www.w3.org/2007/05/powder-s#",
-    "xhv" -> "http://www.w3.org/1999/xhtml/vocab#",
-    "xml" -> "http://www.w3.org/XML/1998/namespace",
-    "xsd" -> "http://www.w3.org/2001/XMLSchema#",
-    "csvw" -> "http://www.w3.org/ns/csvw#",
-    "cnt" -> "http://www.w3.org/2008/content",
-    "earl" -> "http://www.w3.org/ns/earl#",
-    "ht" -> "http://www.w3.org/2006/http#",
-    "oa" -> "http://www.w3.org/ns/oa#",
-    "ptr" -> "http://www.w3.org/2009/pointers#",
-    "cc" -> "http://creativecommons.org/ns#",
-    "ctag" -> "http://commontag.org/ns#",
-    "dc" -> "http://purl.org/dc/terms/",
-    "dcterms" -> "http://purl.org/dc/terms/",
-    "dc11" -> "http://purl.org/dc/elements/1.1/",
-    "foaf" -> "http://xmlns.com/foaf/0.1/",
-    "gr" -> "http://purl.org/goodrelations/v1#",
-    "ical" -> "http://www.w3.org/2002/12/cal/icaltzd#",
-    "og" -> "http://ogp.me/ns#",
-    "rev" -> "http://purl.org/stuff/rev#",
-    "sioc" -> "http://rdfs.org/sioc/ns#",
-    "v" -> "http://rdf.data-vocabulary.org/#",
-    "vcard" -> "http://www.w3.org/2006/vcard/ns#",
-    "schema" -> "http://schema.org/"
-    )
 
   val Properties = Map(
     "@language" -> languageProperty (PropertyType.Context),
@@ -378,7 +285,7 @@ object PropertyChecker {
           val objectNode = v.asInstanceOf[ObjectNode]
           if (!objectNode.path("@id").isMissingNode) {
             val idValue = objectNode.get("@id").asText()
-            if (PropertyChecker.BuiltInDataTypes.contains(idValue)) { // check this coz contains just checks in keys
+            if (BuiltInDataTypes.types.contains(idValue)) { // check this coz contains just checks in keys
               throw new MetadataError(s"datatype @id must not be the id of a built-in datatype ($idValue)")
             } else {
               val (_, w, _) = linkProperty(PropertyType.Common)(objectNode.get("@id"), baseUrl, lang) // assign warnings in val w
@@ -391,24 +298,24 @@ object PropertyChecker {
 
           if (!objectNode.path("base").isMissingNode) {
             val baseValue = objectNode.get("base").asText()
-            if (PropertyChecker.BuiltInDataTypes.contains(baseValue)) {
-              objectNode.put("base", PropertyChecker.BuiltInDataTypes(baseValue))
+            if (BuiltInDataTypes.types.contains(baseValue)) {
+              objectNode.put("base", BuiltInDataTypes.types(baseValue))
             } else {
-              objectNode.put("base", PropertyChecker.BuiltInDataTypes("string"))
+              objectNode.put("base", BuiltInDataTypes.types("string"))
               warnings = warnings :+ "invalid_datatype_base"
             }
           } else {
-            objectNode.put("base", PropertyChecker.BuiltInDataTypes("string"))
+            objectNode.put("base", BuiltInDataTypes.types("string"))
           }
         }
-        case x if x.isTextual && (PropertyChecker.BuiltInDataTypes.contains(x.asText())) => {
+        case x if x.isTextual && (BuiltInDataTypes.types.contains(x.asText())) => {
           val objectNode = PropertyChecker.mapper.createObjectNode
-          objectNode.put("@id", PropertyChecker.BuiltInDataTypes(x.asText()))
+          objectNode.put("@id", BuiltInDataTypes.types(x.asText()))
           valueCopy = objectNode
         }
         case x if x.isTextual => {
           val objectNode = PropertyChecker.mapper.createObjectNode
-          objectNode.put("@id", PropertyChecker.BuiltInDataTypes("string"))
+          objectNode.put("@id", BuiltInDataTypes.types("string"))
           valueCopy = objectNode
           warnings = warnings :+ "invalid_value"
         }
