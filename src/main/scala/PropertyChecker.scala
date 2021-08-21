@@ -165,39 +165,39 @@ object PropertyChecker {
     return Array[String]()
   }
 
-  def booleanProperty(typeString:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+  def booleanProperty(csvwPropertyType:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
     return (value, baseUrl, lang) => {
       if(value.isBoolean) {
-        (value, Array[String](), typeString)
+        (value, Array[String](), csvwPropertyType)
       } else {
-        (BooleanNode.getFalse, Array[String](PropertyChecker.invalidValueWarning), typeString)
+        (BooleanNode.getFalse, Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       }
     }
   }
 
-  def stringProperty(typeString: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+  def stringProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
     return (value, baseUrl, lang) => {
       if (value.isTextual) {
-         (value, Array[String](), typeString)
+         (value, Array[String](), csvwPropertyType)
       } else {
-         (new TextNode(""), Array[String](PropertyChecker.invalidValueWarning), typeString)
+         (new TextNode(""), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       }
     }
   }
 
-  def numericProperty(typeString: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+  def numericProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
      return (value, baseUrl, lang) => {
       if (value.isInt && value.asInt >= 0) {
-         (value, Array[String](), typeString)
+         (value, Array[String](), csvwPropertyType)
       } else if (value.isInt && value.asInt < 0) {
-         (NullNode.getInstance(), Array[String](PropertyChecker.invalidValueWarning), typeString)
+         (NullNode.getInstance(), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       } else {
-         (NullNode.getInstance(), Array[String](PropertyChecker.invalidValueWarning), typeString)
+         (NullNode.getInstance(), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       }
     }
   }
 
-  def notesProperty(typeString:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+  def notesProperty(csvwPropertyType:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
      def notesPropertyInternal (value: JsonNode, baseUrl: String, lang: String): (JsonNode, Array[String], PropertyType.Value) = {
       if (value.isArray) {
         val arrayValue = value.asInstanceOf[ArrayNode]
@@ -208,18 +208,18 @@ object PropertyChecker {
            */
           val (values, warnings) = Array.from(elements.map(x => checkCommonPropertyValue(x, baseUrl, lang))).unzip
           val arrayNode:ArrayNode = PropertyChecker.mapper.valueToTree(values)
-          return (arrayNode, warnings, typeString)
+          return (arrayNode, warnings, csvwPropertyType)
         }
       }
-       (BooleanNode.getFalse, Array[String](PropertyChecker.invalidValueWarning), typeString)
+       (BooleanNode.getFalse, Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
     }
     return notesPropertyInternal
   }
 
-  def nullProperty(typeString:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+  def nullProperty(csvwPropertyType:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
      (value, baseUrl, lang) => {
       if (value.isTextual) {
-         (value, Array[String](), typeString)
+         (value, Array[String](), csvwPropertyType)
       } else if (value.isArray) {
         var values = Array[String]()
         var warnings = Array[String]()
@@ -230,24 +230,24 @@ object PropertyChecker {
           }
         }
         val arrayNode:ArrayNode = PropertyChecker.mapper.valueToTree(values)
-         (arrayNode, warnings, typeString)
+         (arrayNode, warnings, csvwPropertyType)
       } else {
-         (NullNode.getInstance(), Array[String](PropertyChecker.invalidValueWarning), typeString)
+         (NullNode.getInstance(), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       }
     }
   }
 
-  def separatorProperty(typeString:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+  def separatorProperty(csvwPropertyType:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
      (value, baseUrl, lang) => {
        value match {
-        case s if s.isTextual => (s, null, typeString)
-        case s if s.isNull => (s, null, typeString)
-        case _ => (NullNode.getInstance(), Array[String](PropertyChecker.invalidValueWarning), typeString)
+        case s if s.isTextual => (s, null, csvwPropertyType)
+        case s if s.isNull => (s, null, csvwPropertyType)
+        case _ => (NullNode.getInstance(), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       }
     }
   }
 
-  def linkProperty(typeString:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+  def linkProperty(csvwPropertyType:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
      (v, baseUrl, lang) => {
       var baseUrlCopy = ""
       v match {
@@ -260,23 +260,23 @@ object PropertyChecker {
             case "" => s.asText()
             case _ => baseUrl + s.asText()
           }
-           (new TextNode(baseUrlCopy), Array[String](""), typeString)
+           (new TextNode(baseUrlCopy), Array[String](""), csvwPropertyType)
         }
-        case _ =>  (new TextNode(""), Array[String](PropertyChecker.invalidValueWarning), typeString)
+        case _ =>  (new TextNode(""), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       }
     }
   }
 
-  def languageProperty (typeString:PropertyType.Value) : (JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+  def languageProperty (csvwPropertyType:PropertyType.Value) : (JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
      (value, baseUrl, lang) => {
       value match {
-        case s if s.isTextual && PropertyChecker.Bcp47LanguagetagRegExp.pattern.matcher(s.asText()).matches => (s, Array[String](), typeString)
-        case _ => (new TextNode(""), Array[String](PropertyChecker.invalidValueWarning), typeString)
+        case s if s.isTextual && PropertyChecker.Bcp47LanguagetagRegExp.pattern.matcher(s.asText()).matches => (s, Array[String](), csvwPropertyType)
+        case _ => (new TextNode(""), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       }
     }
   }
 
-  def datatypeProperty(typeString: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+  def datatypeProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
      (value, baseUrl, lang) => {
       var warnings = Array[String]()
       var valueCopy = value.deepCopy()
@@ -485,7 +485,7 @@ object PropertyChecker {
           throw new NotImplementedError() // Implement after adding DateFormat class
         }
       }
-       (objectNode, warnings, typeString)
+       (objectNode, warnings, csvwPropertyType)
     }
   }
 }
