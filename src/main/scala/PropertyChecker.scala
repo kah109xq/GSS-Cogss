@@ -11,6 +11,7 @@ object PropertyChecker {
   val startsWithUnderscore = "^_:.*".r
   val containsColon = ".*:.*".r
   val mapper = new ObjectMapper
+  val invalidValueWarning = "invalid_value"
   val Bcp47Regular = "(art-lojban|cel-gaulish|no-bok|no-nyn|zh-guoyu|zh-hakka|zh-min|zh-min-nan|zh-xiang)"
   val Bcp47Irregular = "(en-GB-oed|i-ami|i-bnn|i-default|i-enochian|i-hak|i-klingon|i-lux|i-mingo|i-navajo|i-pwn|i-tao|i-tay|i-tsu|sgn-BE-FR|sgn-BE-NL|sgn-CH-DE)"
   val Bcp47Grandfathered = "(?<grandfathered>" + Bcp47Irregular + "|" + Bcp47Regular + ")"
@@ -169,7 +170,7 @@ object PropertyChecker {
       if(value.isBoolean) {
         (value, Array[String](), typeString)
       } else {
-        (BooleanNode.getFalse, Array[String]("invalid_value"), typeString)
+        (BooleanNode.getFalse, Array[String](PropertyChecker.invalidValueWarning), typeString)
       }
     }
   }
@@ -179,7 +180,7 @@ object PropertyChecker {
       if (value.isTextual) {
          (value, Array[String](), typeString)
       } else {
-         (new TextNode(""), Array[String]("invalid_value"), typeString)
+         (new TextNode(""), Array[String](PropertyChecker.invalidValueWarning), typeString)
       }
     }
   }
@@ -189,9 +190,9 @@ object PropertyChecker {
       if (value.isInt && value.asInt >= 0) {
          (value, Array[String](), typeString)
       } else if (value.isInt && value.asInt < 0) {
-         (NullNode.getInstance(), Array[String]("invalid_value"), typeString)
+         (NullNode.getInstance(), Array[String](PropertyChecker.invalidValueWarning), typeString)
       } else {
-         (NullNode.getInstance(), Array[String]("invalid_value"), typeString)
+         (NullNode.getInstance(), Array[String](PropertyChecker.invalidValueWarning), typeString)
       }
     }
   }
@@ -210,7 +211,7 @@ object PropertyChecker {
           return (arrayNode, warnings, typeString)
         }
       }
-       (BooleanNode.getFalse, Array[String]("invalid_value"), typeString)
+       (BooleanNode.getFalse, Array[String](PropertyChecker.invalidValueWarning), typeString)
     }
     return notesPropertyInternal
   }
@@ -225,13 +226,13 @@ object PropertyChecker {
         for (x <- value.elements().asScala) {
           x match {
             case xs if xs.isTextual => values = values :+ xs.asText()
-            case _ => warnings = warnings :+ "invalid_value"
+            case _ => warnings = warnings :+ PropertyChecker.invalidValueWarning
           }
         }
         val arrayNode:ArrayNode = PropertyChecker.mapper.valueToTree(values)
          (arrayNode, warnings, typeString)
       } else {
-         (NullNode.getInstance(), Array[String]("invalid_value"), typeString)
+         (NullNode.getInstance(), Array[String](PropertyChecker.invalidValueWarning), typeString)
       }
     }
   }
@@ -241,7 +242,7 @@ object PropertyChecker {
        value match {
         case s if s.isTextual => (s, null, typeString)
         case s if s.isNull => (s, null, typeString)
-        case _ => (NullNode.getInstance(), Array[String]("invalid_value"), typeString)
+        case _ => (NullNode.getInstance(), Array[String](PropertyChecker.invalidValueWarning), typeString)
       }
     }
   }
@@ -261,7 +262,7 @@ object PropertyChecker {
           }
            (new TextNode(baseUrlCopy), Array[String](""), typeString)
         }
-        case _ =>  (new TextNode(""), Array[String]("invalid_value"), typeString)
+        case _ =>  (new TextNode(""), Array[String](PropertyChecker.invalidValueWarning), typeString)
       }
     }
   }
@@ -270,7 +271,7 @@ object PropertyChecker {
      (value, baseUrl, lang) => {
       value match {
         case s if s.isTextual && PropertyChecker.Bcp47LanguagetagRegExp.pattern.matcher(s.asText()).matches => (s, Array[String](), typeString)
-        case _ => (new TextNode(""), Array[String]("invalid_value"), typeString)
+        case _ => (new TextNode(""), Array[String](PropertyChecker.invalidValueWarning), typeString)
       }
     }
   }
@@ -317,7 +318,7 @@ object PropertyChecker {
           val objectNode = PropertyChecker.mapper.createObjectNode
           objectNode.put("@id", BuiltInDataTypes.types("string"))
           valueCopy = objectNode
-          warnings = warnings :+ "invalid_value"
+          warnings = warnings :+ PropertyChecker.invalidValueWarning
         }
       }
       val objectNode = valueCopy.asInstanceOf[ObjectNode]
