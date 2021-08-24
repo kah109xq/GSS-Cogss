@@ -26,73 +26,6 @@ object PropertyChecker {
   val Bcp47Langtag = "(" + Bcp47Language + "(-" + Bcp47Script + ")?" + "(-" + Bcp47Region + ")?" + "(-" + Bcp47Variant + ")*" + "(-" + Bcp47Extension + ")*" + "(-" + Bcp47PrivateUse + ")?" + ")"
   val Bcp47LanguagetagRegExp: Regex = ("^(" + Bcp47Grandfathered + "|" + Bcp47Langtag + "|" + Bcp47PrivateUse + ")").r
 
-
-  val StringDataTypes = Array[String](
-  "http://www.w3.org/1999/02/22-rdf-syntax-ns#XMLLiteral",
-  "http://www.w3.org/1999/02/22-rdf-syntax-ns#HTML",
-  "http://www.w3.org/ns/csvw#JSON",
-  "http://www.w3.org/2001/XMLSchema#string",
-  "http://www.w3.org/2001/XMLSchema#normalizedString",
-  "http://www.w3.org/2001/XMLSchema#token",
-  "http://www.w3.org/2001/XMLSchema#language",
-  "http://www.w3.org/2001/XMLSchema#Name",
-  "http://www.w3.org/2001/XMLSchema#NMTOKEN"
-  )
-
-  val BinaryDataTypes = Array[String](
-  "http://www.w3.org/2001/XMLSchema#base64Binary",
-  "http://www.w3.org/2001/XMLSchema#hexBinary"
-  )
-
-  val IntegerFormatDataTypes = Array[String](
-  "http://www.w3.org/2001/XMLSchema#integer",
-  "http://www.w3.org/2001/XMLSchema#long",
-  "http://www.w3.org/2001/XMLSchema#int",
-  "http://www.w3.org/2001/XMLSchema#short",
-  "http://www.w3.org/2001/XMLSchema#byte",
-  "http://www.w3.org/2001/XMLSchema#nonNegativeInteger",
-  "http://www.w3.org/2001/XMLSchema#positiveInteger",
-  "http://www.w3.org/2001/XMLSchema#unsignedLong",
-  "http://www.w3.org/2001/XMLSchema#unsignedInt",
-  "http://www.w3.org/2001/XMLSchema#unsignedShort",
-  "http://www.w3.org/2001/XMLSchema#unsignedByte",
-  "http://www.w3.org/2001/XMLSchema#nonPositiveInteger",
-  "http://www.w3.org/2001/XMLSchema#negativeInteger"
-  )
-
-  val NumericFormatDataTypes = Array[String](
-  "http://www.w3.org/2001/XMLSchema#decimal",
-  "http://www.w3.org/2001/XMLSchema#double",
-  "http://www.w3.org/2001/XMLSchema#float"
-  ) :+ IntegerFormatDataTypes
-
-  val DateFormatDataTypes = Array[String](
-  "http://www.w3.org/2001/XMLSchema#date",
-  "http://www.w3.org/2001/XMLSchema#dateTime",
-  "http://www.w3.org/2001/XMLSchema#dateTimeStamp",
-  "http://www.w3.org/2001/XMLSchema#time"
-  )
-
-  val RegExpFormatDataTypes = Array[String](
-  "http://www.w3.org/1999/02/22-rdf-syntax-ns#XMLLiteral",
-  "http://www.w3.org/1999/02/22-rdf-syntax-ns#HTML",
-  "http://www.w3.org/ns/csvw#JSON",
-  "http://www.w3.org/2001/XMLSchema#anyAtomicType",
-  "http://www.w3.org/2001/XMLSchema#anyURI",
-  "http://www.w3.org/2001/XMLSchema#base64Binary",
-  "http://www.w3.org/2001/XMLSchema#duration",
-  "http://www.w3.org/2001/XMLSchema#dayTimeDuration",
-  "http://www.w3.org/2001/XMLSchema#yearMonthDuration",
-  "http://www.w3.org/2001/XMLSchema#hexBinary",
-  "http://www.w3.org/2001/XMLSchema#QName",
-  "http://www.w3.org/2001/XMLSchema#string",
-  "http://www.w3.org/2001/XMLSchema#normalizedString",
-  "http://www.w3.org/2001/XMLSchema#token",
-  "http://www.w3.org/2001/XMLSchema#language",
-  "http://www.w3.org/2001/XMLSchema#Name",
-  "http://www.w3.org/2001/XMLSchema#NMTOKEN"
-  )
-
   val BuiltInTypes = Array[String]("TableGroup", "Table", "Schema", "Column", "Dialect", "Template", "Datatype")
 
   val NameRegExp = "^([A-Za-z0-9]|(%[A-F0-9][A-F0-9]))([A-Za-z0-9_]|(%[A-F0-9][A-F0-9]))*$".r
@@ -148,9 +81,9 @@ object PropertyChecker {
 
   def convertValueFacet(value:ObjectNode, property:String, datatype:String):Array[String] = {
     if(!value.path(property).isMissingNode) {
-      if(PropertyChecker.DateFormatDataTypes.contains(datatype)) {
+      if(PropertyCheckerConstants.DateFormatDataTypes.contains(datatype)) {
         throw new NotImplementedError("To be implemented after implementing DateFormat class")
-      } else if (PropertyChecker.NumericFormatDataTypes.contains(datatype)) {
+      } else if (PropertyCheckerConstants.NumericFormatDataTypes.contains(datatype)) {
         return Array[String]()
       } else {
         throw new MetadataError(s"$property is only allowed for numeric, date/time and duration types")
@@ -317,7 +250,7 @@ object PropertyChecker {
       val objectNode = valueCopy.asInstanceOf[ObjectNode]
       if (!objectNode.path("base").isMissingNode) {
         val baseValue = objectNode.get("base").asText()
-        if (!PropertyChecker.StringDataTypes.contains(baseValue) || !PropertyChecker.BinaryDataTypes.contains(baseValue)) {
+        if (!PropertyCheckerConstants.StringDataTypes.contains(baseValue) || !PropertyCheckerConstants.BinaryDataTypes.contains(baseValue)) {
           if (!objectNode.path("length").isMissingNode) {
             throw new MetadataError(s"datatypes based on $baseValue cannot have a length facet")
           }
@@ -447,7 +380,7 @@ object PropertyChecker {
 
       if (!objectNode.path("format").isMissingNode) {
         val baseValue = objectNode.get("base").asText()
-        if (PropertyChecker.RegExpFormatDataTypes.contains(baseValue)) {
+        if (PropertyCheckerConstants.RegExpFormatDataTypes.contains(baseValue)) {
           try {
             // In ruby regexp is stored in format key. Also regexp validated. Determine how to handle this in scala
             // value["format"] = Regexp.new(value["format"])
@@ -458,7 +391,7 @@ object PropertyChecker {
               warnings = warnings :+ "invalid_regex"
             }
           }
-        } else if (PropertyChecker.NumericFormatDataTypes.contains(baseValue)) {
+        } else if (PropertyCheckerConstants.NumericFormatDataTypes.contains(baseValue)) {
           throw new NotImplementedError() // Implement after adding NumberFormat class
         } else if (baseValue == "http://www.w3.org/2001/XMLSchema#boolean") {
           if (objectNode.get("format").isTextual) {
@@ -473,7 +406,7 @@ object PropertyChecker {
               objectNode.replace("format", arrayNodeObject)
             }
           }
-        } else if (PropertyChecker.DateFormatDataTypes.contains(baseValue)) {
+        } else if (PropertyCheckerConstants.DateFormatDataTypes.contains(baseValue)) {
           throw new NotImplementedError() // Implement after adding DateFormat class
         }
       }
