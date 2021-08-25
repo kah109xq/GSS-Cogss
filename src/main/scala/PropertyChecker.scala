@@ -128,7 +128,7 @@ object PropertyChecker {
      def notesPropertyInternal (value: JsonNode, baseUrl: String, lang: String): (JsonNode, Array[String], PropertyType.Value) = {
       if (value.isArray) {
         val arrayValue = value.asInstanceOf[ArrayNode]
-        val elements = arrayValue.elements().asScala
+        val elements = Array.from(arrayValue.elements().asScala)
         if (elements forall (_.isTextual())) {
           /**
            * [(1,2), (3,4), (5,6)] => ([1,3,5], [2,4,6])
@@ -138,7 +138,7 @@ object PropertyChecker {
           return (arrayNode, warnings, csvwPropertyType)
         }
       }
-       (BooleanNode.getFalse, Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
+       (JsonNodeFactory.instance.arrayNode(), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
     }
     return notesPropertyInternal
   }
