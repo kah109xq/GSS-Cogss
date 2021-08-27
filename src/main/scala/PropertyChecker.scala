@@ -284,86 +284,78 @@ object PropertyChecker {
       warnings :+ convertValueFacet(objectNode, "maxInclusive", baseValue)
       warnings :+ convertValueFacet(objectNode, "maxExclusive", baseValue)
 
-      val minInclusive = if (valueCopy.path("minInclusive").path("dateTime").isMissingNode) {
+      val minInclusive:Option[Either[Int, String]] = if (valueCopy.path("minInclusive").path("dateTime").isMissingNode) {
         if (objectNode.path("minInclusive").isMissingNode) {
-          null
+          None
         } else {
-          objectNode.get("minInclusive").asInt()
+          Option(Left(objectNode.get("minInclusive").asInt()))
         }
       } else {
         if (objectNode.path("minInclusive").path("dateTime").isMissingNode) {
-          null
+          None
         } else {
-          objectNode.get("minInclusive").get("dateTime").asText()
+          Option(Right(objectNode.get("minInclusive").get("dateTime").asText()))
         }
       }
 
-      val maxInclusive = if (objectNode.path("maxInclusive").path("dateTime").isMissingNode) {
+      val maxInclusive:Option[Either[Int, String]] = if (objectNode.path("maxInclusive").path("dateTime").isMissingNode) {
         if (objectNode.path("maxInclusive").isMissingNode) {
-          null
+          None
         } else {
-          objectNode.get("maxInclusive").asInt()
+          Option(Left(objectNode.get("maxInclusive").asInt()))
         }
       } else {
         if (objectNode.path("maxInclusive").path("dateTime").isMissingNode) {
-          null
+          None
         } else {
-          objectNode.get("maxInclusive").get("dateTime").asText()
+          Option(Right(objectNode.get("maxInclusive").get("dateTime").asText()))
         }
       }
 
-      val minExclusive = if (objectNode.path("minExclusive").path("dateTime").isMissingNode) {
+      val minExclusive:Option[Either[Int, String]] = if (objectNode.path("minExclusive").path("dateTime").isMissingNode) {
         if (objectNode.path("minExclusive").isMissingNode) {
-          null
+          None
         } else {
-          objectNode.get("minExclusive").asInt()
+          Option(Left(objectNode.get("minExclusive").asInt()))
         }
       } else {
         if (objectNode.get("minExclusive").path("dateTime").isMissingNode) {
-          null
+          None
         } else {
-          objectNode.get("minExclusive").get("dateTime").asText()
+          Option(Right(objectNode.get("minExclusive").get("dateTime").asText()))
         }
       }
 
-      val maxExclusive = if (objectNode.path("maxExclusive").path("dateTime").isMissingNode) {
+      val maxExclusive:Option[Either[Int, String]] = if (objectNode.path("maxExclusive").path("dateTime").isMissingNode) {
         if (objectNode.path("maxExclusive").isMissingNode) {
-          null
+          None
         } else {
-          objectNode.get("maxExclusive").asInt()
+          Option(Left(objectNode.get("maxExclusive").asInt()))
         }
       } else {
         if (objectNode.path("maxExclusive").path("dateTime").isMissingNode) {
-          null
+          None
         } else {
-          objectNode.get("maxExclusive").get("dateTime").asText()
+          Option(Right(objectNode.get("maxExclusive").get("dateTime").asText()))
         }
       }
 
+     (minInclusive, minExclusive, maxInclusive, maxExclusive) match {
+       case (Some(Left(minI)), Some(Left(minE)), _, _) => throw new MetadataError(s"datatype cannot specify both minimum/minInclusive ($minI) and minExclusive ($minE)")
+       case (Some(Right(minI)), Some(Right(minE)), _, _) => throw new MetadataError(s"datatype cannot specify both minimum/minInclusive ($minI) and minExclusive ($minE)")
+       case (_, _, Some(Left(maxI)), Some(Left(maxE))) => throw new MetadataError(s"datatype cannot specify both maximum/maxInclusive ($maxI) and maxExclusive ($maxE)")
+       case (_, _, Some(Right(maxI)), Some(Right(maxE))) => throw new MetadataError(s"datatype cannot specify both maximum/maxInclusive ($maxI) and maxExclusive ($maxE)")
+       case (Some(Left(minI)), _,Some(Left(maxI)), _) if minI > maxI => throw new MetadataError(s"datatype minInclusive ($minI) cannot be more than maxInclusive ($maxI)")
+       case (Some(Right(minI)), _,Some(Right(maxI)), _) if minI.asInstanceOf[Int] > maxI.asInstanceOf[Int] => throw new MetadataError(s"datatype minInclusive ($minI) cannot be more than maxInclusive ($maxI)")
+       case (Some(Left(minI)), _, _, Some(Left(maxE))) if minI >= maxE => throw new MetadataError(s"datatype minInclusive ($minI) cannot be greater than or equal to maxExclusive ($maxE)")
+       case (Some(Right(minI)), _, _, Some(Right(maxE))) if minI.asInstanceOf[Int] >= maxE.asInstanceOf[Int] => throw new MetadataError(s"datatype minInclusive ($minI) cannot be greater than or equal to maxExclusive ($maxE)")
+       case (_, Some(Left(minE)), _, Some(Left(maxE))) if minE > maxE => throw new MetadataError(s"datatype minExclusive ($minE) cannot be greater than or equal to maxExclusive ($maxE)")
+       case (_, Some(Right(minE)), _, Some(Right(maxE))) if minE.asInstanceOf[Int] > maxE.asInstanceOf[Int] => throw new MetadataError(s"datatype minExclusive ($minE) cannot be greater than or equal to maxExclusive ($maxE)")
+       case (_, Some(Left(minE)), Some(Left(maxI)), _) if minE >= maxI => throw new MetadataError(s"datatype minExclusive ($minE) cannot be greater than maxInclusive ($maxI)")
+       case (_, Some(Right(minE)), Some(Right(maxI)), _) if minE.asInstanceOf[Int] >= maxI.asInstanceOf[Int] => throw new MetadataError(s"datatype minExclusive ($minE) cannot be greater than maxInclusive ($maxI)")
 
-      if (minInclusive != null && minExclusive != null) {
-        throw new MetadataError(s"datatype cannot specify both minimum/minInclusive ($minInclusive) and minExclusive ($minExclusive)")
-      }
-
-      if (maxInclusive != null && maxExclusive != null) {
-        throw new MetadataError(s"datatype cannot specify both maximum/maxInclusive ($maxInclusive) and maxExclusive ($maxExclusive)")
-      }
-
-      if (minInclusive != null && maxInclusive != null && minInclusive.asInstanceOf[Int] > maxInclusive.asInstanceOf[Int]) {
-        throw new MetadataError(s"datatype minInclusive ($minInclusive) cannot be more than maxInclusive ($maxInclusive)")
-      }
-
-      if (minInclusive != null && maxExclusive != null && minInclusive.asInstanceOf[Int] >= maxExclusive.asInstanceOf[Int]) {
-        throw new MetadataError(s"datatype minInclusive ($minInclusive) cannot be greater than or equal to maxExclusive ($maxExclusive)")
-      }
-
-      if (minExclusive != null && maxExclusive != null && minExclusive.asInstanceOf[Int] > maxExclusive.asInstanceOf[Int]) {
-        throw new MetadataError(s"datatype minExclusive ($minExclusive) cannot be greater than or equal to maxExclusive ($maxExclusive)")
-      }
-
-      if (minExclusive != null && maxInclusive != null && minExclusive.asInstanceOf[Int] >= maxInclusive.asInstanceOf[Int]) {
-        throw new MetadataError(s"datatype minExclusive ($minExclusive) cannot be greater than maxInclusive ($maxInclusive)")
-      }
+       case (None, None, None, None) => {}
+     }
 
       val minLength = objectNode.path("minLength")
       val maxLength = objectNode.path("maxLength")
