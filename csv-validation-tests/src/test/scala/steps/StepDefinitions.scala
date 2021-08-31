@@ -10,9 +10,9 @@ class StepDefinitions extends ScalaDsl with EN {
   // Adapted from https://github.com/Data-Liberation-Front/csvlint.rb/tree/master/features/step_definitions
   private val log = LoggerFactory.getLogger(classOf[StepDefinitions])
   private val fixturesPath = "src/test/resources/features/fixtures/"
-  private val csv:String = ""
-  private val metadata:String = ""
-  private val content:String = ""
+  private var csv:String = ""
+  private var metadata:String = ""
+  private var content:String = ""
   private var schemaUrl:String = ""
   private var fileUrl = ""
   private var contextUrl:String = ""
@@ -41,7 +41,7 @@ class StepDefinitions extends ScalaDsl with EN {
 
   Given("""^I have a CSV file called "(.*?)"$""") { (filename: String) =>
     val filePath = fixturesPath + filename
-    val csv = Source.fromFile(filePath).getLines.mkString
+    csv = Source.fromFile(filePath).getLines.mkString
   }
 
   Given("""^it is stored at the url "(.*?)"$""") { (url: String) =>
@@ -61,7 +61,7 @@ class StepDefinitions extends ScalaDsl with EN {
 
   Given("""^I have a metadata file called "([^"]*)"$""") { filename: String =>
     val filePath = fixturesPath + filename
-    val metadata = Source.fromFile(filePath).getLines.mkString
+    metadata = Source.fromFile(filePath).getLines.mkString
   }
 
   And("""^the (schema|metadata) is stored at the url "(.*?)"$""") { (schemaType:String, url:String) =>
@@ -70,7 +70,7 @@ class StepDefinitions extends ScalaDsl with EN {
 
   And("""^I have a file called "(.*?)" at the url "(.*?)"$""") { (fileName: String, url:String) =>
     val filePath = fixturesPath + fileName
-    val content = Source.fromFile(filePath).getLines.mkString
+    content = Source.fromFile(filePath).getLines.mkString
     fileUrl = url
   }
 
