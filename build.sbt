@@ -26,6 +26,7 @@ libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2"
 libraryDependencies += "com.fasterxml.jackson.core" % "jackson-databind" % "2.12.1"
 libraryDependencies += "com.fasterxml.jackson.core" % "jackson-annotations" % "2.12.1"
 libraryDependencies += "com.fasterxml.jackson.core" %"jackson-core" % "2.12.1"
+libraryDependencies += "com.softwaremill.sttp.client3" %% "core" % "3.0.0"
 
 
 // Here, `libraryDependencies` is a set of dependencies, and by using `+=`,
