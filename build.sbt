@@ -1,21 +1,8 @@
+name := "csv-validation"
 
-// The simplest possible sbt build file is just one line:
-
-scalaVersion := "2.13.1"
-// That is, to create a valid sbt build, all you've got to do is define the
-// version of Scala you'd like your project to use.
-
-// ============================================================================
-
-// Lines like the above defining `scalaVersion` are called "settings". Settings
-// are key/value pairs. In the case of `scalaVersion`, the key is "scalaVersion"
-// and the value is "2.13.1"
-
-// It's possible to define many kinds of settings, such as:
-
-name := "CSV-Validation"
 organization := "ONS"
 version := "0.1"
+scalaVersion := "2.13.4"
 
 autoCompilerPlugins := true
 
@@ -36,7 +23,11 @@ libraryDependencies += "com.github.scopt" %% "scopt" % "4.0.0"
 libraryDependencies += "com.typesafe.akka" %% "akka-stream" % "2.6.10"
 libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3"
 libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2"
+libraryDependencies += "com.fasterxml.jackson.core" % "jackson-databind" % "2.12.1"
+libraryDependencies += "com.fasterxml.jackson.core" % "jackson-annotations" % "2.12.1"
+libraryDependencies += "com.fasterxml.jackson.core" %"jackson-core" % "2.12.1"
 libraryDependencies += "com.softwaremill.sttp.client3" %% "core" % "3.0.0"
+
 
 // Here, `libraryDependencies` is a set of dependencies, and by using `+=`,
 // we're adding the scala-parser-combinators dependency to the set of dependencies
