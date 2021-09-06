@@ -10,6 +10,7 @@ import akka.NotUsed
 import akka.util.ByteString
 import java.nio.file.Paths
 import java.nio.file.Path
+import sttp.client3._
 
 // This is only a skeleton for the core Validator class to be created. It is planned to accept the source csv and
 // schema and return errors and warnings collection when validate method is invoked. Changes to this signature can be
