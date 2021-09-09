@@ -413,7 +413,7 @@ object PropertyChecker {
     }
   }
 
-  def tableSchemaProperty(typeString: PropertyType.Value): (JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+  def tableSchemaProperty(csvwPropertyType: PropertyType.Value): (JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
     def tableSchemaPropertyInternal(value: JsonNode, baseUrl: String, lang: String): (JsonNode, Array[String], PropertyType.Value) = {
       var schemaBaseUrl = new URL(baseUrl)
       var schemaLang = lang
@@ -421,8 +421,7 @@ object PropertyChecker {
       var schemaJson: ObjectNode = null
       if(value.isTextual) {
         val schemaUrl = new URL(new URL(baseUrl), value.asText())
-        val objectMapper = new ObjectMapper()
-        schemaJson = objectMapper.readTree(schemaUrl).asInstanceOf[ObjectNode]
+        schemaJson = PropertyChecker.mapper.readTree(schemaUrl).asInstanceOf[ObjectNode]
         if (!schemaJson.path("@id").isMissingNode) {
           // Do something here as object node put method doesn't allow uri object
           val absoluteSchemaUrl = new URL(schemaUrl, schemaJson.get("@id").asText())
@@ -436,50 +435,56 @@ object PropertyChecker {
       } else if(value.isObject) {
         schemaJson = value.deepCopy()
       } else {
-        return (NullNode.getInstance(), Array[String]("invalid_value"), PropertyType.Table)
+        return (NullNode.getInstance(), Array[String](PropertyChecker.invalidValueWarning), PropertyType.Table)
       }
 
       var warnings = Array[String]()
       val fieldsAndValues = Array.from(schemaJson.fields.asScala)
       for(fieldAndValue <- fieldsAndValues) {
-        val p = fieldAndValue.getKey
-        val v = fieldAndValue.getValue
-        if(p == "@id") {
-          val matcher = PropertyChecker.startsWithUnderscore.pattern.matcher(v.asText())
-          if (matcher.matches) {
-            throw new MetadataError(s"@id ${v.asText} starts with _:")
-          }
-        } else if(p == "@type") {
-          if (v.asText() != "Schema") {
-            throw new MetadataError("@type of schema is not 'Schema'")
-          }
-        } else {
-          val (v1, warningsForP, typeString) = checkProperty(p, v, schemaBaseUrl.toString, schemaLang)
-          if((typeString == PropertyType.Schema || typeString == PropertyType.Inherited) && warningsForP.isEmpty) {
-            schemaJson.set(p, v1)
-          } else {
-            schemaJson.remove(p)
-            if(typeString != PropertyType.Schema ||typeString !=PropertyType.Inherited) {
-              warnings = warnings :+ "invalid_property"
-            }
-          }
-        }
+        warnings = validateObjectAndUpdateSchemaJson(schemaJson, schemaBaseUrl, schemaLang, fieldAndValue.getKey, fieldAndValue.getValue)
       }
       return (schemaJson, warnings, PropertyType.Table)
     }
     return tableSchemaPropertyInternal
   }
+
+  def validateObjectAndUpdateSchemaJson(schemaJson: ObjectNode, schemaBaseUrl: URL, schemaLang: String,
+                                        property: String, value: JsonNode):(Array[String]) = {
+    var warnings = Array[String]()
+    if(property == "@id") {
+      val matcher = PropertyChecker.startsWithUnderscore.pattern.matcher(value.asText())
+      if (matcher.matches) {
+        throw new MetadataError(s"@id ${value.asText} starts with _:")
+      }
+    } else if(property == "@type") {
+      if (value.asText() != "Schema") {
+        throw new MetadataError("@type of schema is not 'Schema'")
+      }
+    } else {
+      val (validatedV, warningsForP, propertyType) = checkProperty(property, value, schemaBaseUrl.toString, schemaLang)
+      if((propertyType == PropertyType.Schema || propertyType == PropertyType.Inherited) && warningsForP.isEmpty) {
+        schemaJson.set(property, validatedV)
+      } else {
+        schemaJson.remove(property)
+        if(propertyType != PropertyType.Schema && propertyType != PropertyType.Inherited) {
+          warnings = warnings :+ "invalid_property"
+        }
+      }
+    }
+    warnings
+  }
+
   def fetchSchemaBaseUrlAndLangAndRemoveContext(schemaJson:ObjectNode, schemaBaseUrl: URL, schemaLang:String): (URL, String) = {
     if(!schemaJson.path("@context").isMissingNode) {
       if (schemaJson.isArray && schemaJson.size > 1) {
-        val elements = Array.from(schemaJson.get("@context").elements.asScala)
-        val maybeBaseNode = elements.apply(1).path("@base")
+        val secondContextElement = Array.from(schemaJson.get("@context").elements.asScala).apply(1)
+        val maybeBaseNode = secondContextElement.path("@base")
         val newSchemaBaseUrl = if (!maybeBaseNode.isMissingNode) {
           new URL(schemaBaseUrl, maybeBaseNode.asText())
         } else {
           schemaBaseUrl
         }
-        val languageNode = elements.apply(1).path("@language")
+        val languageNode = secondContextElement.path("@language")
         val newSchemaLang = if (!languageNode.isMissingNode) {
           languageNode.asText()
         } else {
