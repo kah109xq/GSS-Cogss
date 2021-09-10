@@ -5,7 +5,6 @@ import org.scalatest.{FunSuite, Tag}
 
 import scala.jdk.CollectionConverters.IteratorHasAsScala
 
-
 class PropertyCheckerTest extends FunSuite {
   val objectMapper = new ObjectMapper()
 
@@ -419,11 +418,11 @@ class PropertyCheckerTest extends FunSuite {
 
   test("returns invalid boolean format warning if wrong boolean type format") {
     val json = """
-      |{
-      | "format": "YES|NO|MAYBE",
-      | "base": "boolean"
-      |}
-      |""".stripMargin
+                 |{
+                 | "format": "YES|NO|MAYBE",
+                 | "base": "boolean"
+                 |}
+                 |""".stripMargin
     val jsonNode = objectMapper.readTree(json)
     val (_, warnings, _) = PropertyChecker.checkProperty("datatype", jsonNode, "", "und")
     assert(warnings === Array[String]("invalid_boolean_format"))
@@ -467,5 +466,67 @@ class PropertyCheckerTest extends FunSuite {
 
     assert(warnings === Array[String]())
     assert(returnedValue === expectedValue)
+  }
+
+  test("throw metadata error if id starts with _:") {
+//    val uri = new TextNode("www.sampleurl.com")
+//    val (value, warnings, typeString) = PropertyChecker.checkProperty("tableSchema", uri, baseUrl = "https://chickenburgers.com", "und")
+    val json = """
+                 |{
+                 | "@id": "_:someValue"
+                 |}
+                 |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val thrown = intercept[MetadataError] {
+      PropertyChecker.checkProperty("tableSchema", jsonNode, "http://www.w3.org/", "und")
+    }
+    assert(thrown.getMessage === "@id _:someValue starts with _:")
+  }
+
+  test("throw metadata error if @type of schema is not 'Schema'") {
+    val json = """
+                 |{
+                 | "@type": "someValueOtherThanSchema"
+                 |}
+                 |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val thrown = intercept[MetadataError] {
+      PropertyChecker.checkProperty("tableSchema", jsonNode, "http://www.w3.org/", "und")
+    }
+    assert(thrown.getMessage === "@type of schema is not 'Schema'")
+  }
+
+  test("return invalid value warning if tableSchema property is not a string or an object") {
+    val (_, warnings, _) = PropertyChecker.checkProperty("tableSchema", BooleanNode.getTrue, baseUrl = "https://chickenburgers.com", "und")
+    assert(warnings === Array[String]("invalid_value"))
+  }
+
+  test("return expected schemaJson after validation (remove properties test)") {
+    val json = """
+                 |{
+                 | "@id": "https://chickenburgers.com",
+                 | "notes": "notesContent"
+                 | }
+                 |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    jsonNode.asInstanceOf[ObjectNode].remove("notes")
+    val (schema, warnings, _) = PropertyChecker.checkProperty("tableSchema", jsonNode, baseUrl = "https://chickenburgers.com", "und")
+
+    assert(warnings === Array[String]())
+    assert(schema === jsonNode) // Notes property should be stripped of after validation as it does not come under schema or inherited
+  }
+
+  test("return expected schemaJson after validation") {
+    val json = """
+                 |{
+                 | "@id": "https://chickenburgers.com",
+                 | "separator": "separatorContent"
+                 | }
+                 |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val (schema, warnings, _) = PropertyChecker.checkProperty("tableSchema", jsonNode, baseUrl = "https://chickenburgers.com", "und")
+
+    assert(warnings === Array[String]())
+    assert(schema === jsonNode) // separator property should Not be stripped of after validation as it comes under inherited
   }
 }
