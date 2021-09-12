@@ -1,8 +1,9 @@
 package CSVValidation
-import com.fasterxml.jackson.databind.node.{ArrayNode, BooleanNode, IntNode, JsonNodeFactory, NullNode, ObjectNode, TextNode, ValueNode}
-import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
-import org.scalatest.{BeforeAndAfter, FunSuite, Tag}
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.node._
+import org.scalatest.{FunSuite, Tag}
 
+import scala.jdk.CollectionConverters.IteratorHasAsScala
 
 class PropertyCheckerTest extends FunSuite {
   val objectMapper = new ObjectMapper()
@@ -55,9 +56,9 @@ class PropertyCheckerTest extends FunSuite {
 
   test("notes property checker should return invalid if value is not of type array") {
     val (value, warnings, _) = PropertyChecker.checkProperty("notes", new TextNode("Notes Content"), "", "und")
-
+    
     assert(warnings === Array[String]("invalid_value"))
-    assert(value === BooleanNode.getFalse)
+    assert(value.isInstanceOf[ArrayNode])
   }
 
   test("notes property checker returns values, warnings array for valid input") {
@@ -68,7 +69,12 @@ class PropertyCheckerTest extends FunSuite {
     val (values, warnings, _) = PropertyChecker.checkProperty("notes", arrayNode, "", "und")
     assert(values.isInstanceOf[ArrayNode])
     assert(warnings.isInstanceOf[Array[String]])
-    // TODO test if the values array is same as what is expected
+    val arrayNodeOut = values.asInstanceOf[ArrayNode]
+    val notes = Array.from(arrayNodeOut.elements.asScala)
+    assert(notes(0).isInstanceOf[TextNode])
+    assert(notes(0).asText() == "FirstNote")
+    assert(notes(1).isInstanceOf[TextNode])
+    assert(notes(1).asText() == "secondNote")
   }
 
   test("string property checker returns invalid warning if passed value is not string") {
@@ -478,8 +484,6 @@ class PropertyCheckerTest extends FunSuite {
   }
 
   test("throw metadata error if @type of schema is not 'Schema'") {
-    //    val uri = new TextNode("www.sampleurl.com")
-    //    val (value, warnings, typeString) = PropertyChecker.checkProperty("tableSchema", uri, baseUrl = "https://chickenburgers.com", "und")
     val json = """
                  |{
                  | "@type": "someValueOtherThanSchema"
@@ -552,5 +556,4 @@ class PropertyCheckerTest extends FunSuite {
     val (values, warnings, _) = PropertyChecker.checkProperty("foreignKeys", jsonNode, baseUrl = "https://chickenburgers.com", "und")
     assert(warnings === Array[String]("invalid_value"))
   }
-  
 }

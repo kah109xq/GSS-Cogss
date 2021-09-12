@@ -5,12 +5,12 @@ import java.net.{URI, URL}
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.fasterxml.jackson.databind.node.{ArrayNode, BooleanNode, JsonNodeFactory, NullNode, ObjectNode, TextNode}
+import com.fasterxml.jackson.databind.node._
+import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 
-import scala.collection.IterableOnce.iterableOnceExtensionMethods
+import scala.collection.mutable.HashMap
 import scala.jdk.CollectionConverters._
 import scala.util.matching.Regex
-import scala.collection.mutable.HashMap
-import com.fasterxml.jackson.databind.ObjectMapper
 
 import scala.io.Source
 import scala.util.Using
@@ -20,6 +20,7 @@ object PropertyChecker {
   val startsWithUnderscore = "^_:.*".r
   val containsColon = ".*:.*".r
   val mapper = new ObjectMapper
+  val invalidValueWarning = "invalid_value"
   val Bcp47Regular = "(art-lojban|cel-gaulish|no-bok|no-nyn|zh-guoyu|zh-hakka|zh-min|zh-min-nan|zh-xiang)"
   val Bcp47Irregular = "(en-GB-oed|i-ami|i-bnn|i-default|i-enochian|i-hak|i-klingon|i-lux|i-mingo|i-navajo|i-pwn|i-tao|i-tay|i-tsu|sgn-BE-FR|sgn-BE-NL|sgn-CH-DE)"
   val Bcp47Grandfathered = "(?<grandfathered>" + Bcp47Irregular + "|" + Bcp47Regular + ")"
@@ -34,174 +35,13 @@ object PropertyChecker {
   val Bcp47Langtag = "(" + Bcp47Language + "(-" + Bcp47Script + ")?" + "(-" + Bcp47Region + ")?" + "(-" + Bcp47Variant + ")*" + "(-" + Bcp47Extension + ")*" + "(-" + Bcp47PrivateUse + ")?" + ")"
   val Bcp47LanguagetagRegExp: Regex = ("^(" + Bcp47Grandfathered + "|" + Bcp47Langtag + "|" + Bcp47PrivateUse + ")").r
 
-  val BuiltInDataTypes = HashMap(
-    "number" -> "http://www.w3.org/2001/XMLSchema#double",
-    "binary" -> "http://www.w3.org/2001/XMLSchema#base64Binary",
-    "datetime" -> "http://www.w3.org/2001/XMLSchema#dateTime",
-    "any" -> "http://www.w3.org/2001/XMLSchema#anyAtomicType",
-    "xml" -> "http://www.w3.org/1999/02/22-rdf-syntax-ns#XMLLiteral",
-    "html" -> "http://www.w3.org/1999/02/22-rdf-syntax-ns#HTML",
-    "json" -> "http://www.w3.org/ns/csvw#JSON",
-    "anyAtomicType" -> "http://www.w3.org/2001/XMLSchema#anyAtomicType",
-    "anyURI" -> "http://www.w3.org/2001/XMLSchema#anyURI",
-    "base64Binary" -> "http://www.w3.org/2001/XMLSchema#base64Binary",
-    "boolean" -> "http://www.w3.org/2001/XMLSchema#boolean",
-    "date" -> "http://www.w3.org/2001/XMLSchema#date",
-    "dateTime" -> "http://www.w3.org/2001/XMLSchema#dateTime",
-    "dateTimeStamp" -> "http://www.w3.org/2001/XMLSchema#dateTimeStamp",
-    "decimal" -> "http://www.w3.org/2001/XMLSchema#decimal",
-    "integer" -> "http://www.w3.org/2001/XMLSchema#integer",
-    "long" -> "http://www.w3.org/2001/XMLSchema#long",
-    "int" -> "http://www.w3.org/2001/XMLSchema#int",
-    "short" -> "http://www.w3.org/2001/XMLSchema#short",
-    "byte" -> "http://www.w3.org/2001/XMLSchema#byte",
-    "nonNegativeInteger" -> "http://www.w3.org/2001/XMLSchema#nonNegativeInteger",
-    "positiveInteger" -> "http://www.w3.org/2001/XMLSchema#positiveInteger",
-    "unsignedLong" -> "http://www.w3.org/2001/XMLSchema#unsignedLong",
-    "unsignedInt" -> "http://www.w3.org/2001/XMLSchema#unsignedInt",
-    "unsignedShort" -> "http://www.w3.org/2001/XMLSchema#unsignedShort",
-    "unsignedByte" -> "http://www.w3.org/2001/XMLSchema#unsignedByte",
-    "nonPositiveInteger" -> "http://www.w3.org/2001/XMLSchema#nonPositiveInteger",
-    "negativeInteger" -> "http://www.w3.org/2001/XMLSchema#negativeInteger",
-    "double" -> "http://www.w3.org/2001/XMLSchema#double",
-    "duration" -> "http://www.w3.org/2001/XMLSchema#duration",
-    "dayTimeDuration" -> "http://www.w3.org/2001/XMLSchema#dayTimeDuration",
-    "yearMonthDuration" -> "http://www.w3.org/2001/XMLSchema#yearMonthDuration",
-    "float" -> "http://www.w3.org/2001/XMLSchema#float",
-    "gDay" -> "http://www.w3.org/2001/XMLSchema#gDay",
-    "gMonth" -> "http://www.w3.org/2001/XMLSchema#gMonth",
-    "gMonthDay" -> "http://www.w3.org/2001/XMLSchema#gMonthDay",
-    "gYear" -> "http://www.w3.org/2001/XMLSchema#gYear",
-    "gYearMonth" -> "http://www.w3.org/2001/XMLSchema#gYearMonth",
-    "hexBinary" -> "http://www.w3.org/2001/XMLSchema#hexBinary",
-    "QName" -> "http://www.w3.org/2001/XMLSchema#QName",
-    "string" -> "http://www.w3.org/2001/XMLSchema#string",
-    "normalizedString" -> "http://www.w3.org/2001/XMLSchema#normalizedString",
-    "token" -> "http://www.w3.org/2001/XMLSchema#token",
-    "language" -> "http://www.w3.org/2001/XMLSchema#language",
-    "Name" -> "http://www.w3.org/2001/XMLSchema#Name",
-    "NMTOKEN" -> "http://www.w3.org/2001/XMLSchema#NMTOKEN",
-    "time" -> "http://www.w3.org/2001/XMLSchema#time"
-  )
-
-  val StringDataTypes = Array[String](
-  "http://www.w3.org/1999/02/22-rdf-syntax-ns#XMLLiteral",
-  "http://www.w3.org/1999/02/22-rdf-syntax-ns#HTML",
-  "http://www.w3.org/ns/csvw#JSON",
-  "http://www.w3.org/2001/XMLSchema#string",
-  "http://www.w3.org/2001/XMLSchema#normalizedString",
-  "http://www.w3.org/2001/XMLSchema#token",
-  "http://www.w3.org/2001/XMLSchema#language",
-  "http://www.w3.org/2001/XMLSchema#Name",
-  "http://www.w3.org/2001/XMLSchema#NMTOKEN"
-  )
-
-  val BinaryDataTypes = Array[String](
-  "http://www.w3.org/2001/XMLSchema#base64Binary",
-  "http://www.w3.org/2001/XMLSchema#hexBinary"
-  )
-
-  val IntegerFormatDataTypes = Array[String](
-  "http://www.w3.org/2001/XMLSchema#integer",
-  "http://www.w3.org/2001/XMLSchema#long",
-  "http://www.w3.org/2001/XMLSchema#int",
-  "http://www.w3.org/2001/XMLSchema#short",
-  "http://www.w3.org/2001/XMLSchema#byte",
-  "http://www.w3.org/2001/XMLSchema#nonNegativeInteger",
-  "http://www.w3.org/2001/XMLSchema#positiveInteger",
-  "http://www.w3.org/2001/XMLSchema#unsignedLong",
-  "http://www.w3.org/2001/XMLSchema#unsignedInt",
-  "http://www.w3.org/2001/XMLSchema#unsignedShort",
-  "http://www.w3.org/2001/XMLSchema#unsignedByte",
-  "http://www.w3.org/2001/XMLSchema#nonPositiveInteger",
-  "http://www.w3.org/2001/XMLSchema#negativeInteger"
-  )
-
-  val NumericFormatDataTypes = Array[String](
-  "http://www.w3.org/2001/XMLSchema#decimal",
-  "http://www.w3.org/2001/XMLSchema#double",
-  "http://www.w3.org/2001/XMLSchema#float"
-  ) :+ IntegerFormatDataTypes
-
-  val DateFormatDataTypes = Array[String](
-  "http://www.w3.org/2001/XMLSchema#date",
-  "http://www.w3.org/2001/XMLSchema#dateTime",
-  "http://www.w3.org/2001/XMLSchema#dateTimeStamp",
-  "http://www.w3.org/2001/XMLSchema#time"
-  )
-
-  val RegExpFormatDataTypes = Array[String](
-  "http://www.w3.org/1999/02/22-rdf-syntax-ns#XMLLiteral",
-  "http://www.w3.org/1999/02/22-rdf-syntax-ns#HTML",
-  "http://www.w3.org/ns/csvw#JSON",
-  "http://www.w3.org/2001/XMLSchema#anyAtomicType",
-  "http://www.w3.org/2001/XMLSchema#anyURI",
-  "http://www.w3.org/2001/XMLSchema#base64Binary",
-  "http://www.w3.org/2001/XMLSchema#duration",
-  "http://www.w3.org/2001/XMLSchema#dayTimeDuration",
-  "http://www.w3.org/2001/XMLSchema#yearMonthDuration",
-  "http://www.w3.org/2001/XMLSchema#hexBinary",
-  "http://www.w3.org/2001/XMLSchema#QName",
-  "http://www.w3.org/2001/XMLSchema#string",
-  "http://www.w3.org/2001/XMLSchema#normalizedString",
-  "http://www.w3.org/2001/XMLSchema#token",
-  "http://www.w3.org/2001/XMLSchema#language",
-  "http://www.w3.org/2001/XMLSchema#Name",
-  "http://www.w3.org/2001/XMLSchema#NMTOKEN"
-  )
-
   val BuiltInTypes = Array[String]("TableGroup", "Table", "Schema", "Column", "Dialect", "Template", "Datatype")
 
   val NameRegExp = "^([A-Za-z0-9]|(%[A-F0-9][A-F0-9]))([A-Za-z0-9_]|(%[A-F0-9][A-F0-9]))*$".r
 
-  val NameSpaces = HashMap(
-    "dcat" -> "http://www.w3.org/ns/dcat#",
-    "qb" -> "http://purl.org/linked-data/cube#",
-    "grddl" -> "http://www.w3.org/2003/g/data-view#",
-    "ma" -> "http://www.w3.org/ns/ma-ont#",
-    "org" -> "http://www.w3.org/ns/org#",
-    "owl" -> "http://www.w3.org/2002/07/owl#",
-    "prov" -> "http://www.w3.org/ns/prov#",
-    "rdf" -> "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-    "rdfa" -> "http://www.w3.org/ns/rdfa#",
-    "rdfs" -> "http://www.w3.org/2000/01/rdf-schema#",
-    "rif" -> "http://www.w3.org/2007/rif#",
-    "rr" -> "http://www.w3.org/ns/r2rml#",
-    "sd" -> "http://www.w3.org/ns/sparql-service-description#",
-    "skos" -> "http://www.w3.org/2004/02/skos/core#",
-    "skosxl" -> "http://www.w3.org/2008/05/skos-xl#",
-    "wdr" -> "http://www.w3.org/2007/05/powder#",
-    "void" -> "http://rdfs.org/ns/void#",
-    "wdrs" -> "http://www.w3.org/2007/05/powder-s#",
-    "xhv" -> "http://www.w3.org/1999/xhtml/vocab#",
-    "xml" -> "http://www.w3.org/XML/1998/namespace",
-    "xsd" -> "http://www.w3.org/2001/XMLSchema#",
-    "csvw" -> "http://www.w3.org/ns/csvw#",
-    "cnt" -> "http://www.w3.org/2008/content",
-    "earl" -> "http://www.w3.org/ns/earl#",
-    "ht" -> "http://www.w3.org/2006/http#",
-    "oa" -> "http://www.w3.org/ns/oa#",
-    "ptr" -> "http://www.w3.org/2009/pointers#",
-    "cc" -> "http://creativecommons.org/ns#",
-    "ctag" -> "http://commontag.org/ns#",
-    "dc" -> "http://purl.org/dc/terms/",
-    "dcterms" -> "http://purl.org/dc/terms/",
-    "dc11" -> "http://purl.org/dc/elements/1.1/",
-    "foaf" -> "http://xmlns.com/foaf/0.1/",
-    "gr" -> "http://purl.org/goodrelations/v1#",
-    "ical" -> "http://www.w3.org/2002/12/cal/icaltzd#",
-    "og" -> "http://ogp.me/ns#",
-    "rev" -> "http://purl.org/stuff/rev#",
-    "sioc" -> "http://rdfs.org/sioc/ns#",
-    "v" -> "http://rdf.data-vocabulary.org/#",
-    "vcard" -> "http://www.w3.org/2006/vcard/ns#",
-    "schema" -> "http://schema.org/"
-    )
-
   val Properties = Map(
     "@language" -> languageProperty (PropertyType.Context),
        // Context Properties
-
     "@base" -> linkProperty(PropertyType.Context),
 //       // common properties
     "@id" -> linkProperty(PropertyType.Common),
@@ -228,10 +68,6 @@ object PropertyChecker {
     return f(value, baseUrl, lang)
   }
 
-//  JsonNode - primitive values + ObjectNodes + ArrayNode
-//  ObjectNode
-//  ArrayNode
-
   def checkCommonPropertyValue(value: JsonNode, baseUrl: String, lang: String):(Any, String) = {
     if(value.isObject) {
       throw new NotImplementedError("to be implemented later")
@@ -256,9 +92,9 @@ object PropertyChecker {
 
   def convertValueFacet(value:ObjectNode, property:String, datatype:String):Array[String] = {
     if(!value.path(property).isMissingNode) {
-      if(PropertyChecker.DateFormatDataTypes.contains(datatype)) {
+      if(PropertyCheckerConstants.DateFormatDataTypes.contains(datatype)) {
         throw new NotImplementedError("To be implemented after implementing DateFormat class")
-      } else if (PropertyChecker.NumericFormatDataTypes.contains(datatype)) {
+      } else if (PropertyCheckerConstants.NumericFormatDataTypes.contains(datatype)) {
         return Array[String]()
       } else {
         throw new MetadataError(s"$property is only allowed for numeric, date/time and duration types")
@@ -267,92 +103,92 @@ object PropertyChecker {
     return Array[String]()
   }
 
-  def booleanProperty(typeString:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+  def booleanProperty(csvwPropertyType:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
     return (value, baseUrl, lang) => {
       if(value.isBoolean) {
-        (value, Array[String](), typeString)
+        (value, Array[String](), csvwPropertyType)
       } else {
-        (BooleanNode.getFalse, Array[String]("invalid_value"), typeString)
+        (BooleanNode.getFalse, Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       }
     }
   }
 
-  def stringProperty(typeString: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+  def stringProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
     return (value, baseUrl, lang) => {
       if (value.isTextual) {
-         (value, Array[String](), typeString)
+         (value, Array[String](), csvwPropertyType)
       } else {
-         (new TextNode(""), Array[String]("invalid_value"), typeString)
+         (new TextNode(""), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       }
     }
   }
 
-  def numericProperty(typeString: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+  def numericProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
      return (value, baseUrl, lang) => {
       if (value.isInt && value.asInt >= 0) {
-         (value, Array[String](), typeString)
+         (value, Array[String](), csvwPropertyType)
       } else if (value.isInt && value.asInt < 0) {
-         (NullNode.getInstance(), Array[String]("invalid_value"), typeString)
+         (NullNode.getInstance(), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       } else {
-         (NullNode.getInstance(), Array[String]("invalid_value"), typeString)
+         (NullNode.getInstance(), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       }
     }
   }
 
-  def notesProperty(typeString:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+  def notesProperty(csvwPropertyType:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
      def notesPropertyInternal (value: JsonNode, baseUrl: String, lang: String): (JsonNode, Array[String], PropertyType.Value) = {
-      if (value.isArray) {
-        val arrayValue = value.asInstanceOf[ArrayNode]
-        val elements = arrayValue.elements().asScala
-        if (elements forall (_.isTextual())) {
-          /**
-           * [(1,2), (3,4), (5,6)] => ([1,3,5], [2,4,6])
-           */
-          val (values, warnings) = Array.from(elements.map(x => checkCommonPropertyValue(x, baseUrl, lang))).unzip
-          val arrayNode:ArrayNode = PropertyChecker.mapper.valueToTree(values)
-          return (arrayNode, warnings, typeString)
-        }
-      }
-       (BooleanNode.getFalse, Array[String]("invalid_value"), typeString)
-    }
+       if (value.isArray) {
+         val arrayValue = value.asInstanceOf[ArrayNode]
+         val elements = Array.from(arrayValue.elements().asScala)
+         if (elements forall (_.isTextual())) {
+           /**
+            * [(1,2), (3,4), (5,6)] => ([1,3,5], [2,4,6])
+            */
+           val (values, warnings) = Array.from(elements.map(x => checkCommonPropertyValue(x, baseUrl, lang))).unzip
+           val arrayNode: ArrayNode = PropertyChecker.mapper.valueToTree(values)
+           return (arrayNode, warnings, csvwPropertyType)
+         }
+       }
+       (JsonNodeFactory.instance.arrayNode(), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
+     }
     return notesPropertyInternal
   }
 
-  def nullProperty(typeString:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+  def nullProperty(csvwPropertyType:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
      (value, baseUrl, lang) => {
       if (value.isTextual) {
-         (value, Array[String](), typeString)
+         (value, Array[String](), csvwPropertyType)
       } else if (value.isArray) {
         var values = Array[String]()
         var warnings = Array[String]()
         for (x <- value.elements().asScala) {
           x match {
-            case xs if xs.isTextual => values = values :+ xs.asText()
-            case _ => warnings = warnings :+ "invalid_value"
+            case xs: TextNode => values = values :+ xs.asText()
+            case _ => warnings = warnings :+ PropertyChecker.invalidValueWarning
           }
         }
         val arrayNode:ArrayNode = PropertyChecker.mapper.valueToTree(values)
-         (arrayNode, warnings, typeString)
+         (arrayNode, warnings, csvwPropertyType)
       } else {
-         (NullNode.getInstance(), Array[String]("invalid_value"), typeString)
+         (NullNode.getInstance(), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       }
     }
   }
 
-  def separatorProperty(typeString:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+  def separatorProperty(csvwPropertyType:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
      (value, baseUrl, lang) => {
        value match {
-        case s if s.isTextual || s.isNull => (s, Array[String](), typeString)
-        case _ => (NullNode.getInstance(), Array[String]("invalid_value"), typeString)
+        case s if s.isTextual || s.isNull => (s, Array[String](), csvwPropertyType)
+        case _ => (NullNode.getInstance(), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       }
     }
   }
 
-  def linkProperty(typeString:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+  def linkProperty(csvwPropertyType:PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
      (v, baseUrl, lang) => {
       var baseUrlCopy = ""
       v match {
-        case s if s.isTextual => {
+        case s: TextNode => {
           val matcher = PropertyChecker.startsWithUnderscore.pattern.matcher(s.asText())
           if (matcher.matches) {
             throw new MetadataError(s"URL ${s.asText} starts with _:")
@@ -361,36 +197,36 @@ object PropertyChecker {
             case "" => s.asText()
             case _ => baseUrl + s.asText()
           }
-           (new TextNode(baseUrlCopy), Array[String](""), typeString)
+           (new TextNode(baseUrlCopy), Array[String](""), csvwPropertyType)
         }
-        case _ =>  (new TextNode(""), Array[String]("invalid_value"), typeString)
+        case _ =>  (new TextNode(""), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       }
     }
   }
 
-  def languageProperty (typeString:PropertyType.Value) : (JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+  def languageProperty (csvwPropertyType:PropertyType.Value) : (JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
      (value, baseUrl, lang) => {
       value match {
-        case s if s.isTextual && PropertyChecker.Bcp47LanguagetagRegExp.pattern.matcher(s.asText()).matches => (s, Array[String](), typeString)
-        case _ => (new TextNode(""), Array[String]("invalid_value"), typeString)
+        case s:TextNode if PropertyChecker.Bcp47LanguagetagRegExp.pattern.matcher(s.asText()).matches => (s, Array[String](), csvwPropertyType)
+        case _ => (new TextNode(""), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       }
     }
   }
 
-  def datatypeProperty(typeString: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+  def datatypeProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
      (value, baseUrl, lang) => {
       var warnings = Array[String]()
       var valueCopy = value.deepCopy()
-        .asInstanceOf[JsonNode] // Just coz its a json node
+        .asInstanceOf[JsonNode]
       valueCopy match {
-        case v if v.isObject => {
+        case v: ObjectNode => {
           val objectNode = v.asInstanceOf[ObjectNode]
           if (!objectNode.path("@id").isMissingNode) {
             val idValue = objectNode.get("@id").asText()
-            if (PropertyChecker.BuiltInDataTypes.contains(idValue)) { // check this coz contains just checks in keys
+            if (BuiltInDataTypes.types.contains(idValue)) {
               throw new MetadataError(s"datatype @id must not be the id of a built-in datatype ($idValue)")
             } else {
-              val (_, w, _) = linkProperty(PropertyType.Common)(objectNode.get("@id"), baseUrl, lang) // assign warnings in val w
+              val (_, w, _) = linkProperty(PropertyType.Common)(objectNode.get("@id"), baseUrl, lang)
               if (!w.isEmpty) {
                 warnings = Array.concat(warnings, w)
                 objectNode.remove("@id")
@@ -400,32 +236,32 @@ object PropertyChecker {
 
           if (!objectNode.path("base").isMissingNode) {
             val baseValue = objectNode.get("base").asText()
-            if (PropertyChecker.BuiltInDataTypes.contains(baseValue)) {
-              objectNode.put("base", PropertyChecker.BuiltInDataTypes(baseValue))
+            if (BuiltInDataTypes.types.contains(baseValue)) {
+              objectNode.put("base", BuiltInDataTypes.types(baseValue))
             } else {
-              objectNode.put("base", PropertyChecker.BuiltInDataTypes("string"))
+              objectNode.put("base", BuiltInDataTypes.types("string"))
               warnings = warnings :+ "invalid_datatype_base"
             }
           } else {
-            objectNode.put("base", PropertyChecker.BuiltInDataTypes("string"))
+            objectNode.put("base", BuiltInDataTypes.types("string"))
           }
         }
-        case x if x.isTextual && (PropertyChecker.BuiltInDataTypes.contains(x.asText())) => {
+        case x: TextNode if (BuiltInDataTypes.types.contains(x.asText())) => {
           val objectNode = PropertyChecker.mapper.createObjectNode
-          objectNode.put("@id", PropertyChecker.BuiltInDataTypes(x.asText()))
+          objectNode.put("@id", BuiltInDataTypes.types(x.asText()))
           valueCopy = objectNode
         }
-        case x if x.isTextual => {
+        case x:TextNode => {
           val objectNode = PropertyChecker.mapper.createObjectNode
-          objectNode.put("@id", PropertyChecker.BuiltInDataTypes("string"))
+          objectNode.put("@id", BuiltInDataTypes.types("string"))
           valueCopy = objectNode
-          warnings = warnings :+ "invalid_value"
+          warnings = warnings :+ PropertyChecker.invalidValueWarning
         }
       }
       val objectNode = valueCopy.asInstanceOf[ObjectNode]
       if (!objectNode.path("base").isMissingNode) {
         val baseValue = objectNode.get("base").asText()
-        if (!PropertyChecker.StringDataTypes.contains(baseValue) || !PropertyChecker.BinaryDataTypes.contains(baseValue)) {
+        if (!PropertyCheckerConstants.StringDataTypes.contains(baseValue) || !PropertyCheckerConstants.BinaryDataTypes.contains(baseValue)) {
           if (!objectNode.path("length").isMissingNode) {
             throw new MetadataError(s"datatypes based on $baseValue cannot have a length facet")
           }
@@ -459,86 +295,75 @@ object PropertyChecker {
       warnings :+ convertValueFacet(objectNode, "maxInclusive", baseValue)
       warnings :+ convertValueFacet(objectNode, "maxExclusive", baseValue)
 
-      val minInclusive = if (valueCopy.path("minInclusive").path("dateTime").isMissingNode) {
+      val minInclusive:Option[Either[Int, String]] = if (valueCopy.path("minInclusive").path("dateTime").isMissingNode) {
         if (objectNode.path("minInclusive").isMissingNode) {
-          null
+          None
         } else {
-          objectNode.get("minInclusive").asInt()
+          Some(Left(objectNode.get("minInclusive").asInt()))
         }
       } else {
         if (objectNode.path("minInclusive").path("dateTime").isMissingNode) {
-          null
+          None
         } else {
-          objectNode.get("minInclusive").get("dateTime").asText()
+          Some(Right(objectNode.get("minInclusive").get("dateTime").asText()))
         }
       }
 
-      val maxInclusive = if (objectNode.path("maxInclusive").path("dateTime").isMissingNode) {
+      val maxInclusive:Option[Either[Int, String]] = if (objectNode.path("maxInclusive").path("dateTime").isMissingNode) {
         if (objectNode.path("maxInclusive").isMissingNode) {
-          null
+          None
         } else {
-          objectNode.get("maxInclusive").asInt()
+          Some(Left(objectNode.get("maxInclusive").asInt()))
         }
       } else {
         if (objectNode.path("maxInclusive").path("dateTime").isMissingNode) {
-          null
+          None
         } else {
-          objectNode.get("maxInclusive").get("dateTime").asText()
+          Some(Right(objectNode.get("maxInclusive").get("dateTime").asText()))
         }
       }
 
-      val minExclusive = if (objectNode.path("minExclusive").path("dateTime").isMissingNode) {
+      val minExclusive:Option[Either[Int, String]] = if (objectNode.path("minExclusive").path("dateTime").isMissingNode) {
         if (objectNode.path("minExclusive").isMissingNode) {
-          null
+          None
         } else {
-          objectNode.get("minExclusive").asInt()
+          Some(Left(objectNode.get("minExclusive").asInt()))
         }
       } else {
         if (objectNode.get("minExclusive").path("dateTime").isMissingNode) {
-          null
+          None
         } else {
-          objectNode.get("minExclusive").get("dateTime").asText()
+          Some(Right(objectNode.get("minExclusive").get("dateTime").asText()))
         }
       }
 
-      val maxExclusive = if (objectNode.path("maxExclusive").path("dateTime").isMissingNode) {
+      val maxExclusive:Option[Either[Int, String]] = if (objectNode.path("maxExclusive").path("dateTime").isMissingNode) {
         if (objectNode.path("maxExclusive").isMissingNode) {
-          null
+          None
         } else {
-          objectNode.get("maxExclusive").asInt()
+          Some(Left(objectNode.get("maxExclusive").asInt()))
         }
       } else {
         if (objectNode.path("maxExclusive").path("dateTime").isMissingNode) {
-          null
+          None
         } else {
-          objectNode.get("maxExclusive").get("dateTime").asText()
+          Some(Right(objectNode.get("maxExclusive").get("dateTime").asText()))
         }
       }
 
-
-      if (minInclusive != null && minExclusive != null) {
-        throw new MetadataError(s"datatype cannot specify both minimum/minInclusive ($minInclusive) and minExclusive ($minExclusive)")
-      }
-
-      if (maxInclusive != null && maxExclusive != null) {
-        throw new MetadataError(s"datatype cannot specify both maximum/maxInclusive ($maxInclusive) and maxExclusive ($maxExclusive)")
-      }
-
-      if (minInclusive != null && maxInclusive != null && minInclusive.asInstanceOf[Int] > maxInclusive.asInstanceOf[Int]) {
-        throw new MetadataError(s"datatype minInclusive ($minInclusive) cannot be more than maxInclusive ($maxInclusive)")
-      }
-
-      if (minInclusive != null && maxExclusive != null && minInclusive.asInstanceOf[Int] >= maxExclusive.asInstanceOf[Int]) {
-        throw new MetadataError(s"datatype minInclusive ($minInclusive) cannot be greater than or equal to maxExclusive ($maxExclusive)")
-      }
-
-      if (minExclusive != null && maxExclusive != null && minExclusive.asInstanceOf[Int] > maxExclusive.asInstanceOf[Int]) {
-        throw new MetadataError(s"datatype minExclusive ($minExclusive) cannot be greater than or equal to maxExclusive ($maxExclusive)")
-      }
-
-      if (minExclusive != null && maxInclusive != null && minExclusive.asInstanceOf[Int] >= maxInclusive.asInstanceOf[Int]) {
-        throw new MetadataError(s"datatype minExclusive ($minExclusive) cannot be greater than maxInclusive ($maxInclusive)")
-      }
+     (minInclusive, minExclusive, maxInclusive, maxExclusive) match {
+       case (Some(minI), Some(minE), _, _) => throw new MetadataError(s"datatype cannot specify both minimum/minInclusive (${minI.merge}) and minExclusive (${minE.merge})")
+       case (_, _, Some(maxI), Some(maxE)) => throw new MetadataError(s"datatype cannot specify both maximum/maxInclusive (${maxI.merge}) and maxExclusive (${maxE.merge})")
+       case (Some(Left(minI)), _,Some(Left(maxI)), _) if minI > maxI => throw new MetadataError(s"datatype minInclusive ($minI) cannot be more than maxInclusive ($maxI)")
+       case (Some(Right(minI)), _,Some(Right(maxI)), _) if minI > maxI => throw new MetadataError(s"datatype minInclusive ($minI) cannot be more than maxInclusive ($maxI)")
+       case (Some(Left(minI)), _, _, Some(Left(maxE))) if minI >= maxE => throw new MetadataError(s"datatype minInclusive ($minI) cannot be greater than or equal to maxExclusive ($maxE)")
+       case (Some(Right(minI)), _, _, Some(Right(maxE))) if minI >= maxE => throw new MetadataError(s"datatype minInclusive ($minI) cannot be greater than or equal to maxExclusive ($maxE)")
+       case (_, Some(Left(minE)), _, Some(Left(maxE))) if minE > maxE => throw new MetadataError(s"datatype minExclusive ($minE) cannot be greater than or equal to maxExclusive ($maxE)")
+       case (_, Some(Right(minE)), _, Some(Right(maxE))) if minE > maxE=> throw new MetadataError(s"datatype minExclusive ($minE) cannot be greater than or equal to maxExclusive ($maxE)")
+       case (_, Some(Left(minE)), Some(Left(maxI)), _) if minE >= maxI => throw new MetadataError(s"datatype minExclusive ($minE) cannot be greater than maxInclusive ($maxI)")
+       case (_, Some(Right(minE)), Some(Right(maxI)), _) if minE >= maxI=> throw new MetadataError(s"datatype minExclusive ($minE) cannot be greater than maxInclusive ($maxI)")
+       case _ => {}
+     }
 
       val minLength = objectNode.path("minLength")
       val maxLength = objectNode.path("maxLength")
@@ -555,7 +380,7 @@ object PropertyChecker {
 
       if (!objectNode.path("format").isMissingNode) {
         val baseValue = objectNode.get("base").asText()
-        if (PropertyChecker.RegExpFormatDataTypes.contains(baseValue)) {
+        if (PropertyCheckerConstants.RegExpFormatDataTypes.contains(baseValue)) {
           try {
             // In ruby regexp is stored in format key. Also regexp validated. Determine how to handle this in scala
             // value["format"] = Regexp.new(value["format"])
@@ -566,7 +391,7 @@ object PropertyChecker {
               warnings = warnings :+ "invalid_regex"
             }
           }
-        } else if (PropertyChecker.NumericFormatDataTypes.contains(baseValue)) {
+        } else if (PropertyCheckerConstants.NumericFormatDataTypes.contains(baseValue)) {
           throw new NotImplementedError() // Implement after adding NumberFormat class
         } else if (baseValue == "http://www.w3.org/2001/XMLSchema#boolean") {
           if (objectNode.get("format").isTextual) {
@@ -575,22 +400,21 @@ object PropertyChecker {
               objectNode.remove("format")
               warnings = warnings :+ "invalid_boolean_format"
             } else {
-              // Use a better way to create arrayNodeObject
               val arrayNodeObject = JsonNodeFactory.instance.arrayNode()
               arrayNodeObject.add(formatValues(0))
               arrayNodeObject.add(formatValues(1))
               objectNode.replace("format", arrayNodeObject)
             }
           }
-        } else if (PropertyChecker.DateFormatDataTypes.contains(baseValue)) {
+        } else if (PropertyCheckerConstants.DateFormatDataTypes.contains(baseValue)) {
           throw new NotImplementedError() // Implement after adding DateFormat class
         }
       }
-       (objectNode, warnings, typeString)
+       (objectNode, warnings, csvwPropertyType)
     }
   }
 
-  def tableSchemaProperty(typeString: PropertyType.Value): (JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+  def tableSchemaProperty(csvwPropertyType: PropertyType.Value): (JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
     def tableSchemaPropertyInternal(value: JsonNode, baseUrl: String, lang: String): (JsonNode, Array[String], PropertyType.Value) = {
       var schemaBaseUrl = new URL(baseUrl)
       var schemaLang = lang
@@ -598,8 +422,7 @@ object PropertyChecker {
       var schemaJson: ObjectNode = null
       if(value.isTextual) {
         val schemaUrl = new URL(new URL(baseUrl), value.asText())
-        val objectMapper = new ObjectMapper()
-        schemaJson = objectMapper.readTree(schemaUrl).asInstanceOf[ObjectNode]
+        schemaJson = PropertyChecker.mapper.readTree(schemaUrl).asInstanceOf[ObjectNode]
         if (!schemaJson.path("@id").isMissingNode) {
           // Do something here as object node put method doesn't allow uri object
           val absoluteSchemaUrl = new URL(schemaUrl, schemaJson.get("@id").asText())
@@ -613,50 +436,56 @@ object PropertyChecker {
       } else if(value.isObject) {
         schemaJson = value.deepCopy()
       } else {
-        return (NullNode.getInstance(), Array[String]("invalid_value"), PropertyType.Table)
+        return (NullNode.getInstance(), Array[String](PropertyChecker.invalidValueWarning), PropertyType.Table)
       }
 
       var warnings = Array[String]()
       val fieldsAndValues = Array.from(schemaJson.fields.asScala)
       for(fieldAndValue <- fieldsAndValues) {
-        val p = fieldAndValue.getKey
-        val v = fieldAndValue.getValue
-        if(p == "@id") {
-          val matcher = PropertyChecker.startsWithUnderscore.pattern.matcher(v.asText())
-          if (matcher.matches) {
-            throw new MetadataError(s"@id ${v.asText} starts with _:")
-          }
-        } else if(p == "@type") {
-          if (v.asText() != "Schema") {
-            throw new MetadataError("@type of schema is not 'Schema'")
-          }
-        } else {
-          val (v1, warningsForP, typeString) = checkProperty(p, v, schemaBaseUrl.toString, schemaLang)
-          if((typeString == PropertyType.Schema || typeString == PropertyType.Inherited) && warningsForP.isEmpty) {
-            schemaJson.set(p, v1)
-          } else {
-            schemaJson.remove(p)
-            if(typeString != PropertyType.Schema ||typeString !=PropertyType.Inherited) {
-              warnings = warnings :+ "invalid_property"
-            }
-          }
-        }
+        warnings = validateObjectAndUpdateSchemaJson(schemaJson, schemaBaseUrl, schemaLang, fieldAndValue.getKey, fieldAndValue.getValue)
       }
       return (schemaJson, warnings, PropertyType.Table)
     }
     return tableSchemaPropertyInternal
   }
+
+  def validateObjectAndUpdateSchemaJson(schemaJson: ObjectNode, schemaBaseUrl: URL, schemaLang: String,
+                                        property: String, value: JsonNode):(Array[String]) = {
+    var warnings = Array[String]()
+    if(property == "@id") {
+      val matcher = PropertyChecker.startsWithUnderscore.pattern.matcher(value.asText())
+      if (matcher.matches) {
+        throw new MetadataError(s"@id ${value.asText} starts with _:")
+      }
+    } else if(property == "@type") {
+      if (value.asText() != "Schema") {
+        throw new MetadataError("@type of schema is not 'Schema'")
+      }
+    } else {
+      val (validatedV, warningsForP, propertyType) = checkProperty(property, value, schemaBaseUrl.toString, schemaLang)
+      if((propertyType == PropertyType.Schema || propertyType == PropertyType.Inherited) && warningsForP.isEmpty) {
+        schemaJson.set(property, validatedV)
+      } else {
+        schemaJson.remove(property)
+        if(propertyType != PropertyType.Schema && propertyType != PropertyType.Inherited) {
+          warnings = warnings :+ "invalid_property"
+        }
+      }
+    }
+    warnings
+  }
+
   def fetchSchemaBaseUrlAndLangAndRemoveContext(schemaJson:ObjectNode, schemaBaseUrl: URL, schemaLang:String): (URL, String) = {
     if(!schemaJson.path("@context").isMissingNode) {
       if (schemaJson.isArray && schemaJson.size > 1) {
-        val elements = Array.from(schemaJson.get("@context").elements.asScala)
-        val maybeBaseNode = elements.apply(1).path("@base")
+        val secondContextElement = Array.from(schemaJson.get("@context").elements.asScala).apply(1)
+        val maybeBaseNode = secondContextElement.path("@base")
         val newSchemaBaseUrl = if (!maybeBaseNode.isMissingNode) {
           new URL(schemaBaseUrl, maybeBaseNode.asText())
         } else {
           schemaBaseUrl
         }
-        val languageNode = elements.apply(1).path("@language")
+        val languageNode = secondContextElement.path("@language")
         val newSchemaLang = if (!languageNode.isMissingNode) {
           languageNode.asText()
         } else {
@@ -668,56 +497,5 @@ object PropertyChecker {
       schemaJson.remove("@context")
     }
     (schemaBaseUrl, schemaLang)
-  }
-
-  def foreignKeysProperty(typeString: PropertyType.Value): (JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
-    (value, baseUrl, lang) => {
-      var foreignKeys = Array[JsonNode]()
-      var warnings = Array[String]()
-      value match {
-        case xs: ArrayNode => {
-          val arrayNodes = Array.from(xs.elements().asScala)
-          for (foreignKey <- arrayNodes) {
-            val(fk, warn) = foreignKeyCheckIfValid(foreignKey, baseUrl, lang)
-            foreignKeys = foreignKeys :+ fk
-            warnings = Array.concat(warnings, warn)
-          }
-        }
-        case _ => warnings = warnings :+ "invalid_value"
-      }
-      val arrayNode: ArrayNode = PropertyChecker.mapper.valueToTree(foreignKeys)
-      (arrayNode, warnings, PropertyType.Schema)
-    }
-  }
-
-  def foreignKeyCheckIfValid(foreignKey:JsonNode, baseUrl:String, lang:String):(JsonNode, Array[String]) = {
-    var warnings = Array[String]()
-    foreignKey match {
-      case o: ObjectNode => {
-        val foreignKeyCopy = foreignKey.deepCopy()
-          .asInstanceOf[ObjectNode]
-        val foreignKeysElements = Array.from(foreignKeyCopy.fields().asScala)
-        for (f <- foreignKeysElements) {
-          val p = f.getKey
-          val (value, w, typeString) = checkProperty(p, f.getValue, baseUrl, lang)
-          val matcher = PropertyChecker.containsColon.pattern.matcher(p)
-          if (typeString == PropertyType.ForeignKey && warnings.isEmpty) {
-            foreignKeyCopy.set(p, value)
-          } else if (matcher.matches()) {
-            throw new MetadataError(s"foreignKey.$p includes a prefixed (common) property")
-          } else {
-            foreignKeyCopy.remove(p)
-            warnings = warnings :+ "invalid_property"
-            warnings = Array.concat(warnings, w)
-          }
-        }
-        (foreignKeyCopy, warnings)
-      } // function
-      case _ => {
-        val foreignKeyCopy = JsonNodeFactory.instance.objectNode()
-        warnings = warnings :+ "invalid_foreign_key"
-        (foreignKeyCopy, warnings)
-      }
-    }
   }
 }

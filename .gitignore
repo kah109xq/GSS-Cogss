@@ -6,7 +6,7 @@
 .cache/
 .history/
 .lib/
-.idea/libraries/*
+.idea/*
 dist/*
 target/
 lib_managed/
@@ -17,8 +17,8 @@ project/plugins/project/
 # Scala-IDE specific
 
 # Other
-csv-validation-tests/src/test/resources/features/fixtures/*
-csv-validation-tests/src/main/bin/run-csvw-tests
-csv-validation-tests/model.txt
-csv-validation-tests/hw_25000.csv
-csv-validation-tests/manifest-validation.jsonld
+src/test/resources/features/fixtures/*
+src/main/bin/run-csvw-tests
+model.txt
+hw_25000.csv
+manifest-validation.jsonld
