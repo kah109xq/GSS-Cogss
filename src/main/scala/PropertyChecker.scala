@@ -45,7 +45,6 @@ object PropertyChecker {
     "@base" -> linkProperty(PropertyType.Context),
 //       // common properties
     "@id" -> linkProperty(PropertyType.Common),
-//       // Notes to implement - figure out how to handle different types of values
     "notes" -> notesProperty(PropertyType.Common),
     "suppressOutput" -> booleanProperty(PropertyType.Common),
     "null" -> nullProperty(PropertyType.Inherited),
@@ -497,5 +496,57 @@ object PropertyChecker {
       schemaJson.remove("@context")
     }
     (schemaBaseUrl, schemaLang)
+  }
+
+  def foreignKeysProperty(csvwPropertyType: PropertyType.Value): (JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+    (value, baseUrl, lang) => {
+      var foreignKeys = Array[JsonNode]()
+      var warnings = Array[String]()
+      value match {
+        case xs: ArrayNode => {
+          val arrayNodes = Array.from(xs.elements().asScala)
+          for (foreignKey <- arrayNodes) {
+            val(fk, warn) = foreignKeyCheckIfValid(foreignKey, baseUrl, lang)
+            foreignKeys = foreignKeys :+ fk
+            warnings = Array.concat(warnings, warn)
+          }
+        }
+        case _ => warnings = warnings :+ PropertyChecker.invalidValueWarning
+      }
+      val arrayNode: ArrayNode = PropertyChecker.mapper.valueToTree(foreignKeys)
+      (arrayNode, warnings, PropertyType.Schema)
+    }
+  }
+
+  def foreignKeyCheckIfValid(foreignKey:JsonNode, baseUrl:String, lang:String):(JsonNode, Array[String]) = {
+    var warnings = Array[String]()
+    foreignKey match {
+      case o: ObjectNode => {
+        val foreignKeyCopy = foreignKey.deepCopy()
+          .asInstanceOf[ObjectNode]
+        val foreignKeysElements = Array.from(foreignKeyCopy.fields().asScala)
+        for (f <- foreignKeysElements) {
+          val p = f.getKey
+          val matcher = PropertyChecker.containsColon.pattern.matcher(p)
+          if (matcher.matches()) {
+            throw new MetadataError("foreignKey includes a prefixed (common) property")
+          }
+          val (value, w, typeString) = checkProperty(p, f.getValue, baseUrl, lang)
+          if (typeString == PropertyType.ForeignKey && w.isEmpty) {
+            foreignKeyCopy.set(p, value)
+          } else {
+            foreignKeyCopy.remove(p)
+            warnings = warnings :+ PropertyChecker.invalidValueWarning
+            warnings = Array.concat(warnings, w)
+          }
+        }
+        (foreignKeyCopy, warnings)
+      }
+      case _ => {
+        val foreignKeyCopy = JsonNodeFactory.instance.objectNode()
+        warnings = warnings :+ "invalid_foreign_key"
+        (foreignKeyCopy, warnings)
+      }
+    }
   }
 }

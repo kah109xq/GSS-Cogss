@@ -530,18 +530,19 @@ class PropertyCheckerTest extends FunSuite {
     assert(schema === jsonNode) // separator property should Not be stripped of after validation as it comes under inherited
   }
 
+  // ForeignKeys property tests
   test("throw metadata error when property foreignKey property value contains colon") {
     val json = """
                  |[
                  |{"@id": "https://chickenburgers.com"},
-                 |{":separator": "separatorContent"}
+                 |{"contain:colon": "separatorContent"}
                  |]
                  |""".stripMargin
     val jsonNode = objectMapper.readTree(json)
     val thrown = intercept[MetadataError] {
       PropertyChecker.checkProperty("foreignKeys", jsonNode, baseUrl = "https://chickenburgers.com", "und")
     }
-    assert(thrown.getMessage === "@type of schema is not 'Schema'")
+    assert(thrown.getMessage === "foreignKey includes a prefixed (common) property")
 
   }
 
@@ -555,5 +556,18 @@ class PropertyCheckerTest extends FunSuite {
     val jsonNode = objectMapper.readTree(json)
     val (values, warnings, _) = PropertyChecker.checkProperty("foreignKeys", jsonNode, baseUrl = "https://chickenburgers.com", "und")
     assert(warnings === Array[String]("invalid_value"))
+  }
+
+  test("return correct jsonNode with property removed and warnings if property is not valid") {
+    val json =
+      """
+        |[
+        |{"datatype": "invalidTextDataSupplied"}
+        |]
+        |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val (values, warnings, _) = PropertyChecker.checkProperty("foreignKeys", jsonNode, baseUrl = "https://chickenburgers.com", "und")
+    assert(warnings.contains("invalid_value"))
+    assert(values.path("datatype").isMissingNode)
   }
 }
