@@ -59,7 +59,8 @@ object PropertyChecker {
     "skipRows" -> numericProperty(PropertyType.Dialect),
     "datatype" -> datatypeProperty(PropertyType.Inherited),
     "tableSchema" -> tableSchemaProperty(PropertyType.Table),
-    "foreignKeys" -> foreignKeysProperty(PropertyType.Schema))
+    "foreignKeys" -> foreignKeysProperty(PropertyType.Schema),
+    "reference" -> referenceProperty(PropertyType.ForeignKey))
 
   def checkProperty(property: String, value: JsonNode, baseUrl:String, lang:String): (JsonNode, Array[String], PropertyType.Value) = {
     // More conditions and logic to add here.
@@ -546,6 +547,49 @@ object PropertyChecker {
         val foreignKeyCopy = JsonNodeFactory.instance.objectNode()
         warnings = warnings :+ "invalid_foreign_key"
         (foreignKeyCopy, warnings)
+      }
+    }
+  }
+
+  def referenceProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+    (value, baseUrl, lang) => {
+      value match {
+        case obj:ObjectNode => {
+          val valueCopy = obj.deepCopy()
+          var warnings = Array[String]()
+          val valueCopyElements = Array.from(valueCopy.fields().asScala)
+          for(e <- valueCopyElements) {
+            val p = e.getKey
+            val v = e.getValue
+            val matcher = PropertyChecker.containsColon.pattern.matcher(p)
+            // Check if property is included in the valid properties for a foreign key object
+            if(Array[String]("resource", "schemaReference", "columnReference").contains(p)) {
+              val(new_v, warning, propertyType) = checkProperty(p, v, baseUrl, lang)
+              if(warning.isEmpty) {
+                valueCopy.set(p, new_v)
+              } else {
+                valueCopy.remove(p)
+                warnings = Array.concat(warnings, warning)
+              }
+            } else if(matcher.matches()) {
+              throw new MetadataError(s"foreignKey reference ($p) includes a prefixed (common) property")
+            } else {
+              valueCopy.remove(p)
+              warnings = warnings :+ PropertyChecker.invalidValueWarning
+            }
+          }
+          if(valueCopy.path("columnReference").isMissingNode) {
+            throw new MetadataError("foreignKey reference columnReference is missing")
+          }
+          if(valueCopy.path("resource").isMissingNode || valueCopy.path("schemaReference").isMissingNode) {
+            throw new MetadataError("foreignKey reference does not have either resource or schemaReference")
+          }
+          if(!valueCopy.path("resource").isMissingNode && !valueCopy.path("schemaReference").isMissingNode) {
+            throw new MetadataError("foreignKey reference has both resource and schemaReference")
+          }
+          (valueCopy, warnings, csvwPropertyType)
+        }
+        case _ => throw new MetadataError("foreignKey reference is not an object")
       }
     }
   }

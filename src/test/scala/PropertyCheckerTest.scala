@@ -570,4 +570,28 @@ class PropertyCheckerTest extends FunSuite {
     assert(warnings.contains("invalid_value"))
     assert(values.path("datatype").isMissingNode)
   }
+
+  // Reference Property tests
+  test("throw metadata error when foreign key reference is not an object") {
+    val thrown = intercept[MetadataError] {
+      PropertyChecker.checkProperty("reference", new TextNode("Some text value"), "", "und")
+    }
+    assert(thrown.getMessage === "foreignKey reference is not an object")
+  }
+
+  test("throw metadata error when property reference property value contains colon") {
+    val json = """
+                 |{
+                 |  "contain:colon": "some content"
+                 | }
+                 |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val thrown = intercept[MetadataError] {
+      PropertyChecker.checkProperty("reference", jsonNode, baseUrl = "https://chickenburgers.com", "und")
+    }
+    assert(thrown.getMessage === "foreignKey reference (contain:colon) includes a prefixed (common) property")
+  }
+  // Add more test cases for referenceProperty after resource, schemaReference, columnReference property validations
+  // are implemented. Currently the exceptions raised when these properties are missing is not tested since
+  // NoSuchElementExceptio is thrown when a jsonnode with these properties are passed in.
 }
