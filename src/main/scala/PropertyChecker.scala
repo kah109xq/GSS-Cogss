@@ -593,4 +593,14 @@ object PropertyChecker {
       }
     }
   }
+
+  def uriTemplateProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+    (value, baseUrl, lang) => {
+      value match {
+          // Don't know how to place a URI object in JsonNode, keeping the text value as of now
+        case s: TextNode => (s, Array[String](), csvwPropertyType)
+        case _ => (new TextNode(""), Array[String](PropertyChecker.invalidValueWarning, csvwPropertyType)
+      }
+    }
+  }
 }
