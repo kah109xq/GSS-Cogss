@@ -60,7 +60,8 @@ object PropertyChecker {
     "datatype" -> datatypeProperty(PropertyType.Inherited),
     "tableSchema" -> tableSchemaProperty(PropertyType.Table),
     "foreignKeys" -> foreignKeysProperty(PropertyType.Schema),
-    "reference" -> referenceProperty(PropertyType.ForeignKey))
+    "reference" -> referenceProperty(PropertyType.ForeignKey),
+    "propertyUrl" -> uriTemplateProperty(PropertyType.Inherited))
 
   def checkProperty(property: String, value: JsonNode, baseUrl:String, lang:String): (JsonNode, Array[String], PropertyType.Value) = {
     // More conditions and logic to add here.
@@ -599,7 +600,7 @@ object PropertyChecker {
       value match {
           // Don't know how to place a URI object in JsonNode, keeping the text value as of now
         case s: TextNode => (s, Array[String](), csvwPropertyType)
-        case _ => (new TextNode(""), Array[String](PropertyChecker.invalidValueWarning, csvwPropertyType)
+        case _ => (new TextNode(""), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       }
     }
   }

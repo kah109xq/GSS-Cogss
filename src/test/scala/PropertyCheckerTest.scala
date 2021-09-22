@@ -594,4 +594,24 @@ class PropertyCheckerTest extends FunSuite {
   // Add more test cases for referenceProperty after resource, schemaReference, columnReference property validations
   // are implemented. Currently the exceptions raised when these properties are missing is not tested since
   // NoSuchElementExceptio is thrown when a jsonnode with these properties are passed in.
+
+  test("set invalid value warnings when Uri template property is not string") {
+    val json = """
+                 |{
+                 |  "sampleObjectProperty": "some content"
+                 | }
+                 |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val (_, warnings, _) = PropertyChecker.checkProperty("propertyUrl", jsonNode, baseUrl = "https://chickenburgers.com", "und")
+
+    assert(warnings === Array[String]("invalid_value"))
+  }
+
+  test("set value and warnings correctly when Uri template property valid") {
+    val validTextNodeUrl = new TextNode("https://www.w3.org")
+    val (values, warnings, _) = PropertyChecker.checkProperty("propertyUrl", validTextNodeUrl , baseUrl = "https://chickenburgers.com", "und")
+
+    assert(values === validTextNodeUrl)
+    assert(warnings === Array[String]())
+  }
 }
