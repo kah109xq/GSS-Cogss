@@ -61,7 +61,8 @@ object PropertyChecker {
     "tableSchema" -> tableSchemaProperty(PropertyType.Table),
     "foreignKeys" -> foreignKeysProperty(PropertyType.Schema),
     "reference" -> referenceProperty(PropertyType.ForeignKey),
-    "propertyUrl" -> uriTemplateProperty(PropertyType.Inherited))
+    "propertyUrl" -> uriTemplateProperty(PropertyType.Inherited),
+    "textDirection" -> textDirectionProperty(PropertyType.Inherited))
 
   def checkProperty(property: String, value: JsonNode, baseUrl:String, lang:String): (JsonNode, Array[String], PropertyType.Value) = {
     // More conditions and logic to add here.
@@ -601,6 +602,17 @@ object PropertyChecker {
           // Don't know how to place a URI object in JsonNode, keeping the text value as of now
         case s: TextNode => (s, Array[String](), csvwPropertyType)
         case _ => (new TextNode(""), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
+      }
+    }
+  }
+
+  def textDirectionProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+    (value, baseUrl, lang) => {
+      value match {
+        case s: TextNode if Array[String]("ltr", "rtl", "inherit").contains(s.asText()) => {
+          (value, Array[String](), PropertyType.Inherited)
+        }
+        case _ => (new TextNode(PropertyType.Inherited.toString), Array[String](PropertyChecker.invalidValueWarning), PropertyType.Inherited)
       }
     }
   }
