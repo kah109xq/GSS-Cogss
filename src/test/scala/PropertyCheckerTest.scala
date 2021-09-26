@@ -614,4 +614,19 @@ class PropertyCheckerTest extends FunSuite {
     assert(values === validTextNodeUrl)
     assert(warnings === Array[String]())
   }
+
+  test("set correct value and warnings correctly when textDirection property is valid") {
+    val validTextDirection = new TextNode("rtl")
+    val (values, warnings, _) = PropertyChecker.checkProperty("textDirection", validTextDirection , baseUrl = "https://www.w3.org", "und")
+
+    assert(values === validTextDirection)
+    assert(warnings === Array[String]())
+  }
+
+  test("set correct value and warnings correctly when textDirection property is Invalid") {
+    val validTextDirection = new TextNode("Some value which is not a text direction")
+    val (values, warnings, _) = PropertyChecker.checkProperty("textDirection", validTextDirection , baseUrl = "https://www.w3.org", "und")
+
+    assert(warnings === Array[String]("invalid_value"))
+  }
 }
