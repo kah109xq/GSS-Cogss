@@ -616,4 +616,60 @@ object PropertyChecker {
       }
     }
   }
+
+  def naturalLanguageProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+    (value, baseUrl, lang) => {
+      var warnings = Array[String]()
+      value match {
+        case s:TextNode => {
+          val returnObject = JsonNodeFactory.instance.objectNode()
+          val arrayNode = JsonNodeFactory.instance.arrayNode()
+          arrayNode.add(s.asText())
+          returnObject.set("lang", arrayNode)
+          (returnObject, Array[String](), csvwPropertyType)
+        }
+        case a:ArrayNode => {
+          var validTitles = Array[String]()
+          val arrayNodeIterator = a.elements()
+          while(arrayNodeIterator.hasNext()) {
+            val element = arrayNodeIterator.next()
+            element match {
+              case s:TextNode => validTitles = validTitles :+ s.asText()
+              case _ => warnings = warnings :+ PropertyChecker.invalidValueWarning
+            }
+          }
+          val returnObject = JsonNodeFactory.instance.objectNode()
+          val arrayNode = PropertyChecker.mapper.valueToTree(validTitles)
+          returnObject.set("lang", arrayNode)
+          (returnObject, warnings, csvwPropertyType)
+        }
+        case o:ObjectNode => {
+          val valueCopy = o.deepCopy()
+          val objectNodeIterator = valueCopy.fields()
+          while(objectNodeIterator.hasNext) {
+            val element = objectNodeIterator.next()
+            val elementKey = element.getKey
+            val matcher = PropertyChecker.Bcp47LanguagetagRegExp.pattern.matcher(elementKey)
+            if(matcher.matches()) {
+              var validTitles = Array[String]()
+              val titles = Array.from(element.getValue.asScala)
+              for(title <- titles) {
+                title match {
+                  case s:TextNode => validTitles = validTitles :+ title.asText()
+                  case _ => warnings = warnings :+ PropertyChecker.invalidValueWarning
+                }
+              }
+              val validTitlesArrayNode = PropertyChecker.mapper.valueToTree(validTitles)
+              valueCopy.set(elementKey, validTitlesArrayNode)
+            } else {
+              valueCopy.remove(elementKey)
+              warnings = warnings :+ "invalid_language"
+            }
+          }
+          (valueCopy, warnings, csvwPropertyType)
+        }
+        case _ => (NullNode.getInstance(), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
+      }
+    }
+  }
 }
