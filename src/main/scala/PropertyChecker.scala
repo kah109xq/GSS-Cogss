@@ -1,5 +1,5 @@
 package CSVValidation
-import Errors.MetadataError
+import Errors.{DateFormatError, MetadataError}
 import com.fasterxml.jackson.databind.node._
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 
@@ -397,7 +397,20 @@ object PropertyChecker {
             }
           }
         } else if (PropertyCheckerConstants.DateFormatDataTypes.contains(baseValue)) {
-          throw new NotImplementedError() // Implement after adding DateFormat class
+          if (objectNode.get("format").isTextual) {
+            try {
+              val format = DateFormat(Some(objectNode.get("format").asText()), None).getFormat()
+              objectNode.set("format", new TextNode(format))
+            } catch {
+              case e: DateFormatError => {
+                objectNode.remove("format")
+                warnings = warnings :+ "invalid_date_format"
+              }
+            }
+          } else {
+            objectNode.remove("format")
+            warnings = warnings :+ "invalid_date_format"
+          }
         }
       }
        (objectNode, warnings, csvwPropertyType)

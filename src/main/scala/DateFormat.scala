@@ -1,4 +1,5 @@
-import Errors.MetadataError
+package CSVValidation
+import Errors.DateFormatError
 
 case class DateFormat(pattern: Option[String], dataType: Option[String]) {
   private var `type`: String = _
@@ -42,7 +43,7 @@ case class DateFormat(pattern: Option[String], dataType: Option[String]) {
         s"${xmlSchemaBaseUrl}time"
       } else if (includesHours && includesYears) {
         s"${xmlSchemaBaseUrl}dateTime"
-      } else throw new MetadataError("Dont know what exactly to perform in this case")
+      } else throw new DateFormatError("Dont know what exactly to perform in this case")
     }
   }
 

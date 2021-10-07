@@ -1,7 +1,6 @@
-import CSVValidation.PropertyChecker
-import Errors.MetadataError
+package CSVValidation
+import Errors.DateFormatError
 import org.scalatest.FunSuite
-import org.joda.time._
 
 class DateFormatTest extends FunSuite {
   test("it throws an exception for unrecognized date field symbols in date format") {
