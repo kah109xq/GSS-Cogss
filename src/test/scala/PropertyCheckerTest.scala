@@ -1,4 +1,5 @@
 package CSVValidation
+import Errors.MetadataError
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node._
 import org.scalatest.{FunSuite, Tag}

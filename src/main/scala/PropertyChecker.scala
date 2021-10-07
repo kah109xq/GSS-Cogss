@@ -1,4 +1,5 @@
 package CSVValidation
+import Errors.MetadataError
 import com.fasterxml.jackson.databind.node._
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 

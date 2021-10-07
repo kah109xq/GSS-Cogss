@@ -1,4 +1,4 @@
-import CSVValidation.MetadataError
+import Errors.MetadataError
 
 case class DateFormat(pattern: Option[String], dataType: Option[String]) {
   private var `type`: String = _
@@ -60,9 +60,9 @@ case class DateFormat(pattern: Option[String], dataType: Option[String]) {
     val fieldsLongestFirst = fields.sortBy(_.length).reverse
     for (k <- fieldsLongestFirst) testPattern = testPattern.replaceAll(k, "")
     // http://www.unicode.org/reports/tr35/tr35-dates.html#Date_Field_Symbol_Table
-    val matcher = "/[GyYuUrQqMLlwWdDFgEecahHKkjJmsSAzZOvVXx]/".r.pattern.matcher(testPattern)
-    if (matcher.matches) {
-      throw new MetadataError("Unrecognised date field symbols in date format")
+    val matcher = "[GyYuUrQqMLlwWdDFgEecahHKkjJmsSAzZOvVXx]".r.pattern.matcher(testPattern)
+    if (matcher.find()) {
+      throw new DateFormatError("Unrecognised date field symbols in date format")
     }
   }
 }
