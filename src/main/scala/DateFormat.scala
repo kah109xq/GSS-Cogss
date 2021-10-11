@@ -43,7 +43,7 @@ case class DateFormat(pattern: Option[String], dataType: Option[String]) {
         s"${xmlSchemaBaseUrl}time"
       } else if (includesHours && includesYears) {
         s"${xmlSchemaBaseUrl}dateTime"
-      } else throw new DateFormatError("Dont know what exactly to perform in this case")
+      } else throw new DateFormatError(s"Unexpected datetime format '${p}' does not appear to contain date or time components.")
     }
   }
 

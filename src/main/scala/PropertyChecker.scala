@@ -401,7 +401,8 @@ object PropertyChecker {
         } else if (PropertyCheckerConstants.DateFormatDataTypes.contains(baseValue)) {
           if (objectNode.get("format").isTextual) {
             try {
-              val format = DateFormat(Some(objectNode.get("format").asText()), None).getFormat()
+              val dateFormatString = objectNode.get("format").asText()
+              val format = DateFormat(Some(dateFormatString), None).getFormat()
               objectNode.set("format", new TextNode(format))
             } catch {
               case e: DateFormatError => {
