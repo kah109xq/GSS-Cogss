@@ -1,19 +1,12 @@
 package CSVValidation
-import java.io.File
-import java.net.{URI, URL}
-
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
-import com.fasterxml.jackson.databind.node.{ArrayNode, BooleanNode, JsonNodeFactory, NullNode, ObjectNode, TextNode}
+import Errors.{DateFormatError, MetadataError}
 import com.fasterxml.jackson.databind.node._
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 
+import java.net.URL
 import scala.collection.mutable.HashMap
 import scala.jdk.CollectionConverters._
 import scala.util.matching.Regex
-
-import scala.io.Source
-import scala.util.Using
 
 
 object PropertyChecker {
@@ -407,7 +400,21 @@ object PropertyChecker {
             }
           }
         } else if (PropertyCheckerConstants.DateFormatDataTypes.contains(baseValue)) {
-          throw new NotImplementedError() // Implement after adding DateFormat class
+          if (objectNode.get("format").isTextual) {
+            try {
+              val dateFormatString = objectNode.get("format").asText()
+              val format = DateFormat(Some(dateFormatString), None).getFormat()
+              objectNode.set("format", new TextNode(format))
+            } catch {
+              case e: DateFormatError => {
+                objectNode.remove("format")
+                warnings = warnings :+ "invalid_date_format"
+              }
+            }
+          } else {
+            objectNode.remove("format")
+            warnings = warnings :+ "invalid_date_format"
+          }
         }
       }
        (objectNode, warnings, csvwPropertyType)
