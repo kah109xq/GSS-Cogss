@@ -1,4 +1,5 @@
 package CSVValidation
+import Errors.MetadataError
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node._
 import org.scalatest.{FunSuite, Tag}
@@ -466,6 +467,41 @@ class PropertyCheckerTest extends FunSuite {
 
     assert(warnings === Array[String]())
     assert(returnedValue === expectedValue)
+  }
+
+  test("returns json with valid format and zero warnings for correct dateTime format") {
+    val json = """
+                 |{
+                 | "format": "dd/MM/yyyy",
+                 | "base": "date"
+                 |}
+                 |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val expectedValue = JsonNodeFactory.instance.objectNode()
+    expectedValue.put("format", "dd/MM/yyyy")
+    expectedValue.put("base", "http://www.w3.org/2001/XMLSchema#date")
+
+    val (returnedValue, warnings, _) = PropertyChecker.checkProperty("datatype", jsonNode, "", "und")
+
+    assert(warnings === Array[String]())
+    assert(returnedValue === expectedValue)
+  }
+
+  test("returns json with format removed and appropriate warnings for incorrect dateTime format") {
+    val json = """
+                 |{
+                 | "format": "dd/ZZ/yyyy",
+                 | "base": "date"
+                 |}
+                 |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val expectedValue = JsonNodeFactory.instance.objectNode()
+    expectedValue.put("base", "http://www.w3.org/2001/XMLSchema#date")
+
+    val (returnedValue, warnings, _) = PropertyChecker.checkProperty("datatype", jsonNode, "", "und")
+
+    assert(warnings === Array[String]("invalid_date_format"))
+    assert(returnedValue === expectedValue) // expectedValue does not contain format
   }
 
   test("throw metadata error if id starts with _:") {
