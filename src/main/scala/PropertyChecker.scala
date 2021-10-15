@@ -55,7 +55,8 @@ object PropertyChecker {
     "foreignKeys" -> foreignKeysProperty(PropertyType.Schema),
     "reference" -> referenceProperty(PropertyType.ForeignKey),
     "propertyUrl" -> uriTemplateProperty(PropertyType.Inherited),
-    "textDirection" -> textDirectionProperty(PropertyType.Inherited))
+    "textDirection" -> textDirectionProperty(PropertyType.Inherited),
+    "titles" -> naturalLanguageProperty(PropertyType.Column))
 
   def checkProperty(property: String, value: JsonNode, baseUrl:String, lang:String): (JsonNode, Array[String], PropertyType.Value) = {
     // More conditions and logic to add here.
@@ -646,27 +647,32 @@ object PropertyChecker {
             }
           }
           val returnObject = JsonNodeFactory.instance.objectNode()
-          val arrayNode = PropertyChecker.mapper.valueToTree(validTitles)
+          val arrayNode:ArrayNode = PropertyChecker.mapper.valueToTree(validTitles)
           returnObject.set("lang", arrayNode)
           (returnObject, warnings, csvwPropertyType)
         }
         case o:ObjectNode => {
           val valueCopy = o.deepCopy()
-          val objectNodeIterator = valueCopy.fields()
-          while(objectNodeIterator.hasNext) {
-            val element = objectNodeIterator.next()
-            val elementKey = element.getKey
+          val fieldsAndValues = Array.from(valueCopy.fields.asScala)
+          for(fieldsAndValue <- fieldsAndValues) {
+            val elementKey = fieldsAndValue.getKey
             val matcher = PropertyChecker.Bcp47LanguagetagRegExp.pattern.matcher(elementKey)
             if(matcher.matches()) {
               var validTitles = Array[String]()
-              val titles = Array.from(element.getValue.asScala)
-              for(title <- titles) {
-                title match {
-                  case s:TextNode => validTitles = validTitles :+ title.asText()
-                  case _ => warnings = warnings :+ PropertyChecker.invalidValueWarning
+              fieldsAndValue.getValue match {
+                case s:TextNode => validTitles = validTitles :+ s.asText()
+                case a:ArrayNode => {
+                  val titles = Array.from(a.elements().asScala)
+                  for(title <- titles) {
+                    title match {
+                      case s:TextNode => validTitles = validTitles :+ s.asText()
+                      case _ => warnings = warnings :+ PropertyChecker.invalidValueWarning
+                    }
+                  }
                 }
+                case _ => warnings = warnings :+ PropertyChecker.invalidValueWarning
               }
-              val validTitlesArrayNode = PropertyChecker.mapper.valueToTree(validTitles)
+              val validTitlesArrayNode:ArrayNode = PropertyChecker.mapper.valueToTree(validTitles)
               valueCopy.set(elementKey, validTitlesArrayNode)
             } else {
               valueCopy.remove(elementKey)

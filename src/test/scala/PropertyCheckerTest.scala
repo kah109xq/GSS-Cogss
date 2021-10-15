@@ -665,4 +665,44 @@ class PropertyCheckerTest extends FunSuite {
 
     assert(warnings === Array[String]("invalid_value"))
   }
+
+  // Title Property tests
+  test("set lang object when value is textual in title property") {
+    val (values, warnings, _) = PropertyChecker.checkProperty("titles", new TextNode("Sample Title"), "", "und")
+
+    assert(values.path("lang").isMissingNode === false)
+    assert(values.get("lang").isArray === true)
+    assert(values.get("lang").elements().next().asText() === "Sample Title")
+    assert(warnings === Array[String]())
+  }
+
+  test("set correct lang object and warnings when title property contains an array") {
+    val arrNode = JsonNodeFactory.instance.arrayNode()
+    arrNode.add(true)
+    arrNode.add("sample text value")
+    val (values, warnings, _) = PropertyChecker.checkProperty("titles", arrNode, "", "und")
+
+    assert(values.path("lang").isMissingNode === false)
+    assert(values.get("lang").isArray === true)
+    assert(values.get("lang").elements().next().asText() === "sample text value")
+    assert(warnings === Array[String]("invalid_value"))
+  }
+
+  test("set correct lang object and warnings when title property is an object") {
+    val json = """
+                 |{
+                 |  "invalidLanguageProperty": "sample", "sgn-BE-FR": "sample content"
+                 | }
+                 |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val (values, warnings, _) = PropertyChecker.checkProperty("titles", jsonNode, "", "und")
+    val expectedTitleArray = JsonNodeFactory.instance.arrayNode().add("sample content")
+
+    assert(values.path("sgn-BE-FR").isMissingNode === false)
+    assert(values.get("sgn-BE-FR").isArray === true)
+    assert(values.get("sgn-BE-FR") === expectedTitleArray)
+    assert(warnings === Array[String]("invalid_language"))
+
+  }
+  
 }
