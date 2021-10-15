@@ -34,9 +34,9 @@ object PropertyChecker {
 
   val Properties = Map(
     "@language" -> languageProperty (PropertyType.Context),
-       // Context Properties
+    // Context Properties
     "@base" -> linkProperty(PropertyType.Context),
-//       // common properties
+    // common properties
     "@id" -> linkProperty(PropertyType.Common),
     "notes" -> notesProperty(PropertyType.Common),
     "suppressOutput" -> booleanProperty(PropertyType.Common),
@@ -44,19 +44,50 @@ object PropertyChecker {
     "separator" -> separatorProperty(PropertyType.Inherited),
     "lang" -> languageProperty(PropertyType.Inherited),
     "default" -> stringProperty(PropertyType.Inherited),
-    "commentPrefix" -> stringProperty(PropertyType.Dialect),
-    "delimiter" -> stringProperty(PropertyType.Dialect),
-    "quoteChar" -> stringProperty(PropertyType.Dialect),
-    "headerRowCount" -> numericProperty(PropertyType.Dialect),
-    "skipColumns" -> numericProperty(PropertyType.Dialect),
-    "skipRows" -> numericProperty(PropertyType.Dialect),
+    "required" -> booleanProperty(PropertyType.Inherited),
+    "ordered" -> booleanProperty(PropertyType.Inherited),
     "datatype" -> datatypeProperty(PropertyType.Inherited),
     "tableSchema" -> tableSchemaProperty(PropertyType.Table),
-    "foreignKeys" -> foreignKeysProperty(PropertyType.Schema),
-    "reference" -> referenceProperty(PropertyType.ForeignKey),
+    "transformations" -> transformationsProperty(PropertyType.Table),
+    "aboutUrl" -> uriTemplateProperty(PropertyType.Inherited),
     "propertyUrl" -> uriTemplateProperty(PropertyType.Inherited),
+    "valueUrl" -> uriTemplateProperty(PropertyType.Inherited),
     "textDirection" -> textDirectionProperty(PropertyType.Inherited),
-    "titles" -> naturalLanguageProperty(PropertyType.Column))
+    // Column level properties
+    "titles" -> naturalLanguageProperty(PropertyType.Column),
+    "virtual" -> booleanProperty(PropertyType.Column),
+    "name" -> nameProperty(PropertyType.Column),
+    "url" -> linkProperty(PropertyType.Table),
+    // Dialect Properties
+    "commentPrefix" -> stringProperty(PropertyType.Dialect),
+    "delimiter" -> stringProperty(PropertyType.Dialect),
+    "doubleQuote" -> booleanProperty(PropertyType.Dialect),
+    "encoding" -> encodingProperty(PropertyType.Dialect),
+    "header" -> booleanProperty(PropertyType.Dialect),
+    "headerRowCount" -> numericProperty(PropertyType.Dialect),
+    "lineTerminators" -> arrayProperty(PropertyType.Dialect),
+    "quoteChar" -> stringProperty(PropertyType.Dialect),
+    "skipBlankRows" -> booleanProperty(PropertyType.Dialect),
+    "skipColumns" -> numericProperty(PropertyType.Dialect),
+    "skipInitialSpace" -> booleanProperty(PropertyType.Dialect),
+    "skipRows" -> numericProperty(PropertyType.Dialect),
+    "trim" -> trimProperty(PropertyType.Dialect),
+    // Schema Properties
+    "columns" -> columnsProperty(PropertyType.Schema),
+    "primaryKey" -> columnReferenceProperty(PropertyType.Schema),
+    "foreignKeys" -> foreignKeysProperty(PropertyType.Schema),
+    "rowTitles" -> columnReferenceProperty(PropertyType.Schema),
+    // Transformation properties
+    "targetFormat" -> targetFormatProperty(PropertyType.Transformation),
+    "scriptFormat" -> scriptFormatProperty(PropertyType.Transformation),
+    "source" -> sourceProperty(PropertyType.Transformation),
+    // Foreign Key Properties
+    "columnReference" -> columnReferenceProperty(PropertyType.ForeignKey),
+    "reference" -> referenceProperty(PropertyType.ForeignKey),
+    // foreignKey reference properties
+    "resource" -> resourceProperty(PropertyType.ForeignKeyReference),
+    "schemaReference" -> schemaReferenceProperty(PropertyType.ForeignKeyReference))
+
 
   def checkProperty(property: String, value: JsonNode, baseUrl:String, lang:String): (JsonNode, Array[String], PropertyType.Value) = {
     // More conditions and logic to add here.
@@ -683,6 +714,206 @@ object PropertyChecker {
         }
         case _ => (NullNode.getInstance(), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       }
+    }
+  }
+
+  def nameProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+    (value, baseUrl, lang) => {
+      value match {
+        case s: TextNode => {
+          val matcher = PropertyChecker.NameRegExp.pattern.matcher(s.asText())
+          if (matcher.matches()) {
+            (s, Array[String](), PropertyType.Column)
+          } else {
+            (NullNode.instance, Array[String](PropertyChecker.invalidValueWarning), PropertyType.Column)
+          }
+        }
+        case _ => (NullNode.instance, Array[String](PropertyChecker.invalidValueWarning), PropertyType.Column)
+      }
+    }
+  }
+
+  def encodingProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+    (value, baseUrl, lang) => {
+      value match {
+        case s: TextNode if PropertyCheckerConstants.ValidEncodings.contains(s.asText()) => {
+          (s, Array[String](), PropertyType.Dialect)
+        }
+        case _ => (NullNode.instance, Array[String](PropertyChecker.invalidValueWarning), PropertyType.Dialect)
+      }
+    }
+  }
+
+  def arrayProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+    (value, baseUrl, lang) => {
+      value match {
+        case a: ArrayNode => (a, Array[String](), csvwPropertyType)
+        case _ => (BooleanNode.getFalse, Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
+      }
+    }
+  }
+
+  def trimProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+    (value, baseUrl, lang) => {
+      var valueCopy: JsonNode = value.deepCopy()
+      valueCopy match {
+        case b: BooleanNode => {
+          if (b.booleanValue) {
+            valueCopy = new TextNode("true")
+          } else {
+            valueCopy = new TextNode("false")
+          }
+        }
+        case _ => {}
+      }
+      if (Array[String]("true", "false", "start", "end").contains(valueCopy.asText())) {
+        (valueCopy, Array[String](), PropertyType.Dialect)
+      } else {
+        (BooleanNode.getTrue, Array[String](PropertyChecker.invalidValueWarning), PropertyType.Dialect)
+      }
+    }
+  }
+
+  def columnsProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+    (value, baseUrl, lang) => {
+      (value, Array[String](), csvwPropertyType)
+    }
+  }
+
+  def columnReferenceProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+    (value, baseUrl, lang) => {
+      value match {
+        case s: TextNode => {
+          val arrayNode = JsonNodeFactory.instance.arrayNode()
+          arrayNode.add(s)
+          (arrayNode, Array[String](), csvwPropertyType)
+        }
+        case a: ArrayNode => (a, Array[String](), csvwPropertyType)
+      }
+    }
+  }
+
+  def targetFormatProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+    (value, baseUrl, lang) => {
+      (value, Array[String](), csvwPropertyType)
+    }
+  }
+
+  def scriptFormatProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+    (value, baseUrl, lang) => {
+      (value, Array[String](), csvwPropertyType)
+    }
+  }
+
+  def sourceProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+    (value, baseUrl, lang) => {
+      (value, Array[String](), csvwPropertyType)
+    }
+  }
+
+  def resourceProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+    (value, baseUrl, lang) => {
+      (value, Array[String](), csvwPropertyType)
+    }
+  }
+
+  def schemaReferenceProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+    (value, baseUrl, lang) => {
+      val url = baseUrl + value.asText()
+      // Don't know how to place a URI object in JsonNode, keeping the text value as of now
+      (new TextNode(url), Array[String](), csvwPropertyType)
+    }
+  }
+
+  def dialectProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+    (value, baseUrl, lang) => {
+      value match {
+        case o: ObjectNode => {
+          val valueCopy = o.deepCopy()
+          var warnings = Array[String]()
+          val fieldsAndValues = Array.from(valueCopy.fields.asScala)
+          for (fieldsAndValue <- fieldsAndValues) {
+            val key = fieldsAndValue.getKey
+            val v = fieldsAndValue.getValue
+            key match {
+              case "@id" => {
+                val matcher = PropertyChecker.startsWithUnderscore.pattern.matcher(v.asText())
+                if (matcher.matches) {
+                  throw new MetadataError("@id starts with _:")
+                }
+              }
+              case "@type" => {
+                if (v.asText() != "Dialect") {
+                  throw new MetadataError("@type of dialect is not 'Dialect'")
+                }
+              }
+              case _ => {
+                val (new_v, w, t) = checkProperty(key, v, baseUrl, lang)
+                if (t == PropertyType.Dialect && w.isEmpty) {
+                  valueCopy.set(key, new_v)
+                } else {
+                  valueCopy.remove(key)
+                  if (t != PropertyType.Dialect) {
+                    warnings = warnings :+ "invalid_property"
+                  }
+                  warnings = Array.concat(warnings, w)
+                }
+              }
+            }
+          }
+          (valueCopy, warnings, csvwPropertyType)
+        }
+        case _ => (NullNode.instance, Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
+      }
+    }
+  }
+
+  def transformationsProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+    (value, baseUrl, lang) => {
+      var warnings = Array[String]()
+      var transformationsToReturn = JsonNodeFactory.instance.arrayNode()
+      value match {
+        case a:ArrayNode => {
+          val transformationsArr = Array.from(a.elements().asScala)
+          for((t,i) <- transformationsArr.zipWithIndex) {
+            t match {
+              case o:ObjectNode => {
+                val tCopy = o.deepCopy()
+                val transformationObjects = Array.from(tCopy.fields().asScala)
+                for(elem <- transformationObjects) {
+                  val p = elem.getKey
+                  val v = elem.getValue
+                  p match {
+                    case "@id" => {
+                      val matcher = PropertyChecker.startsWithUnderscore.pattern.matcher(v.asText())
+                      if (matcher.matches) {
+                        throw new MetadataError(s"transformations[$i].@id starts with _:")
+                      }
+                    }
+                    case "@type" if v.asText() != "Template" => {
+                      throw new MetadataError(s"transformations[$i].@type  @type of transformation is not 'Template'")
+                    }
+                    case "url" => {}
+                    case "titles" => {}
+                    case _ => {
+                      val (new_v, w, new_type) = checkProperty(p, v, baseUrl, lang)
+                      if (new_type != PropertyType.Transformation || !w.isEmpty) {
+                        o.remove(p)
+                        if(new_type != PropertyType.Transformation) warnings = warnings :+ "invalid_property"
+                        warnings = Array.concat(warnings, w)
+                      }
+                    }
+                  }
+                }
+                transformationsToReturn.add(t)
+              }
+              case _ => warnings = warnings :+ "invalid_transformation"
+            }
+          }
+        }
+        case _ => warnings = warnings :+ PropertyChecker.invalidValueWarning
+      }
+      (transformationsToReturn, warnings, PropertyType.Table)
     }
   }
 }

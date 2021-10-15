@@ -702,7 +702,6 @@ class PropertyCheckerTest extends FunSuite {
     assert(values.get("sgn-BE-FR").isArray === true)
     assert(values.get("sgn-BE-FR") === expectedTitleArray)
     assert(warnings === Array[String]("invalid_language"))
-
   }
-  
+
 }
