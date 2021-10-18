@@ -871,15 +871,14 @@ object PropertyChecker {
   def transformationsProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
     (value, baseUrl, lang) => {
       var warnings = Array[String]()
-      var transformationsToReturn = JsonNodeFactory.instance.arrayNode()
+      val transformationsToReturn = JsonNodeFactory.instance.arrayNode()
       value match {
         case a:ArrayNode => {
           val transformationsArr = Array.from(a.elements().asScala)
           for((t,i) <- transformationsArr.zipWithIndex) {
             t match {
               case o:ObjectNode => {
-                val tCopy = o.deepCopy()
-                val transformationObjects = Array.from(tCopy.fields().asScala)
+                val transformationObjects = Array.from(o.fields().asScala)
                 for(elem <- transformationObjects) {
                   val p = elem.getKey
                   val v = elem.getValue
@@ -905,7 +904,7 @@ object PropertyChecker {
                     }
                   }
                 }
-                transformationsToReturn.add(t)
+                transformationsToReturn.add(o)
               }
               case _ => warnings = warnings :+ "invalid_transformation"
             }

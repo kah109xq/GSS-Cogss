@@ -704,4 +704,61 @@ class PropertyCheckerTest extends FunSuite {
     assert(warnings === Array[String]("invalid_language"))
   }
 
+  // Transformations Property tests
+  test("return the entire transformations without warnings when provided with valid transformations array") {
+    val json =
+      """
+        | [{
+        |    "targetFormat": "http://www.iana.org/assignments/media-types/application/xml",
+        |    "titles": "Simple XML version",
+        |    "url": "xml-template.mustache",
+        |    "scriptFormat": "https://mustache.github.io/",
+        |    "source": "json"
+        |  }]
+        |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val (values, warnings, _) = PropertyChecker.checkProperty("transformations", jsonNode, "", "und")
+
+    assert(warnings === Array[String]())
+    assert(values === jsonNode)
+  }
+
+  test("return transformations after stripping off invalid transformation objects") {
+    val json =
+      """
+        | [{
+        |    "targetFormat": "http://www.iana.org/assignments/media-types/application/xml",
+        |    "titles": "Simple XML version",
+        |    "url": "xml-template.mustache",
+        |    "scriptFormat": "https://mustache.github.io/",
+        |    "source": "json",
+        |    "textDirection": "Some value"
+        |  }]
+        |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val (values, warnings, _) = PropertyChecker.checkProperty("transformations", jsonNode, "", "und")
+
+    assert(warnings.contains("invalid_property"))
+    assert(warnings.contains("invalid_value"))
+    assert(!values.asInstanceOf[ArrayNode].has("source"))
+    // After processing TextDirection will be removed from json or should not be present in json
+    assert(!values.asInstanceOf[ArrayNode].has("textDirection"))
+  }
+
+  test("throw exception when transformation objects cannot be processed") {
+    val json =
+      """
+        | [{
+        |    "targetFormat": "http://www.iana.org/assignments/media-types/application/xml",
+        |    "@id": "_: starts with Underscore colon which is not accepted",
+        |    "titles": "Simple XML version"
+        |  }]
+        |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val thrown = intercept[MetadataError] {
+      PropertyChecker.checkProperty("transformations", jsonNode, "", "und")
+    }
+
+    assert(thrown.message === "transformations[0].@id starts with _:")
+  }
 }
