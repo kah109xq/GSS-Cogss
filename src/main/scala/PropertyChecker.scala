@@ -35,24 +35,25 @@ object PropertyChecker {
   val Properties = Map(
     "@language" -> languageProperty (PropertyType.Context),
        // Context Properties
-       "@base" -> linkProperty(PropertyType.Context),
-      //  Common properties
-       "@id" -> linkProperty(PropertyType.Common),
-       "notes" -> notesProperty(PropertyType.Common),
-       "suppressOutput" -> booleanProperty(PropertyType.Common),
-       "null" -> nullProperty(PropertyType.Inherited),
-       "separator" -> separatorProperty(PropertyType.Inherited),
-       "lang" -> languageProperty(PropertyType.Inherited),
-       "default" -> stringProperty(PropertyType.Inherited),
-       "commentPrefix" -> stringProperty(PropertyType.Dialect),
-       "delimiter" -> stringProperty(PropertyType.Dialect),
-       "quoteChar" -> stringProperty(PropertyType.Dialect),
-       "headerRowCount" -> numericProperty(PropertyType.Dialect),
-       "skipColumns" -> numericProperty(PropertyType.Dialect),
-       "skipRows" -> numericProperty(PropertyType.Dialect),
-       "datatype" -> datatypeProperty(PropertyType.Inherited),
-       "tableSchema" -> tableSchemaProperty(PropertyType.Table)
-     )
+    "@base" -> linkProperty(PropertyType.Context),
+//       // common properties
+    "@id" -> linkProperty(PropertyType.Common),
+    "notes" -> notesProperty(PropertyType.Common),
+    "suppressOutput" -> booleanProperty(PropertyType.Common),
+    "null" -> nullProperty(PropertyType.Inherited),
+    "separator" -> separatorProperty(PropertyType.Inherited),
+    "lang" -> languageProperty(PropertyType.Inherited),
+    "default" -> stringProperty(PropertyType.Inherited),
+    "commentPrefix" -> stringProperty(PropertyType.Dialect),
+    "delimiter" -> stringProperty(PropertyType.Dialect),
+    "quoteChar" -> stringProperty(PropertyType.Dialect),
+    "headerRowCount" -> numericProperty(PropertyType.Dialect),
+    "skipColumns" -> numericProperty(PropertyType.Dialect),
+    "skipRows" -> numericProperty(PropertyType.Dialect),
+    "datatype" -> datatypeProperty(PropertyType.Inherited),
+    "tableSchema" -> tableSchemaProperty(PropertyType.Table),
+    "foreignKeys" -> foreignKeysProperty(PropertyType.Schema),
+    "reference" -> referenceProperty(PropertyType.ForeignKey))
 
   def checkProperty(property: String, value: JsonNode, baseUrl:String, lang:String): (JsonNode, Array[String], PropertyType.Value) = {
     // More conditions and logic to add here.
@@ -401,7 +402,8 @@ object PropertyChecker {
         } else if (PropertyCheckerConstants.DateFormatDataTypes.contains(baseValue)) {
           if (objectNode.get("format").isTextual) {
             try {
-              val format = DateFormat(Some(objectNode.get("format").asText()), None).getFormat()
+              val dateFormatString = objectNode.get("format").asText()
+              val format = DateFormat(Some(dateFormatString), None).getFormat()
               objectNode.set("format", new TextNode(format))
             } catch {
               case e: DateFormatError => {
@@ -502,5 +504,100 @@ object PropertyChecker {
       schemaJson.remove("@context")
     }
     (schemaBaseUrl, schemaLang)
+  }
+
+  def foreignKeysProperty(csvwPropertyType: PropertyType.Value): (JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+    (value, baseUrl, lang) => {
+      var foreignKeys = Array[JsonNode]()
+      var warnings = Array[String]()
+      value match {
+        case xs: ArrayNode => {
+          val arrayNodes = Array.from(xs.elements().asScala)
+          for (foreignKey <- arrayNodes) {
+            val(fk, warn) = foreignKeyCheckIfValid(foreignKey, baseUrl, lang)
+            foreignKeys = foreignKeys :+ fk
+            warnings = Array.concat(warnings, warn)
+          }
+        }
+        case _ => warnings = warnings :+ PropertyChecker.invalidValueWarning
+      }
+      val arrayNode: ArrayNode = PropertyChecker.mapper.valueToTree(foreignKeys)
+      (arrayNode, warnings, PropertyType.Schema)
+    }
+  }
+
+  def foreignKeyCheckIfValid(foreignKey:JsonNode, baseUrl:String, lang:String):(JsonNode, Array[String]) = {
+    var warnings = Array[String]()
+    foreignKey match {
+      case o: ObjectNode => {
+        val foreignKeyCopy = foreignKey.deepCopy()
+          .asInstanceOf[ObjectNode]
+        val foreignKeysElements = Array.from(foreignKeyCopy.fields().asScala)
+        for (f <- foreignKeysElements) {
+          val p = f.getKey
+          val matcher = PropertyChecker.containsColon.pattern.matcher(p)
+          if (matcher.matches()) {
+            throw new MetadataError("foreignKey includes a prefixed (common) property")
+          }
+          val (value, w, typeString) = checkProperty(p, f.getValue, baseUrl, lang)
+          if (typeString == PropertyType.ForeignKey && w.isEmpty) {
+            foreignKeyCopy.set(p, value)
+          } else {
+            foreignKeyCopy.remove(p)
+            warnings = warnings :+ PropertyChecker.invalidValueWarning
+            warnings = Array.concat(warnings, w)
+          }
+        }
+        (foreignKeyCopy, warnings)
+      }
+      case _ => {
+        val foreignKeyCopy = JsonNodeFactory.instance.objectNode()
+        warnings = warnings :+ "invalid_foreign_key"
+        (foreignKeyCopy, warnings)
+      }
+    }
+  }
+
+  def referenceProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
+    (value, baseUrl, lang) => {
+      value match {
+        case obj:ObjectNode => {
+          val valueCopy = obj.deepCopy()
+          var warnings = Array[String]()
+          val valueCopyElements = Array.from(valueCopy.fields().asScala)
+          for(e <- valueCopyElements) {
+            val p = e.getKey
+            val v = e.getValue
+            val matcher = PropertyChecker.containsColon.pattern.matcher(p)
+            // Check if property is included in the valid properties for a foreign key object
+            if(Array[String]("resource", "schemaReference", "columnReference").contains(p)) {
+              val(new_v, warning, propertyType) = checkProperty(p, v, baseUrl, lang)
+              if(warning.isEmpty) {
+                valueCopy.set(p, new_v)
+              } else {
+                valueCopy.remove(p)
+                warnings = Array.concat(warnings, warning)
+              }
+            } else if(matcher.matches()) {
+              throw new MetadataError(s"foreignKey reference ($p) includes a prefixed (common) property")
+            } else {
+              valueCopy.remove(p)
+              warnings = warnings :+ PropertyChecker.invalidValueWarning
+            }
+          }
+          if(valueCopy.path("columnReference").isMissingNode) {
+            throw new MetadataError("foreignKey reference columnReference is missing")
+          }
+          if(valueCopy.path("resource").isMissingNode || valueCopy.path("schemaReference").isMissingNode) {
+            throw new MetadataError("foreignKey reference does not have either resource or schemaReference")
+          }
+          if(!valueCopy.path("resource").isMissingNode && !valueCopy.path("schemaReference").isMissingNode) {
+            throw new MetadataError("foreignKey reference has both resource and schemaReference")
+          }
+          (valueCopy, warnings, csvwPropertyType)
+        }
+        case _ => throw new MetadataError("foreignKey reference is not an object")
+      }
+    }
   }
 }
