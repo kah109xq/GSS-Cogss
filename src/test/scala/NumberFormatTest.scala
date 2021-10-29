@@ -84,6 +84,7 @@ class NumberFormatTest extends FunSuite {
     // English convention: 5,246.30
     // Non-English convention: 5.246,30
     // https://en.wikipedia.org/wiki/Decimal_separator#Hindu-Arabic_numerals
+    
     val numberFormatObjWithConfiguration = NumberFormat(Some("#,##0.00"), Some('.'), Some(','))
     assert(numberFormatObjWithConfiguration.parse("36.756,32").doubleValue() === 36756.32)
   }
