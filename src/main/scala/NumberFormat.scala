@@ -1,5 +1,6 @@
 package CSVValidation
 
+import Errors.NumberFormatError
 import com.ibm.icu.text.DecimalFormat
 
 case class NumberFormat(pattern:Option[String], groupChar: Option[Char] = None, decimalChar: Option[Char] = None) {
@@ -7,24 +8,28 @@ case class NumberFormat(pattern:Option[String], groupChar: Option[Char] = None, 
   private var df:DecimalFormat = new DecimalFormat()
   private val decimalFormatSymbols = df.getDecimalFormatSymbols
   decimalFormatSymbols.setInfinity("INF")
-  decimalChar match {
-    case Some(c) => decimalFormatSymbols.setDecimalSeparator(c)
-    case _ => {}
-  }
-  groupChar match {
-    case Some(c) => decimalFormatSymbols.setGroupingSeparator(c)
-    case _ => {}
-  }
-  df.setDecimalFormatSymbols(decimalFormatSymbols)
-  def getFormat: String = format
-  pattern match {
-    case Some(p) => {
-      df.applyPattern(p)
-      format = p
+  try {
+    decimalChar match {
+      case Some(c) => decimalFormatSymbols.setDecimalSeparator(c)
+      case _ => {}
     }
-    case _ => {
-      // Figure out what the default pattern should be
+    groupChar match {
+      case Some(c) => decimalFormatSymbols.setGroupingSeparator(c)
+      case _ => {}
     }
+    df.setDecimalFormatSymbols(decimalFormatSymbols)
+    def getFormat: String = format
+    pattern match {
+      case Some(p) => {
+        df.applyPattern(p)
+        format = p
+      }
+      case _ => {
+        // Figure out what the default pattern should be
+      }
+    }
+  } catch {
+    case e:Exception => throw new NumberFormatError(e.getMessage)
   }
 
   def parse(value:String): Number = {

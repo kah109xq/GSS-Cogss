@@ -1,5 +1,5 @@
 package CSVValidation
-import Errors.{DateFormatError, MetadataError}
+import Errors.{DateFormatError, MetadataError, NumberFormatError}
 import com.fasterxml.jackson.databind.node._
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 
@@ -385,7 +385,20 @@ object PropertyChecker {
             }
           }
         } else if (PropertyCheckerConstants.NumericFormatDataTypes.contains(baseValue)) {
-          throw new NotImplementedError() // Implement after adding NumberFormat class
+          val format = objectNode.get("format")
+          if(format.isTextual) {
+            val patternObj = JsonNodeFactory.instance.objectNode()
+            patternObj.set("pattern", format)
+            objectNode.set("format", patternObj)
+          }
+          try {
+            NumberFormat(Some(format.get("pattern").asText()), Some(format.get("groupChar").asText.charAt(0)), Some(format.get("decimalChar").asText.charAt(0)))
+          } catch {
+            case e: NumberFormatError => {
+              format.asInstanceOf[ObjectNode].remove("pattern")
+              warnings = warnings:+ "invalid_number_format"
+            }
+          }
         } else if (baseValue == "http://www.w3.org/2001/XMLSchema#boolean") {
           if (objectNode.get("format").isTextual) {
             val formatValues = objectNode.get("format").asText.split("""\|""")
