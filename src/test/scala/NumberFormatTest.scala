@@ -1,4 +1,5 @@
 package CSVValidation
+import Errors.NumberFormatError
 import com.ibm.icu.math
 import org.scalatest.FunSuite
 
@@ -109,4 +110,10 @@ class NumberFormatTest extends FunSuite {
     assert(numberFormatObj.format(3456.12345) === "3,456.123")
   }
 
+  test("should throw NumberFormatError when the pattern provided is not valid") {
+    val thrown = intercept[NumberFormatError] {
+      NumberFormat(Some("0.#00#"))
+    }
+    assert(thrown.getMessage === "Malformed pattern for ICU DecimalFormat: \"0.#00#\": 0 cannot follow # after decimal point at position 3")
+  }
 }

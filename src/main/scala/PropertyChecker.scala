@@ -385,18 +385,29 @@ object PropertyChecker {
             }
           }
         } else if (PropertyCheckerConstants.NumericFormatDataTypes.contains(baseValue)) {
-          val format = objectNode.get("format")
+          var format = objectNode.get("format")
           if(format.isTextual) {
             val patternObj = JsonNodeFactory.instance.objectNode()
             patternObj.set("pattern", format)
             objectNode.set("format", patternObj)
           }
           try {
-            NumberFormat(Some(format.get("pattern").asText()), Some(format.get("groupChar").asText.charAt(0)), Some(format.get("decimalChar").asText.charAt(0)))
+            format = objectNode.get("format")
+            val groupChar = if(format.path("groupChar").isMissingNode) {
+              None
+            } else {
+              Some(format.get("groupChar").asText.charAt(0))
+            }
+            val decimalChar = if(format.path("decimalChar").isMissingNode) {
+              None
+            } else {
+              Some(format.get("decimalChar").asText.charAt(0))
+            }
+            NumberFormat(Some(format.get("pattern").asText()), groupChar, decimalChar)
           } catch {
             case e: NumberFormatError => {
               format.asInstanceOf[ObjectNode].remove("pattern")
-              warnings = warnings:+ "invalid_number_format"
+              warnings = warnings :+ e.getMessage :+ "invalid_number_format"
             }
           }
         } else if (baseValue == "http://www.w3.org/2001/XMLSchema#boolean") {
