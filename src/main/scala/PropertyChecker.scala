@@ -385,31 +385,7 @@ object PropertyChecker {
             }
           }
         } else if (PropertyCheckerConstants.NumericFormatDataTypes.contains(baseValue)) {
-          var format = objectNode.get("format")
-          if(format.isTextual) {
-            val patternObj = JsonNodeFactory.instance.objectNode()
-            patternObj.set("pattern", format)
-            objectNode.set("format", patternObj)
-          }
-          try {
-            format = objectNode.get("format")
-            val groupChar = if(format.path("groupChar").isMissingNode) {
-              None
-            } else {
-              Some(format.get("groupChar").asText.charAt(0))
-            }
-            val decimalChar = if(format.path("decimalChar").isMissingNode) {
-              None
-            } else {
-              Some(format.get("decimalChar").asText.charAt(0))
-            }
-            NumberFormat(Some(format.get("pattern").asText()), groupChar, decimalChar)
-          } catch {
-            case e: NumberFormatError => {
-              format.asInstanceOf[ObjectNode].remove("pattern")
-              warnings = warnings :+ e.getMessage :+ "invalid_number_format"
-            }
-          }
+          warnings = warnings.concat(processNumericDatatypeAndReturnWarnings(objectNode))
         } else if (baseValue == "http://www.w3.org/2001/XMLSchema#boolean") {
           if (objectNode.get("format").isTextual) {
             val formatValues = objectNode.get("format").asText.split("""\|""")
@@ -443,6 +419,36 @@ object PropertyChecker {
       }
        (objectNode, warnings, csvwPropertyType)
     }
+  }
+
+  def processNumericDatatypeAndReturnWarnings(objectNode: ObjectNode):Array[String] = {
+    var format = objectNode.get("format")
+    var warnings = Array[String]()
+    if(format.isTextual) {
+      val patternObj = JsonNodeFactory.instance.objectNode()
+      patternObj.set("pattern", format)
+      objectNode.set("format", patternObj)
+    }
+    try {
+      format = objectNode.get("format")
+      val groupChar = if(format.path("groupChar").isMissingNode) {
+        None
+      } else {
+        Some(format.get("groupChar").asText.charAt(0))
+      }
+      val decimalChar = if(format.path("decimalChar").isMissingNode) {
+        None
+      } else {
+        Some(format.get("decimalChar").asText.charAt(0))
+      }
+      NumberFormat(Some(format.get("pattern").asText()), groupChar, decimalChar)
+    } catch {
+      case e: NumberFormatError => {
+        format.asInstanceOf[ObjectNode].remove("pattern")
+        warnings = warnings :+ e.getMessage :+ "invalid_number_format"
+      }
+    }
+    warnings
   }
 
   def tableSchemaProperty(csvwPropertyType: PropertyType.Value): (JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
