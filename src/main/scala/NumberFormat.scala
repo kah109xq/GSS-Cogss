@@ -4,7 +4,6 @@ import Errors.NumberFormatError
 import com.ibm.icu.text.DecimalFormat
 
 case class NumberFormat(pattern:Option[String], groupChar: Option[Char] = None, decimalChar: Option[Char] = None) {
-  private var format:String = _
   private var df:DecimalFormat = new DecimalFormat()
   private val decimalFormatSymbols = df.getDecimalFormatSymbols
   decimalFormatSymbols.setInfinity("INF")
@@ -18,11 +17,9 @@ case class NumberFormat(pattern:Option[String], groupChar: Option[Char] = None, 
       case _ => {}
     }
     df.setDecimalFormatSymbols(decimalFormatSymbols)
-    def getFormat: String = format
     pattern match {
       case Some(p) => {
         df.applyPattern(p)
-        format = p
       }
       case _ => {
         // Figure out what the default pattern should be
