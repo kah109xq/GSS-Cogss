@@ -19,14 +19,19 @@ class NumberFormatTest extends FunSuite {
     assert(numberFormatObj.parse("NaN").doubleValue().isNaN)
   }
 
-  test("it should recognize INF") {
+  test("it should recognize positive infinity") {
     val numberFormatObj = NumberFormat(None)
-    assert(numberFormatObj.parse("INF").doubleValue().isInfinity)
+    assert(numberFormatObj.parse("+INF").doubleValue().isPosInfinity)
   }
 
   test("it should recognize negative infinity") {
     val numberFormatObj = NumberFormat(None)
     assert(numberFormatObj.parse("-INF").doubleValue().isNegInfinity)
+  }
+
+  test("it should recognize infinity") {
+    val numberFormatObj = NumberFormat(None)
+    assert(numberFormatObj.parse("INF").doubleValue().isInfinity)
   }
 
   test("scientific notion test 1") {
@@ -51,14 +56,14 @@ class NumberFormatTest extends FunSuite {
     assert(numberFormatObj.format(12345) === "12.3E3")
   }
 
-  test("padding test 1") {
+  test("padding test in parse") {
     val numberFormatObj = NumberFormat(Some("$*x#,##0.00"))
     assert(numberFormatObj.parse("$xx123.00") === 123)
   }
 
-  test("padding using format test") {
+  test("padding test in format") {
     val numberFormatObj = NumberFormat(Some("$*x#,##0.00"))
-    assert(numberFormatObj.parse("$xx123.00") === 123)
+    assert(numberFormatObj.format(123) === "$xx123.00")
   }
 
   test("significant digits test 1") {
@@ -69,17 +74,20 @@ class NumberFormatTest extends FunSuite {
   test("should parse numbers that match %000 correctly") {
     val numberFormatObj = NumberFormat(Some("%000"))
     assert(numberFormatObj.parse("%001").doubleValue() === 0.01)
-    assert(numberFormatObj.parse("%123").doubleValue() === 1.23)
-    assert(numberFormatObj.parse("%1234").doubleValue() === 12.34)
+    assert(numberFormatObj.parse("123%").doubleValue() === 1.23)
+    assert(numberFormatObj.parse("1234%").doubleValue() === 12.34)
   }
 
   test("should parse numbers that contain ‰ (per-mille) correctly") {
     // This document says even if the pattern is not provided, implementations should recognise and parse numbers that
     // consist of ‰ which is not true for NumberFormat class. Check this if some problems occur in future.
     // https://www.w3.org/TR/2015/REC-tabular-data-model-20151217/#formats-for-numeric-types
-    val numberFormatObj = NumberFormat(Some("‰000"))
-    assert(numberFormatObj.parse("‰1000") === 1)
+    var numberFormatObj = NumberFormat(Some("‰000"))
+    assert(numberFormatObj.parse("‰100").doubleValue() === 0.1)
+//    numberFormatObj = NumberFormat(Some("000‰"))
+    assert(numberFormatObj.parse("1000‰") === 1)
   }
+
 
   test("should correctly parse numbers in non-english-convention when Group and Decimal chars are configured to that convention") {
     // English convention: 5,246.30
@@ -111,9 +119,8 @@ class NumberFormatTest extends FunSuite {
   }
 
   test("should throw NumberFormatError when the pattern provided is not valid") {
-    val thrown = intercept[NumberFormatError] {
+    intercept[NumberFormatError] {
       NumberFormat(Some("0.#00#"))
     }
-    assert(thrown.getMessage === "Malformed pattern for ICU DecimalFormat: \"0.#00#\": 0 cannot follow # after decimal point at position 3")
   }
 }
