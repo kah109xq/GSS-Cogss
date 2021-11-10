@@ -630,4 +630,37 @@ class PropertyCheckerTest extends FunSuite {
   // Add more test cases for referenceProperty after resource, schemaReference, columnReference property validations
   // are implemented. Currently the exceptions raised when these properties are missing is not tested since
   // NoSuchElementExceptio is thrown when a jsonnode with these properties are passed in.
+
+  test("should insert pattern key under format if format is textual for Numeric format datatypes") {
+    val json =
+      """
+        |{
+        | "base": "decimal",
+        | "format": "0.###E0"
+        |}
+        |""".stripMargin
+
+    val jsonNode = objectMapper.readTree(json)
+    val (values, warnings, _) = PropertyChecker.checkProperty("datatype", jsonNode, "", "und")
+
+    // format object should contain the key pattern
+    assert(values.path("format").get("pattern").isMissingNode === false)
+  }
+
+  test("should populate warnings for invalid number format datatypes") {
+    val json =
+      """
+        |{
+        | "base": "decimal",
+        | "format": "0.#00#"
+        |}
+        |""".stripMargin
+
+    val jsonNode = objectMapper.readTree(json)
+    val (values, warnings, _) = PropertyChecker.checkProperty("datatype", jsonNode, "", "und")
+
+    assert(values.path("format").path("pattern").isMissingNode === true)
+    assert(warnings.contains("invalid_number_format"))
+    assert(warnings.contains("Malformed pattern for ICU DecimalFormat: \"0.#00#\": 0 cannot follow # after decimal point at position 3"))
+  }
 }
