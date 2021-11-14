@@ -699,9 +699,8 @@ object PropertyChecker {
         }
         case a:ArrayNode => {
           var validTitles = Array[String]()
-          val arrayNodeIterator = a.elements()
-          while(arrayNodeIterator.hasNext()) {
-            val element = arrayNodeIterator.next()
+          val arrayNodeElements = Array.from(a.elements().asScala)
+          for(element <- arrayNodeElements) {
             element match {
               case s:TextNode => validTitles = validTitles :+ s.asText()
               case _ => warnings = warnings :+ PropertyChecker.invalidValueWarning
@@ -713,38 +712,45 @@ object PropertyChecker {
           (returnObject, warnings, csvwPropertyType)
         }
         case o:ObjectNode => {
-          val valueCopy = o.deepCopy()
-          val fieldsAndValues = Array.from(valueCopy.fields.asScala)
-          for(fieldsAndValue <- fieldsAndValues) {
-            val elementKey = fieldsAndValue.getKey
-            val matcher = PropertyChecker.Bcp47LanguagetagRegExp.pattern.matcher(elementKey)
-            if(matcher.matches()) {
-              var validTitles = Array[String]()
-              fieldsAndValue.getValue match {
-                case s:TextNode => validTitles = validTitles :+ s.asText()
-                case a:ArrayNode => {
-                  val titles = Array.from(a.elements().asScala)
-                  for(title <- titles) {
-                    title match {
-                      case s:TextNode => validTitles = validTitles :+ s.asText()
-                      case _ => warnings = warnings :+ PropertyChecker.invalidValueWarning
-                    }
-                  }
-                }
-                case _ => warnings = warnings :+ PropertyChecker.invalidValueWarning
-              }
-              val validTitlesArrayNode:ArrayNode = PropertyChecker.mapper.valueToTree(validTitles)
-              valueCopy.set(elementKey, validTitlesArrayNode)
-            } else {
-              valueCopy.remove(elementKey)
-              warnings = warnings :+ "invalid_language"
-            }
-          }
+          val (valueCopy, w) = processNaturalLanguagePropertyObject(o)
+          warnings = Array.concat(warnings, w)
           (valueCopy, warnings, csvwPropertyType)
         }
         case _ => (NullNode.getInstance(), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       }
     }
+  }
+
+  def processNaturalLanguagePropertyObject(value:ObjectNode): (ObjectNode, Array[String]) = {
+    val valueCopy = value.deepCopy()
+    var warnings = Array[String]()
+    val fieldsAndValues = Array.from(valueCopy.fields.asScala)
+    for(fieldsAndValue <- fieldsAndValues) {
+      val elementKey = fieldsAndValue.getKey
+      val matcher = PropertyChecker.Bcp47LanguagetagRegExp.pattern.matcher(elementKey)
+      if(matcher.matches()) {
+        var validTitles = Array[String]()
+        fieldsAndValue.getValue match {
+          case s:TextNode => validTitles = validTitles :+ s.asText()
+          case a:ArrayNode => {
+            val titles = Array.from(a.elements().asScala)
+            for(title <- titles) {
+              title match {
+                case s:TextNode => validTitles = validTitles :+ s.asText()
+                case _ => warnings = warnings :+ PropertyChecker.invalidValueWarning
+              }
+            }
+          }
+          case _ => warnings = warnings :+ PropertyChecker.invalidValueWarning
+        }
+        val validTitlesArrayNode:ArrayNode = PropertyChecker.mapper.valueToTree(validTitles)
+        valueCopy.set(elementKey, validTitlesArrayNode)
+      } else {
+        valueCopy.remove(elementKey)
+        warnings = warnings :+ "invalid_language"
+      }
+    }
+    (valueCopy, warnings)
   }
 
   def nameProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
