@@ -703,7 +703,10 @@ object PropertyChecker {
           for(element <- arrayNodeElements) {
             element match {
               case s:TextNode => validTitles = validTitles :+ s.asText()
-              case _ => warnings = warnings :+ PropertyChecker.invalidValueWarning
+              case _ => {
+                warnings = warnings :+ a.toPrettyString + " is invalid, textual elements expected"
+                warnings = warnings :+ PropertyChecker.invalidValueWarning
+              }
             }
           }
           val returnObject = JsonNodeFactory.instance.objectNode()
@@ -737,11 +740,17 @@ object PropertyChecker {
             for(title <- titles) {
               title match {
                 case s:TextNode => validTitles = validTitles :+ s.asText()
-                case _ => warnings = warnings :+ PropertyChecker.invalidValueWarning
+                case _ => {
+                  warnings = warnings :+ a.toPrettyString + " is invalid, textual elements expected"
+                  warnings = warnings :+ PropertyChecker.invalidValueWarning
+                }
               }
             }
           }
-          case _ => warnings = warnings :+ PropertyChecker.invalidValueWarning
+          case _ => {
+            warnings = warnings :+ fieldsAndValue.getValue.toPrettyString + " is invalid, array or textual elements expected"
+            warnings = warnings :+ PropertyChecker.invalidValueWarning
+          }
         }
         val validTitlesArrayNode:ArrayNode = PropertyChecker.mapper.valueToTree(validTitles)
         valueCopy.set(elementKey, validTitlesArrayNode)
@@ -754,34 +763,34 @@ object PropertyChecker {
   }
 
   def nameProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
-    (value, baseUrl, lang) => {
+    (value, _, _) => {
       value match {
         case s: TextNode => {
           val matcher = PropertyChecker.NameRegExp.pattern.matcher(s.asText())
           if (matcher.matches()) {
             (s, Array[String](), PropertyType.Column)
           } else {
-            (NullNode.instance, Array[String](PropertyChecker.invalidValueWarning), PropertyType.Column)
+            (NullNode.instance, Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
           }
         }
-        case _ => (NullNode.instance, Array[String](PropertyChecker.invalidValueWarning), PropertyType.Column)
+        case _ => (NullNode.instance, Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       }
     }
   }
 
   def encodingProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
-    (value, baseUrl, lang) => {
+    (value, _, _) => {
       value match {
         case s: TextNode if PropertyCheckerConstants.ValidEncodings.contains(s.asText()) => {
-          (s, Array[String](), PropertyType.Dialect)
+          (s, Array[String](), csvwPropertyType)
         }
-        case _ => (NullNode.instance, Array[String](PropertyChecker.invalidValueWarning), PropertyType.Dialect)
+        case _ => (NullNode.instance, Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       }
     }
   }
 
   def arrayProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
-    (value, baseUrl, lang) => {
+    (value, _, _) => {
       value match {
         case a: ArrayNode => (a, Array[String](), csvwPropertyType)
         case _ => (BooleanNode.getFalse, Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
@@ -790,7 +799,7 @@ object PropertyChecker {
   }
 
   def trimProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
-    (value, baseUrl, lang) => {
+    (value, _, _) => {
       var valueCopy: JsonNode = value.deepCopy()
       valueCopy match {
         case b: BooleanNode => {
@@ -803,21 +812,21 @@ object PropertyChecker {
         case _ => {}
       }
       if (Array[String]("true", "false", "start", "end").contains(valueCopy.asText())) {
-        (valueCopy, Array[String](), PropertyType.Dialect)
+        (valueCopy, Array[String](), csvwPropertyType)
       } else {
-        (BooleanNode.getTrue, Array[String](PropertyChecker.invalidValueWarning), PropertyType.Dialect)
+        (BooleanNode.getTrue, Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       }
     }
   }
 
   def columnsProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
-    (value, baseUrl, lang) => {
+    (value, _, _) => {
       (value, Array[String](), csvwPropertyType)
     }
   }
 
   def columnReferenceProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
-    (value, baseUrl, lang) => {
+    (value, _, _) => {
       value match {
         case s: TextNode => {
           val arrayNode = JsonNodeFactory.instance.arrayNode()
@@ -830,31 +839,31 @@ object PropertyChecker {
   }
 
   def targetFormatProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
-    (value, baseUrl, lang) => {
+    (value, _, _) => {
       (value, Array[String](), csvwPropertyType)
     }
   }
 
   def scriptFormatProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
-    (value, baseUrl, lang) => {
+    (value, _, _) => {
       (value, Array[String](), csvwPropertyType)
     }
   }
 
   def sourceProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
-    (value, baseUrl, lang) => {
+    (value, _, _) => {
       (value, Array[String](), csvwPropertyType)
     }
   }
 
   def resourceProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
-    (value, baseUrl, lang) => {
+    (value, _, _) => {
       (value, Array[String](), csvwPropertyType)
     }
   }
 
   def schemaReferenceProperty(csvwPropertyType: PropertyType.Value):(JsonNode, String, String) => (JsonNode, Array[String], PropertyType.Value) = {
-    (value, baseUrl, lang) => {
+    (value, baseUrl, _) => {
       val url = baseUrl + value.asText()
       // Don't know how to place a URI object in JsonNode, keeping the text value as of now
       (new TextNode(url), Array[String](), csvwPropertyType)
@@ -948,7 +957,7 @@ object PropertyChecker {
         }
         case _ => warnings = warnings :+ PropertyChecker.invalidValueWarning
       }
-      (transformationsToReturn, warnings, PropertyType.Table)
+      (transformationsToReturn, warnings, csvwPropertyType)
     }
   }
 }

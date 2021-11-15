@@ -670,8 +670,8 @@ class PropertyCheckerTest extends FunSuite {
   test("set lang object when value is textual in title property") {
     val (values, warnings, _) = PropertyChecker.checkProperty("titles", new TextNode("Sample Title"), "", "und")
 
-    assert(values.path("lang").isMissingNode === false)
-    assert(values.get("lang").isArray === true)
+    assert(!values.path("lang").isMissingNode)
+    assert(values.get("lang").isArray)
     assert(values.get("lang").elements().next().asText() === "Sample Title")
     assert(warnings === Array[String]())
   }
@@ -682,10 +682,10 @@ class PropertyCheckerTest extends FunSuite {
     arrNode.add("sample text value")
     val (values, warnings, _) = PropertyChecker.checkProperty("titles", arrNode, "", "und")
 
-    assert(values.path("lang").isMissingNode === false)
-    assert(values.get("lang").isArray === true)
+    assert(!values.path("lang").isMissingNode)
+    assert(values.get("lang").isArray)
     assert(values.get("lang").elements().next().asText() === "sample text value")
-    assert(warnings === Array[String]("invalid_value"))
+    assert(warnings === Array[String]("[ true, \"sample text value\" ] is invalid, textual elements expected", "invalid_value"))
   }
 
   test("set correct lang object and warnings when title property is an object") {
@@ -698,8 +698,8 @@ class PropertyCheckerTest extends FunSuite {
     val (values, warnings, _) = PropertyChecker.checkProperty("titles", jsonNode, "", "und")
     val expectedTitleArray = JsonNodeFactory.instance.arrayNode().add("sample content")
 
-    assert(values.path("sgn-BE-FR").isMissingNode === false)
-    assert(values.get("sgn-BE-FR").isArray === true)
+    assert(!values.path("sgn-BE-FR").isMissingNode)
+    assert(values.get("sgn-BE-FR").isArray)
     assert(values.get("sgn-BE-FR") === expectedTitleArray)
     assert(warnings === Array[String]("invalid_language"))
   }
@@ -775,7 +775,7 @@ class PropertyCheckerTest extends FunSuite {
     val (values, warnings, _) = PropertyChecker.checkProperty("datatype", jsonNode, "", "und")
 
     // format object should contain the key pattern
-    assert(values.path("format").get("pattern").isMissingNode === false)
+    assert(!values.path("format").get("pattern").isMissingNode)
   }
 
   test("should populate warnings for invalid number format datatypes") {
@@ -790,7 +790,7 @@ class PropertyCheckerTest extends FunSuite {
     val jsonNode = objectMapper.readTree(json)
     val (values, warnings, _) = PropertyChecker.checkProperty("datatype", jsonNode, "", "und")
 
-    assert(values.path("format").path("pattern").isMissingNode === true)
+    assert(values.path("format").path("pattern").isMissingNode)
     assert(warnings.contains("invalid_number_format"))
     assert(warnings.contains("Malformed pattern for ICU DecimalFormat: \"0.#00#\": 0 cannot follow # after decimal point at position 3"))
   }
