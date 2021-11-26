@@ -728,12 +728,12 @@ object PropertyChecker {
     val valueCopy = value.deepCopy()
     var warnings = Array[String]()
     val fieldsAndValues = Array.from(valueCopy.fields.asScala)
-    for(fieldsAndValue <- fieldsAndValues) {
-      val elementKey = fieldsAndValue.getKey
+    for(fieldAndValue <- fieldsAndValues) {
+      val elementKey = fieldAndValue.getKey
       val matcher = PropertyChecker.Bcp47LanguagetagRegExp.pattern.matcher(elementKey)
       if(matcher.matches()) {
         var validTitles = Array[String]()
-        fieldsAndValue.getValue match {
+        fieldAndValue.getValue match {
           case s:TextNode => validTitles = validTitles :+ s.asText()
           case a:ArrayNode => {
             val titles = Array.from(a.elements().asScala)
@@ -748,7 +748,7 @@ object PropertyChecker {
             }
           }
           case _ => {
-            warnings = warnings :+ fieldsAndValue.getValue.toPrettyString + " is invalid, array or textual elements expected"
+            warnings = warnings :+ fieldAndValue.getValue.toPrettyString + " is invalid, array or textual elements expected"
             warnings = warnings :+ PropertyChecker.invalidValueWarning
           }
         }
@@ -877,9 +877,9 @@ object PropertyChecker {
           val valueCopy = o.deepCopy()
           var warnings = Array[String]()
           val fieldsAndValues = Array.from(valueCopy.fields.asScala)
-          for (fieldsAndValue <- fieldsAndValues) {
-            val key = fieldsAndValue.getKey
-            val v = fieldsAndValue.getValue
+          for (fieldAndValue <- fieldsAndValues) {
+            val key = fieldAndValue.getKey
+            val v = fieldAndValue.getValue
             key match {
               case "@id" => {
                 val matcher = PropertyChecker.startsWithUnderscore.pattern.matcher(v.asText())
