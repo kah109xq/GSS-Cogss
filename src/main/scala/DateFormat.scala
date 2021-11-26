@@ -1,5 +1,5 @@
 package CSVValidation
-import Errors.DateFormatError
+import errors.DateFormatError
 
 case class DateFormat(pattern: Option[String], dataType: Option[String]) {
   private var `type`: String = _

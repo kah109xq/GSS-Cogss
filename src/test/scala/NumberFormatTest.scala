@@ -1,5 +1,5 @@
 package CSVValidation
-import Errors.NumberFormatError
+import errors.NumberFormatError
 import com.ibm.icu.math
 import org.scalatest.FunSuite
 

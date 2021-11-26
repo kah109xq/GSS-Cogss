@@ -1,5 +1,5 @@
 package CSVValidation
-import Errors.{DateFormatError, MetadataError, NumberFormatError}
+import errors.{DateFormatError, MetadataError, NumberFormatError}
 import com.fasterxml.jackson.databind.node._
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 

@@ -1,6 +1,6 @@
 package CSVValidation
 
-import Errors.MetadataError
+import errors.MetadataError
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.{ArrayNode, JsonNodeFactory, ObjectNode, TextNode}
 
@@ -18,7 +18,7 @@ object TableGroup {
     val inheritedProperties = JsonNodeFactory.instance.objectNode()
     val commonProperties = JsonNodeFactory.instance.objectNode()
     var baseUrl = uri.trim
-    val containsWhitespaces = ".*\s.*".r
+    val containsWhitespaces = ".*\\s.*".r
     val matcher = containsWhitespaces.pattern.matcher(baseUrl)
     if (matcher.matches()) {
       println("Warning: The path/url has whitespaces in it, please ensure its correctness. Proceeding with received path/url ..")
@@ -62,7 +62,7 @@ object TableGroup {
           case 1 => {
             a.get(0) match {
               case s: TextNode if s.asText == csvwContextUri => {}
-              case _ => throw new MetadataError(s"First item in @context must be string \"$csvwContextUri\"")
+              case _ => throw new MetadataError(s"First item in @context must be string \" ${csvwContextUri} \"")
             }
           }
           case l => throw new MetadataError(s"Unexpected @context array length $l")

@@ -21,7 +21,7 @@ object Main extends App {
       val (errors, warnings) = validator.validate()
       println(Console.YELLOW + "Warnings")
       warnings.map(x => logger.warn(x))
-      println(Console.RED + "Errors")
+      println(Console.RED + "errors")
       errors.map(x => logger.error(x))
     case None =>
   }

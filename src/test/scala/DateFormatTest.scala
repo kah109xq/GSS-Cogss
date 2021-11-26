@@ -1,5 +1,5 @@
 package CSVValidation
-import Errors.DateFormatError
+import errors.DateFormatError
 import org.scalatest.FunSuite
 
 class DateFormatTest extends FunSuite {

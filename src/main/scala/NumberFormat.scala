@@ -1,6 +1,6 @@
 package CSVValidation
 
-import Errors.NumberFormatError
+import errors.NumberFormatError
 import com.ibm.icu.text.DecimalFormat
 
 case class NumberFormat(pattern:Option[String], groupChar: Option[Char] = None, decimalChar: Option[Char] = None) {
