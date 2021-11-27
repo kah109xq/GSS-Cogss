@@ -920,36 +920,11 @@ object PropertyChecker {
       value match {
         case a:ArrayNode => {
           val transformationsArr = Array.from(a.elements().asScala)
-          for((t,i) <- transformationsArr.zipWithIndex) {
-            t match {
+          for((transformation, index) <- transformationsArr.zipWithIndex) {
+            transformation match {
               case o:ObjectNode => {
-                val transformationObjects = Array.from(o.fields().asScala)
-                for(elem <- transformationObjects) {
-                  val p = elem.getKey
-                  val v = elem.getValue
-                  p match {
-                    case "@id" => {
-                      val matcher = PropertyChecker.startsWithUnderscore.pattern.matcher(v.asText())
-                      if (matcher.matches) {
-                        throw new MetadataError(s"transformations[$i].@id starts with _:")
-                      }
-                    }
-                    case "@type" if v.asText() != "Template" => {
-                      throw new MetadataError(s"transformations[$i].@type  @type of transformation is not 'Template'")
-                    }
-                    case "url" => {}
-                    case "titles" => {}
-                    case _ => {
-                      val (new_v, w, new_type) = checkProperty(p, v, baseUrl, lang)
-                      if (new_type != PropertyType.Transformation || !w.isEmpty) {
-                        o.remove(p)
-                        if(new_type != PropertyType.Transformation) warnings = warnings :+ "invalid_property"
-                        warnings = Array.concat(warnings, w)
-                      }
-                    }
-                  }
-                }
-                transformationsToReturn.add(o)
+                val w = processTransformationObjectAndReturnWarnings(transformationsToReturn, o, index, baseUrl, lang)
+                warnings = Array.concat(warnings, w)
               }
               case _ => warnings = warnings :+ "invalid_transformation"
             }
@@ -959,5 +934,38 @@ object PropertyChecker {
       }
       (transformationsToReturn, warnings, csvwPropertyType)
     }
+  }
+
+  def processTransformationObjectAndReturnWarnings(transformationsToReturn: ArrayNode, transformationsMainObject: ObjectNode,
+                                  index: Int, baseUrl:String, lang:String):Array[String] = {
+    val transformationObjects = Array.from(transformationsMainObject.fields().asScala)
+    var warnings = Array[String]()
+    for(elem <- transformationObjects) {
+      val property = elem.getKey
+      val value = elem.getValue
+      property match {
+        case "@id" => {
+          val matcher = PropertyChecker.startsWithUnderscore.pattern.matcher(value.asText())
+          if (matcher.matches) {
+            throw new MetadataError(s"transformations[$index].@id starts with _:")
+          }
+        }
+        case "@type" if value.asText() != "Template" => {
+          throw new MetadataError(s"transformations[$index].@type  @type of transformation is not 'Template'")
+        }
+        case "url" => {}
+        case "titles" => {}
+        case _ => {
+          val (_, w, new_type) = checkProperty(property, value, baseUrl, lang)
+          if (new_type != PropertyType.Transformation || !w.isEmpty) {
+            transformationsMainObject.remove(property)
+            if(new_type != PropertyType.Transformation) warnings = warnings :+ "invalid_property"
+            warnings = Array.concat(warnings, w)
+          }
+        }
+      }
+    }
+    transformationsToReturn.add(transformationsMainObject)
+    warnings
   }
 }
