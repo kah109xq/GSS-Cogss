@@ -635,9 +635,9 @@ object PropertyChecker {
             val matcher = PropertyChecker.containsColon.pattern.matcher(p)
             // Check if property is included in the valid properties for a foreign key object
             if(Array[String]("resource", "schemaReference", "columnReference").contains(p)) {
-              val(new_v, warning, propertyType) = checkProperty(p, v, baseUrl, lang)
+              val(newValue, warning, propertyType) = checkProperty(p, v, baseUrl, lang)
               if(warning.isEmpty) {
-                valueCopy.set(p, new_v)
+                valueCopy.set(p, newValue)
               } else {
                 valueCopy.remove(p)
                 warnings = Array.concat(warnings, warning)
@@ -814,7 +814,7 @@ object PropertyChecker {
       if (Array[String]("true", "false", "start", "end").contains(valueCopy.asText())) {
         (valueCopy, Array[String](), csvwPropertyType)
       } else {
-        (BooleanNode.getTrue, Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
+        (new TextNode("false"), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)
       }
     }
   }
@@ -893,9 +893,9 @@ object PropertyChecker {
                 }
               }
               case _ => {
-                val (new_v, w, t) = checkProperty(key, v, baseUrl, lang)
+                val (newValue, w, t) = checkProperty(key, v, baseUrl, lang)
                 if (t == PropertyType.Dialect && w.isEmpty) {
-                  valueCopy.set(key, new_v)
+                  valueCopy.set(key, newValue)
                 } else {
                   valueCopy.remove(key)
                   if (t != PropertyType.Dialect) {
@@ -956,10 +956,10 @@ object PropertyChecker {
         case "url" => {}
         case "titles" => {}
         case _ => {
-          val (_, w, new_type) = checkProperty(property, value, baseUrl, lang)
-          if (new_type != PropertyType.Transformation || !w.isEmpty) {
+          val (_, w, newType) = checkProperty(property, value, baseUrl, lang)
+          if (newType != PropertyType.Transformation || !w.isEmpty) {
             transformationsMainObject.remove(property)
-            if(new_type != PropertyType.Transformation) warnings = warnings :+ "invalid_property"
+            if(newType != PropertyType.Transformation) warnings = warnings :+ "invalid_property"
             warnings = Array.concat(warnings, w)
           }
         }
