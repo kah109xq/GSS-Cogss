@@ -631,6 +631,137 @@ class PropertyCheckerTest extends FunSuite {
   // are implemented. Currently the exceptions raised when these properties are missing is not tested since
   // NoSuchElementExceptio is thrown when a jsonnode with these properties are passed in.
 
+  test("set invalid value warnings when Uri template property is not string") {
+    val json = """
+                 |{
+                 |  "sampleObjectProperty": "some content"
+                 | }
+                 |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val (_, warnings, _) = PropertyChecker.checkProperty("propertyUrl", jsonNode, baseUrl = "https://chickenburgers.com", "und")
+
+    assert(warnings === Array[String]("invalid_value"))
+  }
+
+  test("set value and warnings correctly when Uri template property valid") {
+    val validTextNodeUrl = new TextNode("https://www.w3.org")
+    val (values, warnings, _) = PropertyChecker.checkProperty("propertyUrl", validTextNodeUrl , baseUrl = "https://chickenburgers.com", "und")
+
+    assert(values === validTextNodeUrl)
+    assert(warnings === Array[String]())
+  }
+
+  test("set correct value and warnings correctly when textDirection property is valid") {
+    val validTextDirection = new TextNode("rtl")
+    val (values, warnings, _) = PropertyChecker.checkProperty("textDirection", validTextDirection , baseUrl = "https://www.w3.org", "und")
+
+    assert(values === validTextDirection)
+    assert(warnings === Array[String]())
+  }
+
+  test("set correct value and warnings correctly when textDirection property is Invalid") {
+    val validTextDirection = new TextNode("Some value which is not a text direction")
+    val (values, warnings, _) = PropertyChecker.checkProperty("textDirection", validTextDirection , baseUrl = "https://www.w3.org", "und")
+
+    assert(warnings === Array[String]("invalid_value"))
+  }
+
+  // Title Property tests
+  test("set lang object when value is textual in title property") {
+    val (values, warnings, _) = PropertyChecker.checkProperty("titles", new TextNode("Sample Title"), "", "und")
+
+    assert(!values.path("lang").isMissingNode)
+    assert(values.get("lang").isArray)
+    assert(values.get("lang").elements().next().asText() === "Sample Title")
+    assert(warnings === Array[String]())
+  }
+
+  test("set correct lang object and warnings when title property contains an array") {
+    val arrNode = JsonNodeFactory.instance.arrayNode()
+    arrNode.add(true)
+    arrNode.add("sample text value")
+    val (values, warnings, _) = PropertyChecker.checkProperty("titles", arrNode, "", "und")
+
+    assert(!values.path("lang").isMissingNode)
+    assert(values.get("lang").isArray)
+    assert(values.get("lang").elements().next().asText() === "sample text value")
+    assert(warnings === Array[String]("[ true, \"sample text value\" ] is invalid, textual elements expected", "invalid_value"))
+  }
+
+  test("set correct lang object and warnings when title property is an object") {
+    val json = """
+                 |{
+                 |  "invalidLanguageProperty": "sample", "sgn-BE-FR": "sample content"
+                 | }
+                 |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val (values, warnings, _) = PropertyChecker.checkProperty("titles", jsonNode, "", "und")
+    val expectedTitleArray = JsonNodeFactory.instance.arrayNode().add("sample content")
+
+    assert(!values.path("sgn-BE-FR").isMissingNode)
+    assert(values.get("sgn-BE-FR").isArray)
+    assert(values.get("sgn-BE-FR") === expectedTitleArray)
+    assert(warnings === Array[String]("invalid_language"))
+  }
+
+  // Transformations Property tests
+  test("return the entire transformations without warnings when provided with valid transformations array") {
+    val json =
+      """
+        | [{
+        |    "targetFormat": "http://www.iana.org/assignments/media-types/application/xml",
+        |    "titles": "Simple XML version",
+        |    "url": "xml-template.mustache",
+        |    "scriptFormat": "https://mustache.github.io/",
+        |    "source": "json"
+        |  }]
+        |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val (values, warnings, _) = PropertyChecker.checkProperty("transformations", jsonNode, "", "und")
+
+    assert(warnings === Array[String]())
+    assert(values === jsonNode)
+  }
+
+  test("return transformations after stripping off invalid transformation objects") {
+    val json =
+      """
+        | [{
+        |    "targetFormat": "http://www.iana.org/assignments/media-types/application/xml",
+        |    "titles": "Simple XML version",
+        |    "url": "xml-template.mustache",
+        |    "scriptFormat": "https://mustache.github.io/",
+        |    "source": "json",
+        |    "textDirection": "Some value"
+        |  }]
+        |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val (values, warnings, _) = PropertyChecker.checkProperty("transformations", jsonNode, "", "und")
+
+    assert(warnings.contains("invalid_property"))
+    assert(warnings.contains("invalid_value"))
+    assert(!values.asInstanceOf[ArrayNode].has("source"))
+    // After processing TextDirection will be removed from json or should not be present in json
+    assert(!values.asInstanceOf[ArrayNode].has("textDirection"))
+  }
+
+  test("throw exception when transformation objects cannot be processed") {
+    val json =
+      """
+        | [{
+        |    "targetFormat": "http://www.iana.org/assignments/media-types/application/xml",
+        |    "@id": "_: starts with Underscore colon which is not accepted",
+        |    "titles": "Simple XML version"
+        |  }]
+        |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val thrown = intercept[MetadataError] {
+      PropertyChecker.checkProperty("transformations", jsonNode, "", "und")
+    }
+
+    assert(thrown.message === "transformations[0].@id starts with _:")
+  }
+
   test("should insert pattern key under format if format is textual for Numeric format datatypes") {
     val json =
       """
@@ -644,7 +775,7 @@ class PropertyCheckerTest extends FunSuite {
     val (values, warnings, _) = PropertyChecker.checkProperty("datatype", jsonNode, "", "und")
 
     // format object should contain the key pattern
-    assert(values.path("format").get("pattern").isMissingNode === false)
+    assert(!values.path("format").get("pattern").isMissingNode)
   }
 
   test("should populate warnings for invalid number format datatypes") {
@@ -659,7 +790,7 @@ class PropertyCheckerTest extends FunSuite {
     val jsonNode = objectMapper.readTree(json)
     val (values, warnings, _) = PropertyChecker.checkProperty("datatype", jsonNode, "", "und")
 
-    assert(values.path("format").path("pattern").isMissingNode === true)
+    assert(values.path("format").path("pattern").isMissingNode)
     assert(warnings.contains("invalid_number_format"))
     assert(warnings.contains("Malformed pattern for ICU DecimalFormat: \"0.#00#\": 0 cannot follow # after decimal point at position 3"))
   }
