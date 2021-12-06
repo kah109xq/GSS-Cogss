@@ -3,7 +3,7 @@ import errors.{DateFormatError, MetadataError, NumberFormatError}
 import com.fasterxml.jackson.databind.node._
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 
-import java.net.URL
+import java.net.{URI, URL}
 import scala.collection.mutable.HashMap
 import scala.jdk.CollectionConverters._
 import scala.util.matching.Regex
@@ -90,24 +90,45 @@ object PropertyChecker {
 
 
   def checkProperty(property: String, value: JsonNode, baseUrl:String, lang:String): (JsonNode, Array[String], PropertyType.Value) = {
-    // More conditions and logic to add here.
-    val f = Properties(property)
-    return f(value, baseUrl, lang)
+    val propertyRegEx = "^[a-z]+:".r
+    val matcher = propertyRegEx.pattern.matcher(property)
+    if (Properties.contains(property)) {
+      val f = Properties(property)
+      f(value, baseUrl, lang)
+    } else if(matcher.matches() && NameSpaces.values.contains(property.split(":")(0))) {
+      val (newValue, warnings) = checkCommonPropertyValue(value, baseUrl, lang)
+      (newValue, warnings, PropertyType.Annotation)
+    } else {
+      // property name must be an absolute URI
+      try {
+        val scheme = new URI(property).getScheme
+        if (scheme.isEmpty) return (value, Array[String]("invalid_property"), PropertyType.Undefined)
+        val (newValue, warnings) = checkCommonPropertyValue(value, baseUrl, lang)
+        (newValue, warnings, PropertyType.Annotation)
+      } catch {
+        case e: Exception => {
+          (value, Array[String]("invalid_property"), PropertyType.Undefined)
+        }
+      }
+    }
   }
 
-  def checkCommonPropertyValue(value: JsonNode, baseUrl: String, lang: String):(Any, String) = {
+  def checkCommonPropertyValue(value: JsonNode, baseUrl: String, lang: String):(JsonNode, Array[String]) = {
     if(value.isObject) {
       throw new NotImplementedError("to be implemented later")
     }
     else if(value.isTextual) {
-      val s = value.asText()
+//      val s = value.asText()
       lang match {
-        case "und" => return (s, "")
+        case "und" => return (value, Array[String]())
         case _ => {
-          val h = HashMap(
-            "@value" -> s, "@language" -> lang
-          )
-          return (h, "")
+//          val h = HashMap(
+//            "@value" -> s, "@language" -> lang
+//          )
+          val objectNodeToReturn = JsonNodeFactory.instance.objectNode()
+          objectNodeToReturn.set("@value", value)
+          objectNodeToReturn.set("@language", new TextNode(lang))
+          return (objectNodeToReturn, Array[String]())
         }
       }
     } else if(value.isArray) {
@@ -172,8 +193,11 @@ object PropertyChecker {
             * [(1,2), (3,4), (5,6)] => ([1,3,5], [2,4,6])
             */
            val (values, warnings) = Array.from(elements.map(x => checkCommonPropertyValue(x, baseUrl, lang))).unzip
+           // warnings at this point will be of type Array[Array[String]]
+           var newWarnings = Array[String]()
+           for(w <- warnings) { newWarnings = Array.concat(newWarnings, w) }
            val arrayNode: ArrayNode = PropertyChecker.mapper.valueToTree(values)
-           return (arrayNode, warnings, csvwPropertyType)
+           return (arrayNode, newWarnings, csvwPropertyType)
          }
        }
        (JsonNodeFactory.instance.arrayNode(), Array[String](PropertyChecker.invalidValueWarning), csvwPropertyType)

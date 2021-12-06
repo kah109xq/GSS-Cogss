@@ -11,5 +11,6 @@ object PropertyType extends Enumeration {
       Column,
       Transformation,
       ForeignKeyReference,
-      Annotation = Value
+      Annotation,
+      Undefined = Value
 }
