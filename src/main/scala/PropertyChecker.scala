@@ -114,27 +114,121 @@ object PropertyChecker {
   }
 
   def checkCommonPropertyValue(value: JsonNode, baseUrl: String, lang: String):(JsonNode, Array[String]) = {
-    if(value.isObject) {
-      throw new NotImplementedError("to be implemented later")
-    }
-    else if(value.isTextual) {
-//      val s = value.asText()
-      lang match {
-        case "und" => return (value, Array[String]())
-        case _ => {
-//          val h = HashMap(
-//            "@value" -> s, "@language" -> lang
-//          )
-          val objectNodeToReturn = JsonNodeFactory.instance.objectNode()
-          objectNodeToReturn.set("@value", value)
-          objectNodeToReturn.set("@language", new TextNode(lang))
-          return (objectNodeToReturn, Array[String]())
+    value match {
+      case o: ObjectNode => {
+        val valueCopy = o.deepCopy()
+        var warnings = Array[String]()
+        val fieldsAndValues = Array.from(valueCopy.fields().asScala)
+        for (fieldAndValue <- fieldsAndValues) {
+          val p = fieldAndValue.getKey
+          var v = fieldAndValue.getValue
+          p match {
+            case "@context" => throw new MetadataError(s"$p: common property has @context property")
+            case "@list" => throw new MetadataError(s"$p: common property has @list property")
+            case "@set" => throw new MetadataError(s"$p: common property has @set property")
+            case "@type" => ProcessCommonPropertyType(valueCopy, p, v)
+            case "@id" => {
+              if (!baseUrl.isBlank) {
+                try {
+                  val newValue = new URL(new URL(baseUrl), v.asText())
+                  v = new TextNode(newValue.toString)
+                } catch {
+                  case e: Exception => throw new MetadataError(s"common property has invalid @id (${v.asText})")
+                }
+              }
+            }
+            case "@value" => ProcessCommonPropertyValue(valueCopy)
+            case "@language" => ProcessCommonPropertyLanguage(valueCopy, v)
+            case _ => {
+              if (p(0) == "@") {
+                throw new MetadataError(s"common property has property other than @id, @type, @value or @language beginning with @ (${p})")
+              } else {
+                val (newValue, w) = checkCommonPropertyValue(v, baseUrl, lang)
+                warnings = Array.concat(warnings, w)
+                v = newValue
+              }
+            }
+          }
+          valueCopy.set(p, v)
+        }
+        (valueCopy, warnings)
+      }
+      case s: TextNode => {
+        lang match {
+          case "und" => (value, Array[String]())
+          case _ => {
+            val objectNodeToReturn = JsonNodeFactory.instance.objectNode()
+            objectNodeToReturn.set("@value", value)
+            objectNodeToReturn.set("@language", new TextNode(lang))
+            (objectNodeToReturn, Array[String]())
+          }
         }
       }
-    } else if(value.isArray) {
-      throw new NotImplementedError("To be implemented later") // Check if this have to be an array of strings
-    } else {
-      throw new IllegalArgumentException(s"Unexcepted input of type ${value.getClass}")
+      case a: ArrayNode => {
+        val values = JsonNodeFactory.instance.arrayNode()
+        var warnings = Array[String]()
+        val arrayNodeElements = Array.from(a.elements().asScala)
+        for(arrayNodeElement <- arrayNodeElements) {
+          val (newValue, w) = checkCommonPropertyValue(arrayNodeElement, baseUrl, lang)
+          warnings = Array.concat(warnings, w)
+          values.add(newValue)
+        }
+        (values, warnings)
+      }
+      case _ => throw new IllegalArgumentException(s"Unexcepted input of type ${value.getClass}")
+    }
+  }
+
+  private def ProcessCommonPropertyValue(valueCopy: ObjectNode) = {
+    if ((!valueCopy.path("@type").isMissingNode) && (!valueCopy.path("@language").isMissingNode)) {
+      throw new MetadataError("common property with @value has both @language and @type")
+      // Add this exception condition
+      // raise Csvlint::Csvw::MetadataError.new(), "common property with @value has properties other than @language or @type" unless value.except("@type").except("@language").except("@value").empty?
+    }
+  }
+
+  private def ProcessCommonPropertyLanguage(valueCopy: ObjectNode, v: JsonNode) = {
+    if (valueCopy.path("@value").isMissingNode) {
+      throw new MetadataError("common property with @language lacks a @value")
+    }
+    val matcher = Bcp47Language.r.pattern.matcher(v.asText())
+    if (!matcher.matches() && !v.isEmpty) {
+      throw new MetadataError(s"common property has invalid @language (${v.asText()})")
+    }
+  }
+
+  private def ProcessCommonPropertyType(valueCopy: ObjectNode, p: String, v: JsonNode) = {
+    v match {
+      case s: TextNode => {
+        if ((!valueCopy.path("@value").isMissingNode) && BuiltInDataTypes.types.contains(s.asText)) {
+          // No exceptions raised in this case
+        } else if ((valueCopy.path("@value").isMissingNode) && BuiltInTypes.contains(s.asText)) {
+          // No exceptions raised in this case as well
+        } else {
+          throw new MetadataError(s"$p: common property has invalid @type")
+        }
+      }
+      case a: ArrayNode => {
+        val typeArrayElements = Array.from(a.elements().asScala)
+        val propertyRegEx = "^[a-z]+:".r
+        for (typeElement <- typeArrayElements) {
+          // typeElement should be Textual here
+          val matcher = propertyRegEx.pattern.matcher(typeElement.asText())
+          if (matcher.matches() && NameSpaces.values.contains(typeElement.asText.split(":")(0))) {
+            // No exceptions raised in this case
+          } else {
+            // typeElement Must be an absolute URI
+            try {
+              val scheme = new URI(typeElement.asText).getScheme
+              if (scheme.isEmpty) throw new MetadataError(s"common property has invalid @type (${typeElement.asText})")
+            } catch {
+              case e: Exception => {
+                throw new MetadataError(s"common property has invalid @type (${typeElement.asText})")
+              }
+            }
+          }
+        }
+      }
     }
   }
 
