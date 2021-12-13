@@ -62,7 +62,7 @@
 //          case 1 => {
 //            a.get(0) match {
 //              case s: TextNode if s.asText == csvwContextUri => {}
-//              case _ => throw new MetadataError(s"First item in @context must be string \" ${csvwContextUri} \"")
+//              case _ => throw new MetadataError(s"First item in @context must be string ${csvwContextUri} ")
 //            }
 //          }
 //          case l => throw new MetadataError(s"Unexpected @context array length $l")
