@@ -140,7 +140,7 @@ object PropertyChecker {
             case "@value" => ProcessCommonPropertyValue(valueCopy)
             case "@language" => ProcessCommonPropertyLanguage(valueCopy, v)
             case _ => {
-              if (p(0) == "@") {
+              if (p(0).equals('@')) {
                 throw new MetadataError(s"common property has property other than @id, @type, @value or @language beginning with @ (${p})")
               } else {
                 val (newValue, w) = checkCommonPropertyValue(v, baseUrl, lang)
