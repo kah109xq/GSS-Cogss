@@ -164,4 +164,7 @@ class Column private (number:Int,
                       virtual: Boolean,
                       annotations: Map[String, JsonNode],
                       warnings: Array[String]) {
+  def isVirtual() = virtual
+  def getName() = name
 }
+
