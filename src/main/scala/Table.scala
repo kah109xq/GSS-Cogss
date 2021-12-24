@@ -11,9 +11,48 @@ import com.fasterxml.jackson.databind.node.{
 import errors.MetadataError
 import traits.JavaIteratorExtensions.IteratorHasAsScalaArray
 
-import scala.:+
-
 object Table {
+
+  def fromJson(
+      tableDesc: ObjectNode,
+      baseUrl: String,
+      lang: String,
+      commonProperties: ObjectNode,
+      inheritedPropertiesIn: ObjectNode
+  ): Table = {
+    val (annotations, tableProperties, inheritedProperties, warnings) =
+      partitionAndValidateTablePropertiesByType(
+        commonProperties,
+        inheritedPropertiesIn,
+        tableDesc,
+        baseUrl,
+        lang
+      )
+
+    val url: String = getUrlEnsureExists(tableProperties)
+
+    val maybeTableSchema: Option[JsonNode] =
+      extractTableSchema(tableProperties, inheritedProperties)
+
+    maybeTableSchema match {
+      case Some(tableSchema) =>
+        createTableForExistingSchema(
+          tableSchema,
+          inheritedProperties,
+          baseUrl,
+          lang,
+          url,
+          tableProperties,
+          annotations
+        )
+      case _ =>
+        initializeTableWithDefaults(
+          annotations,
+          warnings,
+          url
+        )
+    }
+  }
 
   private def partitionAndValidateTablePropertiesByType(
       commonProperties: ObjectNode,
@@ -71,48 +110,28 @@ object Table {
     (annotations, tableProperties, inheritedPropertiesCopy, warnings)
   }
 
-  def fromJson(
-      tableDesc: ObjectNode,
-      baseUrl: String,
-      lang: String,
-      commonProperties: ObjectNode,
-      inheritedPropertiesIn: ObjectNode
-  ): Table = {
-    var (annotations, tableProperties, inheritedProperties, warnings) =
-      partitionAndValidateTablePropertiesByType(
-        commonProperties,
-        inheritedPropertiesIn,
-        tableDesc,
-        baseUrl,
-        lang
-      )
+  private def getUrlEnsureExists(tableProperties: ObjectNode) = {
+    val urlNode = tableProperties.path("url")
+    if (urlNode.isMissingNode) {
+      throw new MetadataError("URL not found for table")
+    }
+    urlNode.asText()
+  }
 
-    val url: String = getUrlEnsureExists(tableProperties)
-
-    val maybeTableSchema: Option[JsonNode] =
-      extractTableSchema(tableProperties, inheritedProperties)
-
-    maybeTableSchema match {
-      case Some(tableSchema) =>
-        createTableForExistingSchema(
-          tableSchema,
-          inheritedProperties,
-          baseUrl,
-          lang,
-          url,
-          tableProperties,
-          annotations
-        )
-      case _ =>
-        initializeTableWithDefaults(
-          annotations,
-          warnings,
-          url
-        )
+  private def extractTableSchema(
+      tableProperties: ObjectNode,
+      inheritedPropertiesCopy: ObjectNode
+  ) = {
+    if (!tableProperties.path("tableSchema").isMissingNode) {
+      Some(tableProperties.get("tableSchema"))
+    } else if (!inheritedPropertiesCopy.path("tableSchema").isMissingNode) {
+      Some(inheritedPropertiesCopy.get("tableSchema"))
+    } else {
+      None
     }
   }
 
-  def createTableForExistingSchema(
+  private def createTableForExistingSchema(
       tableSchema: JsonNode,
       inheritedProperties: ObjectNode,
       baseUrl: String,
@@ -121,161 +140,46 @@ object Table {
       tableProperties: ObjectNode,
       annotations: Map[String, JsonNode]
   ): Table = {
-    var warnings = Array[ErrorMessage]()
-    var columns = Array[Column]()
-    var columnNames = Array[String]()
-    var rowTitlesColumns = Array[Column]()
-    var foreignKeyColumns = Array[Column]()
-    var foreignKeyMappings = Map[ObjectNode, Array[Column]]()
-    var primaryKeyColumns = Array[Column]()
-    var primaryKeyToReturn = Array[Column]()
 
     tableSchema match {
       case tableSchemaObject: ObjectNode => {
-        if (!tableSchema.get("columns").isArray) {
-          tableSchemaObject.set("columns", JsonNodeFactory.instance.arrayNode())
-          warnings = warnings :+ ErrorMessage(
-            "invalid_value",
-            "metadata",
-            "",
-            "",
-            "columns",
-            ""
-          )
-        }
-        for ((property, value) <- tableSchemaObject.getKeysAndValues) {
-          if (
-            Array[String](
-              "columns",
-              "primaryKey",
-              "foreignKeys",
-              "rowTitles"
-            ).contains(property)
-          ) {
-            inheritedProperties.set(property, value)
-          }
-        }
+        var warnings = Array[ErrorMessage]()
 
-        var virtualColumns = false
-        for (
-          (columnDesc, i) <-
+        ensureColumnsNodeIsArray(tableSchemaObject)
+          .foreach(w => warnings :+= w)
+
+        setTableSchemaInheritedProperties(
+          inheritedProperties,
+          tableSchemaObject
+        )
+
+        val (columns, columnWarnings) =
+          validateAndExtractColumnsFromSchema(
+            baseUrl,
+            lang,
+            inheritedProperties,
             tableSchemaObject
-              .get("columns")
-              .elements()
-              .asScalaArray
-              .zipWithIndex
-        ) {
-          columnDesc match {
-            case columnDescObject: ObjectNode => {
-              val column = Column.fromJson(
-                i + 1,
-                columnDescObject,
-                baseUrl,
-                lang,
-                inheritedProperties
-              )
-              if (virtualColumns && !column.isVirtual()) {
-                throw new MetadataError(
-                  s"virtual columns before non-virtual column ${column
-                    .getName()} ($i)"
-                )
-              }
-              virtualColumns = if (virtualColumns) {
-                virtualColumns
-              } else {
-                column.isVirtual()
-              }
-              if (columnNames.contains(column.getName())) {
-                throw new MetadataError(
-                  s"Multiple columns named ${column.getName()}"
-                )
-              }
-              columnNames = columnNames :+ column.getName()
-              columns = columns :+ column
-            }
-            case _ => {
-              warnings = warnings :+ ErrorMessage(
-                "invalid_column_description",
-                "metadata",
-                "",
-                "",
-                columnDesc.toString,
-                ""
-              )
-            }
-          }
-        }
+          )
+        warnings = warnings.concat(columnWarnings)
 
         // Collect primary keys in primaryKeyColumns
-        if (!tableSchemaObject.path("primaryKey").isMissingNode) {
-          val primaryKeys = tableSchemaObject.get("primaryKey")
-          var primaryKeyValid = true
-          for (reference <- primaryKeys.elements().asScalaArray) {
-            if (columnNames.contains(reference.asText())) {
-              val i = columnNames.indexOf(reference.asText())
-              primaryKeyColumns = primaryKeyColumns :+ columns(i)
-            } else {
-              warnings = warnings :+ ErrorMessage(
-                "invalid_column_reference",
-                "metadata",
-                "",
-                "",
-                s"primaryKey: $reference",
-                ""
-              )
-              primaryKeyValid = false
-            }
-          }
-          primaryKeyToReturn =
-            if (primaryKeyValid && primaryKeyColumns.nonEmpty)
-              primaryKeyColumns
-            else Array[Column]()
-        }
+        val primaryKeyToReturn =
+          collectPrimaryKeyColumns(tableSchemaObject, columns)
 
         // Collect foreign Keys in foreignKeyColumns
-        if (!tableSchemaObject.path("foreignKeys").isMissingNode) {
-          val foreignKeys =
-            tableSchemaObject.get("foreignKeys").asInstanceOf[ObjectNode]
-          for (
-            (foreignKey, i) <- foreignKeys.elements().asScalaArray.zipWithIndex
-          ) {
-            for (
-              reference <-
-                foreignKey.get("columnReference").elements().asScalaArray
-            ) {
-              if (columnNames.contains(reference.asText())) {
-                val i = columnNames.indexOf(reference.asText())
-                foreignKeyColumns = foreignKeyColumns :+ columns(i)
-              } else {
-                throw new MetadataError(
-                  s"foreignKey references non-existant column - ${reference.asText()}"
-                )
-              }
-            }
-          }
-          foreignKeyMappings += (foreignKeys -> foreignKeyColumns)
-        }
+        val foreignKeyMappings =
+          collectForeignKeyColumns(tableSchemaObject, columns)
 
         // Collect row titles column
-        if (!tableSchemaObject.path("rowTitles").isMissingNode) {
-          val rowTitles = tableSchemaObject.get("rowTitles")
-          for (rowTitle <- rowTitles.elements().asScalaArray) {
-            if (columnNames.contains(rowTitle.asText())) {
-              val i = columnNames.indexOf(rowTitle.asText())
-              rowTitlesColumns = rowTitlesColumns :+ columns(i)
-            } else {
-              throw new MetadataError(
-                s"rowTitles references non-existant column - ${rowTitle.asText()}"
-              )
-            }
-          }
-        }
+        var rowTitlesColumns =
+          collectRowTitlesColumns(tableSchemaObject, columns)
+
         new Table(
           url = url,
           id = getId(tableProperties),
           columns = columns,
           dialect = getDialect(tableProperties),
-          foreignKeys = foreignKeyMappings,
+          foreignKeys = foreignKeyMappings, // a new type here?
           notes = getNotes(tableProperties),
           primaryKey = primaryKeyToReturn,
           rowTitleColumns = rowTitlesColumns,
@@ -292,13 +196,204 @@ object Table {
     }
   }
 
-  private def getUrlEnsureExists(tableProperties: ObjectNode) = {
-    val urlNode = tableProperties.path("url")
-    if (urlNode.isMissingNode) {
-      throw new MetadataError("URL not found for table")
+  private def ensureColumnsNodeIsArray(
+      tableSchemaObject: ObjectNode
+  ): Option[ErrorMessage] = {
+    if (tableSchemaObject.get("columns").isArray) {
+      None
+    } else {
+      tableSchemaObject.set("columns", JsonNodeFactory.instance.arrayNode())
+      Some(
+        ErrorMessage(
+          "invalid_value",
+          "metadata",
+          "",
+          "",
+          "columns",
+          ""
+        )
+      )
     }
-    val url = urlNode.asText()
-    url
+  }
+
+  private def validateAndExtractColumnsFromSchema(
+      baseUrl: String,
+      lang: String,
+      inheritedProperties: ObjectNode,
+      tableSchemaObject: ObjectNode
+  ): (Array[Column], Array[ErrorMessage]) = {
+    var warnings = Array[ErrorMessage]()
+
+    val columnObjects = tableSchemaObject
+      .get("columns")
+      .elements()
+      .asScalaArray
+
+    val columns = columnObjects.zipWithIndex
+      .flatMap(c => {
+        val (col, i) = c
+        col match {
+          case colObj: ObjectNode =>
+            Some(
+              Column.fromJson(i + 1, colObj, baseUrl, lang, inheritedProperties)
+            )
+          case _ => {
+            warnings = warnings :+ ErrorMessage(
+              "invalid_column_description",
+              "metadata",
+              "",
+              "",
+              col.toString,
+              ""
+            )
+            None
+          }
+        }
+      })
+
+    val columnNames = columns.flatMap(c => c.name)
+
+    ensureNoDuplicateColumnNames(columnNames)
+    ensureVirtualColumnsAfterColumns(columns)
+    (columns, warnings)
+  }
+
+  private def ensureNoDuplicateColumnNames(columnNames: Array[String]): Unit = {
+    val duplicateColumnNames = columnNames
+      .groupBy(identity)
+      .filter(grp => grp._2.length > 1)
+      .keys
+
+    if (duplicateColumnNames.nonEmpty) {
+      throw new MetadataError(
+        s"Multiple columns named ${duplicateColumnNames.mkString(", ")}"
+      )
+    }
+  }
+
+  private def ensureVirtualColumnsAfterColumns(columns: Array[Column]): Unit = {
+    var virtualColumns = false
+    for (column <- columns) {
+      if (virtualColumns && !column.virtual) {
+        throw new MetadataError(
+          s"virtual columns before non-virtual column ${column.name} (${column.number})"
+        )
+      }
+      virtualColumns = virtualColumns || column.virtual
+    }
+  }
+
+  private def collectRowTitlesColumns(
+      tableSchemaObject: ObjectNode,
+      columns: Array[Column]
+  ): Array[Column] = {
+    if (!tableSchemaObject.path("rowTitles").isMissingNode) {
+      var rowTitlesColumns = Array[Column]()
+      val rowTitles = tableSchemaObject.get("rowTitles")
+      for (rowTitle <- rowTitles.elements().asScalaArray) {
+        val maybeCol = columns.find(col =>
+          col.name.isDefined && col.name.get == rowTitle.asText()
+        )
+        maybeCol match {
+          case Some(col) => rowTitlesColumns :+= col
+          case None =>
+            throw new MetadataError(
+              s"rowTitles references non-existant column - ${rowTitle.asText()}"
+            )
+        }
+      }
+      rowTitlesColumns
+    } else {
+      Array[Column]()
+    }
+  }
+
+  private def collectForeignKeyColumns(
+      tableSchemaObject: ObjectNode,
+      columns: Array[Column]
+  ): Array[ForeignKeyWrapper] = {
+    if (tableSchemaObject.path("foreignKeys").isMissingNode) {
+      Array()
+    } else {
+      var foreignKeys = Array[ForeignKeyWrapper]()
+      val foreignKeysNode =
+        tableSchemaObject.get("foreignKeys").asInstanceOf[ArrayNode]
+      for (foreignKey <- foreignKeysNode.elements().asScalaArray) {
+        var foreignKeyColumns = Array[Column]()
+        for (
+          reference <- foreignKey.get("columnReference").elements().asScalaArray
+        ) {
+          val maybeCol = columns.find(col =>
+            col.name.isDefined && col.name.get == reference.asText()
+          )
+          maybeCol match {
+            case Some(col) => foreignKeyColumns :+= col
+            case None =>
+              throw new MetadataError(
+                s"foreignKey references non-existent column - ${reference.asText()}"
+              )
+          }
+        }
+        foreignKeys :+= ForeignKeyWrapper(
+          foreignKey.asInstanceOf[ObjectNode],
+          foreignKeyColumns
+        )
+      }
+      foreignKeys
+    }
+  }
+
+  private def collectPrimaryKeyColumns(
+      tableSchemaObject: ObjectNode,
+      columns: Array[Column]
+  ): Array[Column] = {
+    if (!tableSchemaObject.path("primaryKey").isMissingNode) {
+      var w = Array[ErrorMessage]()
+      var primaryKeyColumns = Array[Column]()
+      val primaryKeys = tableSchemaObject.get("primaryKey")
+      var primaryKeyValid = true
+      for (reference <- primaryKeys.elements().asScalaArray) {
+        val maybeCol = columns.find(col =>
+          col.name.isDefined && col.name.get == reference.asText()
+        )
+        maybeCol match {
+          case Some(col) => primaryKeyColumns :+= col
+          case None => {
+            w = w :+ ErrorMessage(
+              "invalid_column_reference",
+              "metadata",
+              "",
+              "",
+              s"primaryKey: $reference",
+              ""
+            )
+            primaryKeyValid = false
+          }
+
+        }
+      }
+      if (primaryKeyValid && primaryKeyColumns.nonEmpty)
+        return primaryKeyColumns
+    }
+    Array[Column]()
+  }
+
+  private def setTableSchemaInheritedProperties(
+      inheritedProperties: ObjectNode,
+      tableSchemaObject: ObjectNode
+  ): Unit = {
+    for ((property, value) <- tableSchemaObject.getKeysAndValues) {
+      if (
+        Array[String](
+          "columns",
+          "primaryKey",
+          "foreignKeys",
+          "rowTitles"
+        ).contains(property)
+      ) {
+        inheritedProperties.set(property, value)
+      }
+    }
   }
 
   private def initializeTableWithDefaults(
@@ -311,7 +406,7 @@ object Table {
       id = None,
       columns = Array(),
       dialect = None,
-      foreignKeys = Map[ObjectNode, Array[Column]](),
+      foreignKeys = Array(),
       notes = None,
       primaryKey = Array(),
       rowTitleColumns = Array(),
@@ -322,20 +417,9 @@ object Table {
     )
   }
 
-  private def extractTableSchema(
-      tableProperties: ObjectNode,
-      inheritedPropertiesCopy: ObjectNode
-  ) = {
-    if (!tableProperties.path("tableSchema").isMissingNode) {
-      Some(tableProperties.get("tableSchema"))
-    } else if (!inheritedPropertiesCopy.path("tableSchema").isMissingNode) {
-      Some(inheritedPropertiesCopy.get("tableSchema"))
-    } else {
-      None
-    }
-  }
-
-  def getMaybeSchemaIdFromTableSchema(schema: ObjectNode): Option[String] = {
+  private def getMaybeSchemaIdFromTableSchema(
+      schema: ObjectNode
+  ): Option[String] = {
     val idNode = schema.path("@id")
     if (idNode.isMissingNode) {
       None
@@ -344,7 +428,7 @@ object Table {
     }
   }
 
-  def getId(tableProperties: ObjectNode): Option[String] = {
+  private def getId(tableProperties: ObjectNode): Option[String] = {
     val idNode = tableProperties.path("@id")
     if (idNode.isMissingNode) {
       None
@@ -353,7 +437,7 @@ object Table {
     }
   }
 
-  def getNotes(tableProperties: ObjectNode): Option[ArrayNode] = {
+  private def getNotes(tableProperties: ObjectNode): Option[ArrayNode] = {
     if (tableProperties.path("notes").isMissingNode) {
       None
     } else {
@@ -364,7 +448,7 @@ object Table {
     }
   }
 
-  def getDialect(tableProperties: ObjectNode): Option[JsonNode] = {
+  private def getDialect(tableProperties: ObjectNode): Option[JsonNode] = {
     if (tableProperties.path("dialect").isMissingNode) {
       None
     } else {
@@ -372,7 +456,7 @@ object Table {
     }
   }
 
-  def getSuppressOutput(tableProperties: ObjectNode): Boolean = {
+  private def getSuppressOutput(tableProperties: ObjectNode): Boolean = {
     if (tableProperties.path("suppressOutput").isMissingNode) {
       false
     } else {
@@ -381,12 +465,12 @@ object Table {
   }
 }
 
-class Table private (
+case class Table private (
     url: String,
     id: Option[String],
     columns: Array[Column],
     dialect: Option[JsonNode],
-    foreignKeys: Map[ObjectNode, Array[Column]],
+    foreignKeys: Array[ForeignKeyWrapper],
     notes: Option[ArrayNode],
     primaryKey: Array[Column],
     rowTitleColumns: Array[Column],
@@ -394,4 +478,8 @@ class Table private (
     suppressOutput: Boolean,
     annotations: Map[String, JsonNode],
     warnings: Array[ErrorMessage]
-) {}
+) {
+  var foreignKeyValues: Map[String, JsonNode] = Map()
+  var foreignKeyReferences: Array[ForeignKeyWithTable] = Array()
+  var foreignKeyReferenceValues: Map[String, JsonNode] = Map()
+}

@@ -1,78 +1,37 @@
 //package CSVValidation
 //
-//import errors.MetadataError
+//import CSVValidation.traits.JavaIteratorExtensions.IteratorHasAsScalaArray
+//import CSVValidation.traits.ObjectNodeExtentions.IteratorHasGetKeysAndValues
 //import com.fasterxml.jackson.databind.JsonNode
-//import com.fasterxml.jackson.databind.node.{ArrayNode, JsonNodeFactory, ObjectNode, TextNode}
+//import com.fasterxml.jackson.databind.node.{
+//  ArrayNode,
+//  JsonNodeFactory,
+//  ObjectNode,
+//  TextNode
+//}
+//import errors.MetadataError
 //
 //import java.net.{URI, URL}
-//import scala.jdk.CollectionConverters.IteratorHasAsScala
 //
 //object TableGroup {
 //  val csvwContextUri = "http://www.w3.org/ns/csvw"
 //  val validProperties: Array[String] = Array[String]("tables", "notes", "@type")
 //
 //  def fromJson(uri: String, json: ObjectNode): TableGroup = {
-//    val warnings = Array[String]()
-//    val tables = JsonNodeFactory.instance.objectNode()
-//    val annotations = JsonNodeFactory.instance.objectNode()
 //    val inheritedProperties = JsonNodeFactory.instance.objectNode()
 //    val commonProperties = JsonNodeFactory.instance.objectNode()
 //    var baseUrl = uri.trim
 //    val containsWhitespaces = ".*\\s.*".r
 //    val matcher = containsWhitespaces.pattern.matcher(baseUrl)
 //    if (matcher.matches()) {
-//      println("Warning: The path/url has whitespaces in it, please ensure its correctness. Proceeding with received path/url ..")
+//      println(
+//        "Warning: The path/url has whitespaces in it, please ensure its correctness. Proceeding with received " +
+//          "path/url .."
+//      )
 //    }
-//    var lang = "und"
-//
-//    val context = json.get("@context")
-//    context match {
-//      case a: ArrayNode => {
-//        a.size() match {
-//          case 2 => {
-//            val contextOne = a.get(1)
-//            contextOne match {
-//              case o: ObjectNode => {
-//                val propertyAndValues = Array.from(o.fields().asScala)
-//                for (propertyAndValue <- propertyAndValues) {
-//                  val property = propertyAndValue.getKey
-//                  val value = propertyAndValue.getValue
-//                  val (newValue, warning, typeString) = PropertyChecker.checkProperty(property, value, baseUrl, lang)
-//                  if (warning.isEmpty) {
-//                    if (typeString == PropertyType.Context) {
-//                      property match {
-//                        case "@base" => baseUrl = newValue.asText()
-//                        case "@language" => lang = newValue.asText()
-//                      }
-//                    } else {
-//                      throw new MetadataError(s"@context contains properties other than @base or @language $property)")
-//                    }
-//                  } else {
-//                    if (!Array[String]("@base", "@language").contains(property)) {
-//                      throw new MetadataError(s"@context contains properties other than @base or @language $property)")
-//                      // Error Message class to deal with each of the warnings received
-//                    }
-//                  }
-//                }
-//              }
-//              // https://www.w3.org/TR/2015/REC-tabular-metadata-20151217/#top-level-properties
-//              case _ => throw new MetadataError("Second @context array value must be an object")
-//            }
-//          }
-//          case 1 => {
-//            a.get(0) match {
-//              case s: TextNode if s.asText == csvwContextUri => {}
-//              case _ => throw new MetadataError(s"First item in @context must be string ${csvwContextUri} ")
-//            }
-//          }
-//          case l => throw new MetadataError(s"Unexpected @context array length $l")
-//        }
-//      }
-//      case s: TextNode if s.asText == "http://www.w3.org/ns/csvw" => {}
-//      case _ => throw new MetadataError("Invalid Context")
-//    }
-//
-//    json.remove("@context")
+//    val processContextResult = processContext(json, baseUrl, "und")
+//    baseUrl = processContextResult._1
+//    val lang = processContextResult._2
 //
 //    val newJson = JsonNodeFactory.instance.objectNode()
 //    if (json.path("tables").isMissingNode) {
@@ -82,63 +41,276 @@
 //        newJson.set("tables", jsonArrayNode)
 //      }
 //    }
-//    doTheOtherStuff(annotations, inheritedProperties, commonProperties, baseUrl, lang, newJson)
+//    doTheOtherStuff(
+//      inheritedProperties,
+//      commonProperties,
+//      baseUrl,
+//      lang,
+//      newJson
+//    )
 //  }
 //
-//  private def doTheOtherStuff(annotations: ObjectNode, inheritedProperties: ObjectNode, commonProperties: ObjectNode, baseUrl: String, lang: String, json: ObjectNode) = {
-//    val propertyAndValues = Array.from(json.fields().asScala)
-//    for (propertyAndValue <- propertyAndValues) {
-//      val property = propertyAndValue.getKey
-//      val value = propertyAndValue.getValue
+//  def processContext(
+//      json: ObjectNode,
+//      baseUrl: String,
+//      lang: String
+//  ): (String, String) = {
+//    var baseUrlNew = baseUrl
+//    var langNew: String = lang
+//    val context = json.get("@context")
+//    context match {
+//      case a: ArrayNode => {
+//        a.size() match {
+//          case 2 => {
+//            val contextOne = a.get(1)
+//            contextOne match {
+//              case o: ObjectNode => {
+//                for ((property, value) <- o.getKeysAndValues) {
+//                  val (newValue, warning, typeString) = PropertyChecker
+//                    .checkProperty(property, value, baseUrl, lang)
+//                  if (warning.isEmpty) {
+//                    if (typeString == PropertyType.Context) {
+//                      property match {
+//                        case "@base"     => baseUrlNew = newValue.asText()
+//                        case "@language" => langNew = newValue.asText()
+//                      }
+//                    } else {
+//                      throw new MetadataError(
+//                        s"@context contains properties other than @base or @language $property)"
+//                      )
+//                    }
+//                  } else {
+//                    if (
+//                      !Array[String]("@base", "@language").contains(property)
+//                    ) {
+//                      throw new MetadataError(
+//                        s"@context contains properties other than @base or @language $property)"
+//                      )
+//                      // Error Message class to deal with each of the warnings received
+//                    }
+//                  }
+//                }
+//              }
+//              // https://www.w3.org/TR/2015/REC-tabular-metadata-20151217/#top-level-properties
+//              case _ =>
+//                throw new MetadataError(
+//                  "Second @context array value must be an object"
+//                )
+//            }
+//          }
+//          case 1 => {
+//            a.get(0) match {
+//              case s: TextNode if s.asText == csvwContextUri => {}
+//              case _ =>
+//                throw new MetadataError(
+//                  s"First item in @context must be string ${csvwContextUri} "
+//                )
+//            }
+//          }
+//          case l =>
+//            throw new MetadataError(s"Unexpected @context array length $l")
+//        }
+//      }
+//      case s: TextNode if s.asText == "http://www.w3.org/ns/csvw" => {}
+//      case _                                                      => throw new MetadataError("Invalid Context")
+//    }
+//    json.remove("@context")
+//    (baseUrlNew, langNew)
+//  }
+//
+//  private def doTheOtherStuff(
+//      inheritedProperties: ObjectNode,
+//      commonProperties: ObjectNode,
+//      baseUrl: String,
+//      lang: String,
+//      json: ObjectNode
+//  ): TableGroup = {
+//    var annotations = Map[String, JsonNode]()
+//    var tables = Map[String, Table]()
+//    var warnings = Array[ErrorMessage]()
+//    for ((property, value) <- json.getKeysAndValues) {
 //      if (!validProperties.contains(property)) {
-//        val (newValue, warning, typeString) = PropertyChecker.checkProperty(property, value, baseUrl, lang)
-//        // deal with warnings received in new error message class
+//        val (newValue, w, typeString) =
+//          PropertyChecker.checkProperty(property, value, baseUrl, lang)
+//        warnings = w.map[ErrorMessage](x =>
+//          ErrorMessage(x, "metadata", "", "", s"$property : $value", "")
+//        )
 //        typeString match {
-//          case PropertyType.Annotation => annotations.set(property, newValue)
-//          case PropertyType.Common => commonProperties.set(property, newValue)
-//          case PropertyType.Inherited => inheritedProperties.set(property, newValue)
-//          case _ => {} // deal with invalid property error message using the error message class
+//          case PropertyType.Annotation => annotations += (property -> newValue)
+//          case PropertyType.Common     => commonProperties.set(property, newValue)
+//          case PropertyType.Inherited =>
+//            inheritedProperties.set(property, newValue)
+//          case _ => {
+//            warnings = warnings :+ ErrorMessage(
+//              "invalid_property",
+//              "metadata",
+//              "",
+//              "",
+//              property,
+//              ""
+//            )
+//          }
 //        }
 //      }
 //    }
 //
-//    val id = Option(commonProperties.get("@id"))
-//    if (!json.path("@type").isMissingNode && json.get("@type").asText != "TableGroup") {
+//    val id = getId(commonProperties)
+//    if (
+//      !json
+//        .path("@type")
+//        .isMissingNode && json.get("@type").asText != "TableGroup"
+//    ) {
 //      throw new MetadataError("@type of table group is not 'TableGroup'")
 //    }
 //
 //    json.path("tables") match {
-//      case t: ArrayNode if t.isEmpty() => throw new MetadataError("Empty tables property")
+//      case t: ArrayNode if t.isEmpty() =>
+//        throw new MetadataError("Empty tables property")
 //      case t: ArrayNode => {
-//        val tableElements = Array.from(t.elements().asScala)
-//        for(tableElement <- tableElements) {
+//        for (tableElement <- t.elements().asScalaArray) {
 //          tableElement match {
-//            case o:ObjectNode => {
+//            case tableElementObject: ObjectNode => {
 //              var tableUrl = tableElement.get("url")
 //              if (!tableUrl.isTextual) {
-//                // Add to warnings using the new ErrorMessage class
+//                warnings = warnings :+ ErrorMessage(
+//                  "invalid_url",
+//                  "metadata",
+//                  "",
+//                  "",
+//                  s"url: $tableUrl",
+//                  ""
+//                )
 //                tableUrl = new TextNode("")
 //              }
-//              val uri = URI.create(baseUrl)
-//              tableUrl = new TextNode(uri.resolve(uri.getPath + tableUrl).toString)
-//              tableElement.asInstanceOf[ObjectNode].set("url", tableUrl)
-//              // Create table element and place in tables array / decide the type of tables array
-//              // Table from json not implemented
+//              tableUrl = new TextNode(
+//                new URL(new URL(baseUrl), tableUrl.asText()).toString
+//              )
+//              tableElementObject.set("url", tableUrl)
+//              val table = Table.fromJson(
+//                tableElementObject,
+//                baseUrl,
+//                lang,
+//                commonProperties,
+//                inheritedProperties
+//              )
+//              tables += (tableUrl.asText -> table)
 //            }
-//            case _ => {} // create error message using error message class and place in warnings
+//            case _ => {
+//              warnings = warnings :+ ErrorMessage(
+//                "invalid_table_description",
+//                "metadata",
+//                "",
+//                "",
+//                tableElement.toPrettyString,
+//                ""
+//              )
+//            }
 //          }
 //        }
 //      }
 //      case n if n.isMissingNode => throw new MetadataError("No tables property")
-//      case _ => throw new MetadataError("Tables property is not an array")
+//      case _                    => throw new MetadataError("Tables property is not an array")
 //    }
 //
-//    // To do the last part ie iterating through tables array and doing stuff can be done only after completing
-//    // tables class with from json implementation
+//    for ((tableUrl, table) <- tables) {
+//      for (
+//        ((foreignKey, foreignKeyColumns), i) <- table.foreignKeys.zipWithIndex
+//      ) {
+//        val reference = foreignKey.get("reference")
+//        val resourceNode = reference.path("resource")
+//        val referencedTable: Table = if (resourceNode.isMissingNode) {
+//          val schemaReferenceNode = reference.get("schemaReference")
+//          val schemaUrl = {
+//            new URL(new URL(baseUrl), schemaReferenceNode.asText()).toString
+//          }
+//          val referencedTables = List.from(
+//            tables.values.filter(t =>
+//              t.schemaId.isDefined && t.schemaId.get == schemaUrl
+//            )
+//          )
+//          referencedTables match {
+//            case referencedTable :: _ => referencedTable
+//            case Nil =>
+//              throw new MetadataError(
+//                s"Could not find foreign key referenced schema ${schemaUrl}, " +
+//                  s"$$.tables[?(@.url = '${tableUrl}')].tableSchema.foreignKeys[${i}].reference.SchemaReference"
+//              )
+//          }
+//        } else {
+//          val resource = new URL(
+//            new URL(baseUrl),
+//            reference.get("resource").asText()
+//          ).toString
+//          tables.get(resource) match {
+//            case Some(refTable) => refTable
+//            case None =>
+//              throw new MetadataError(
+//                s"Could not find foreign key referenced table ${tableUrl}, " +
+//                  s"$$.tables[?(@.url = '${tableUrl}')].tableSchema.foreignKeys[${i}].reference.resource"
+//              )
+//          }
+//        }
+//        var tableColumns: Map[String, Column] = Map()
+//        for (column <- referencedTable.columns) {
+//          column.name match {
+//            case Some(columnName) => tableColumns += (columnName -> column)
+//            case None             => {}
+//          }
+//        }
+//        var referencedColumns: Array[Column] = reference
+//          .get("columnReference")
+//          .elements()
+//          .asScalaArray
+//          .map(columnReference => {
+//            tableColumns.get(columnReference.asText()) match {
+//              case Some(column) => column
+//              case None =>
+//                throw new MetadataError(
+//                  s"column named ${columnReference.asText()} does not exist in #{resource}," +
+//                    s" $$.tables[?(@.url = '${tableUrl}')].tableSchema.foreign_keys[${i}].reference.columnReference"
+//                )
+//            }
+//          })
+//
+//        val foreignKeyWrapper =
+//          ForeignKeyWrapper(referencedTable, referencedColumns, foreignKey)
+//        referencedTable.foreignKeyReferences =
+//          referencedTable.foreignKeyReferences :+ foreignKeyWrapper
+//      }
+//    }
+//    return TableGroup(
+//      baseUrl,
+//      id,
+//      tables,
+//      getNotes(commonProperties),
+//      annotations,
+//      warnings
+//    )
 //  }
 //
-//  case class TableGroup() {
-//
+//  private def getId(commonProperties: ObjectNode) = {
+//    if (commonProperties.path("@id").isMissingNode) {
+//      None
+//    } else {
+//      Option(commonProperties.get("@id").asText())
+//    }
 //  }
+//
+//  def getNotes(commonProperties: ObjectNode): Option[JsonNode] = {
+//    val notesNode = commonProperties.path("notes")
+//    if (notesNode.isMissingNode) {
+//      None
+//    } else {
+//      Some(notesNode)
+//    }
+//  }
+//  case class TableGroup private (
+//      baseUrl: String,
+//      id: Option[String],
+//      tables: Map[String, Table],
+//      notes: Option[JsonNode],
+//      annotations: Map[String, JsonNode],
+//      warnings: Array[ErrorMessage]
+//  ) {}
 //
 //}
