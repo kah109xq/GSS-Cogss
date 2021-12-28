@@ -109,7 +109,7 @@ object Column {
       inheritedProperties: ObjectNode
   ): Column = {
     var annotations = Map[String, JsonNode]()
-    var warnings = Array[String]()
+    var warnings = Array[ErrorMessage]()
     val columnProperties = JsonNodeFactory.instance.objectNode()
     val inheritedPropertiesCopy = inheritedProperties.deepCopy()
 
@@ -124,7 +124,16 @@ object Column {
           val (v, w, csvwPropertyType) =
             PropertyChecker.checkProperty(property, value, baseUrl, lang)
           if (w.nonEmpty) {
-            // Add error message objects to warnings array
+            warnings :+= w.map(warningString =>
+              ErrorMessage(
+                warningString,
+                "metadata",
+                "",
+                "",
+                s"$property: ${value.asText}",
+                ""
+              )
+            )
           }
           csvwPropertyType match {
             case PropertyType.Annotation => annotations += (property -> v)
@@ -132,8 +141,15 @@ object Column {
               columnProperties.set(property, v)
             case PropertyType.Inherited =>
               inheritedPropertiesCopy.set(property, v)
-            case _ => // Add warning to the warnings array using ErrorMessage class
-            //  warnings << Csvlint::ErrorMessage.new(:invalid_property, :metadata, nil, nil, "column: #{property}", nil)
+            case _ =>
+              warnings :+= ErrorMessage(
+                s"invalid_property",
+                "metadata",
+                "",
+                "",
+                s"column: ${property}",
+                ""
+              )
           }
         }
       }
@@ -153,8 +169,8 @@ object Column {
 
     new Column(
       number = number,
-      name = getName(columnProperties, lang), // add more logic,
-      id = columnProperties.get("@id").asText(), // Null
+      name = getName(columnProperties, lang),
+      id = columnProperties.get("@id").asText(),
       datatype = datatype,
       lang = newLang,
       nullParam = getNullParam(inheritedPropertiesCopy),
@@ -197,10 +213,10 @@ case class Column private (
     separator: Option[String],
     suppressOutput: Boolean,
     textDirection: String,
-//                      defaultName: String, // Not used, this logic is included in name param
+//  defaultName: String, // Not used, this logic is included in name param
     titles: JsonNode,
     valueUrl: Option[String],
     virtual: Boolean,
     annotations: Map[String, JsonNode],
-    warnings: Array[String]
+    warnings: Array[ErrorMessage]
 ) {}
