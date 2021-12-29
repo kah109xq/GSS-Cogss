@@ -1,7 +1,7 @@
 package CSVValidation
 
 import CSVValidation.traits.ObjectNodeExtentions.IteratorHasGetKeysAndValues
-import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.fasterxml.jackson.databind.node.{
   ArrayNode,
   JsonNodeFactory,
@@ -10,10 +10,11 @@ import com.fasterxml.jackson.databind.node.{
   TextNode
 }
 import errors.MetadataError
+
 import scala.jdk.CollectionConverters.IteratorHasAsScala
 
 object Column {
-  val datatypeDefaultValue = JsonNodeFactory.instance
+  val datatypeDefaultValue: ObjectNode = JsonNodeFactory.instance
     .objectNode()
     .set("@id", new TextNode("http://www.w3.org/2001/XMLSchema#string"))
 
@@ -65,6 +66,11 @@ object Column {
     }
   }
 
+  def getId(columnProperties: ObjectNode): Option[String] = {
+    val idNode = columnProperties.path("@id")
+    if (idNode.isMissingNode) None else Some(idNode.asText())
+  }
+
   def getName(columnProperties: ObjectNode, lang: String): Option[String] = {
     if (!columnProperties.path("name").isMissingNode) {
       Some(columnProperties.get("name").asText())
@@ -101,6 +107,26 @@ object Column {
     }
   }
 
+  def getAboutUrl(inheritedProperties: ObjectNode): Option[String] = {
+    val aboutUrlNode = inheritedProperties.path("aboutUrl")
+    if (aboutUrlNode.isMissingNode) None else Some(aboutUrlNode.asText())
+  }
+
+  def getPropertyUrl(inheritedProperties: ObjectNode): Option[String] = {
+    val propertyUrlNode = inheritedProperties.path("propertyUrl")
+    if (propertyUrlNode.isMissingNode) None else Some(propertyUrlNode.asText)
+  }
+
+  def getValueUrl(inheritedProperties: ObjectNode): Option[String] = {
+    val valueUrlNode = inheritedProperties.path("valueUrl")
+    if (valueUrlNode.isMissingNode) None else Some(valueUrlNode.asText())
+  }
+
+  def getSeparator(inheritedProperties: ObjectNode): Option[String] = {
+    val separatorNode = inheritedProperties.path("separator")
+    if (separatorNode.isMissingNode) None else Some(separatorNode.asText())
+  }
+
   def fromJson(
       number: Int,
       columnDesc: ObjectNode,
@@ -110,7 +136,9 @@ object Column {
   ): Column = {
     var annotations = Map[String, JsonNode]()
     var warnings = Array[ErrorMessage]()
+//    val mapper = new ObjectMapper()
     val columnProperties = JsonNodeFactory.instance.objectNode()
+//    val columnProperties = mapper.createObjectNode()
     val inheritedPropertiesCopy = inheritedProperties.deepCopy()
 
     for ((property, value) <- columnDesc.getKeysAndValues) {
@@ -124,21 +152,23 @@ object Column {
           val (v, w, csvwPropertyType) =
             PropertyChecker.checkProperty(property, value, baseUrl, lang)
           if (w.nonEmpty) {
-            warnings :+= w.map(warningString =>
-              ErrorMessage(
-                warningString,
-                "metadata",
-                "",
-                "",
-                s"$property: ${value.asText}",
-                ""
+            warnings :+ warnings.concat(
+              w.map(warningString =>
+                ErrorMessage(
+                  warningString,
+                  "metadata",
+                  "",
+                  "",
+                  s"$property: ${value.asText}",
+                  ""
+                )
               )
             )
           }
           csvwPropertyType match {
-            case PropertyType.Annotation => annotations += (property -> v)
+            case PropertyType.Annotation                   => annotations += (property -> v)
             case PropertyType.Common | PropertyType.Column =>
-              columnProperties.set(property, v)
+//              columnProperties.set(property, v)
             case PropertyType.Inherited =>
               inheritedPropertiesCopy.set(property, v)
             case _ =>
@@ -170,22 +200,16 @@ object Column {
     new Column(
       number = number,
       name = getName(columnProperties, lang),
-      id = columnProperties.get("@id").asText(),
+      id = getId(columnProperties),
       datatype = datatype,
       lang = newLang,
       nullParam = getNullParam(inheritedPropertiesCopy),
       default = getDefault(inheritedPropertiesCopy),
       required = getRequired(inheritedPropertiesCopy),
-      aboutUrl = inheritedPropertiesCopy
-        .get("aboutUrl")
-        .asText(), // What if not present?
-      propertyUrl = Some(
-        inheritedPropertiesCopy.get("propertyUrl").asText()
-      ), // What if not present?
-      valueUrl = Some(
-        inheritedPropertiesCopy.get("valueUrl").asText()
-      ), // What if not present?
-      separator = Some(inheritedPropertiesCopy.get("separator").asText()),
+      aboutUrl = getAboutUrl(inheritedPropertiesCopy),
+      propertyUrl = getPropertyUrl(inheritedPropertiesCopy),
+      valueUrl = getValueUrl(inheritedPropertiesCopy),
+      separator = getSeparator(inheritedPropertiesCopy),
       ordered = getOrdered(inheritedPropertiesCopy),
       titles =
         columnProperties.get("titles"), // Keeping it as jsonNode, revisit
@@ -201,8 +225,8 @@ object Column {
 case class Column private (
     number: Int,
     name: Option[String],
-    id: String,
-    aboutUrl: String,
+    id: Option[String],
+    aboutUrl: Option[String],
     datatype: JsonNode,
     default: String,
     lang: String,
