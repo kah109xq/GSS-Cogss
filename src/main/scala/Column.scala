@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.fasterxml.jackson.databind.node.{
   ArrayNode,
   JsonNodeFactory,
-  NullNode,
   ObjectNode,
   TextNode
 }
@@ -97,7 +96,7 @@ object Column {
           var nullParamsToReturn = Array[String]()
           val nullParams = Array.from(a.elements.asScala)
           for (np <- nullParams)
-            nullParamsToReturn = nullParamsToReturn :+ np.asText()
+            nullParamsToReturn :+= np.asText()
           nullParamsToReturn
         }
         case s: TextNode => Array[String](s.asText())
@@ -127,6 +126,11 @@ object Column {
     if (separatorNode.isMissingNode) None else Some(separatorNode.asText())
   }
 
+  def getTitles(columnProperties: ObjectNode): Option[JsonNode] = {
+    val titlesNode = columnProperties.path("titles")
+    if (titlesNode.isMissingNode) None else Some(titlesNode)
+  }
+
   def fromJson(
       number: Int,
       columnDesc: ObjectNode,
@@ -136,9 +140,7 @@ object Column {
   ): Column = {
     var annotations = Map[String, JsonNode]()
     var warnings = Array[ErrorMessage]()
-//    val mapper = new ObjectMapper()
     val columnProperties = JsonNodeFactory.instance.objectNode()
-//    val columnProperties = mapper.createObjectNode()
     val inheritedPropertiesCopy = inheritedProperties.deepCopy()
 
     for ((property, value) <- columnDesc.getKeysAndValues) {
@@ -152,7 +154,7 @@ object Column {
           val (v, w, csvwPropertyType) =
             PropertyChecker.checkProperty(property, value, baseUrl, lang)
           if (w.nonEmpty) {
-            warnings :+ warnings.concat(
+            warnings = warnings.concat(
               w.map(warningString =>
                 ErrorMessage(
                   warningString,
@@ -166,11 +168,17 @@ object Column {
             )
           }
           csvwPropertyType match {
-            case PropertyType.Annotation                   => annotations += (property -> v)
-            case PropertyType.Common | PropertyType.Column =>
-//              columnProperties.set(property, v)
             case PropertyType.Inherited =>
-              inheritedPropertiesCopy.set(property, v)
+              inheritedPropertiesCopy
+                .set(property, v)
+                .asInstanceOf[Any] // The return types of the cases statements here are different.
+            // The first case statement is cast as an instance of Any,
+            // so that the compiler knows all other cases statements should be cast as Any.
+            case PropertyType.Common | PropertyType.Column =>
+              columnProperties.set(property, v)
+            case PropertyType.Annotation => {
+              annotations += (property -> v)
+            }
             case _ =>
               warnings :+= ErrorMessage(
                 s"invalid_property",
@@ -211,8 +219,7 @@ object Column {
       valueUrl = getValueUrl(inheritedPropertiesCopy),
       separator = getSeparator(inheritedPropertiesCopy),
       ordered = getOrdered(inheritedPropertiesCopy),
-      titles =
-        columnProperties.get("titles"), // Keeping it as jsonNode, revisit
+      titles = getTitles(columnProperties),
       suppressOutput = getSuppressOutput(columnProperties),
       virtual = getVirtual(columnProperties),
       textDirection = getTextDirection(inheritedPropertiesCopy),
@@ -238,7 +245,7 @@ case class Column private (
     suppressOutput: Boolean,
     textDirection: String,
 //  defaultName: String, // Not used, this logic is included in name param
-    titles: JsonNode,
+    titles: Option[JsonNode],
     valueUrl: Option[String],
     virtual: Boolean,
     annotations: Map[String, JsonNode],
