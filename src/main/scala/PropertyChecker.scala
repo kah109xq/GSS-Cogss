@@ -613,7 +613,7 @@ object PropertyChecker {
         if (
           !PropertyCheckerConstants.StringDataTypes.contains(
             baseValue
-          ) || !PropertyCheckerConstants.BinaryDataTypes.contains(baseValue)
+          ) && !PropertyCheckerConstants.BinaryDataTypes.contains(baseValue)
         ) {
           if (!objectNode.path("length").isMissingNode) {
             throw new MetadataError(

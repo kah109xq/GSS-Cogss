@@ -1,6 +1,7 @@
 package CSVValidation
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.fasterxml.jackson.databind.node.{
+  IntNode,
   JsonNodeFactory,
   ObjectNode,
   TextNode
@@ -96,6 +97,37 @@ class ColumnTest extends FunSuite {
       JsonNodeFactory.instance.objectNode()
     )
     assert(column.warnings(0).`type` === "invalid_value")
-    assert(column.warnings.size === 1)
+    assert(column.warnings.length === 1)
+  }
+
+  test("should set the correct datatype") {
+    val json =
+      """
+        |{ 
+        |   "name": "Id", 
+        |   "required": true, 
+        |   "datatype": { "base": "string", "minLength": 3 }
+        |}
+        |""".stripMargin
+
+    val jsonNode = objectMapper.readTree(json)
+    val column = Column.fromJson(
+      1,
+      jsonNode.asInstanceOf[ObjectNode],
+      "https://www.w3.org/",
+      "und",
+      JsonNodeFactory.instance.objectNode()
+    )
+    val expectedDatatypeValue: ObjectNode = JsonNodeFactory.instance
+      .objectNode()
+    expectedDatatypeValue.set(
+      "base",
+      new TextNode("http://www.w3.org/2001/XMLSchema#string")
+    )
+    expectedDatatypeValue.set("minLength", new IntNode(3))
+
+    assert(column.name.get === "Id")
+    assert(column.required)
+    assert(column.datatype === expectedDatatypeValue)
   }
 }
