@@ -501,7 +501,6 @@ object PropertyChecker {
       PropertyType.Value
   ) = { (v, baseUrl, lang) =>
     {
-      var baseUrlCopy = ""
       v match {
         case s: TextNode => {
           val matcher =
@@ -509,9 +508,9 @@ object PropertyChecker {
           if (matcher.matches) {
             throw new MetadataError(s"URL ${s.asText} starts with _:")
           }
-          baseUrlCopy = baseUrl match {
+          val baseUrlCopy = baseUrl match {
             case "" => s.asText()
-            case _  => baseUrl + s.asText()
+            case _  => new URL(new URL(baseUrl), s.asText()).toString
           }
           (new TextNode(baseUrlCopy), Array[String](""), csvwPropertyType)
         }
@@ -1116,11 +1115,11 @@ object PropertyChecker {
           if (
             valueCopy
               .path("resource")
-              .isMissingNode || valueCopy.path("schemaReference").isMissingNode
+              .isMissingNode && valueCopy.path("schemaReference").isMissingNode
           ) {
             throw new MetadataError(
               "foreignKey reference does not have either resource or schemaReference"
-            )
+            ) // Should have at least one of them, else it is an error
           }
           if (
             !valueCopy

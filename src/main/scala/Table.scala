@@ -88,8 +88,9 @@ object Table {
               )
             )
           typeString match {
-            case PropertyType.Annotation =>
-              annotations += (property -> newValue)
+            case PropertyType.Annotation => {
+                annotations += (property -> newValue)
+              }.asInstanceOf[Any]
             case PropertyType.Table | PropertyType.Common =>
               tableProperties.set(property, newValue)
             case PropertyType.Column => {
@@ -102,7 +103,10 @@ object Table {
                 ""
               )
             }
-            case _ => inheritedPropertiesCopy.set(property, newValue)
+            case _ => {
+              inheritedPropertiesCopy.set(property, newValue)
+              ()
+            }
           }
         }
       }
@@ -393,6 +397,7 @@ object Table {
       ) {
         inheritedProperties.set(property, value)
       }
+      () // Ensure return type of for loop is consistent.
     }
   }
 
