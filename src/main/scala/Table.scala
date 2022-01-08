@@ -10,15 +10,17 @@ import com.fasterxml.jackson.databind.node.{
 }
 import errors.MetadataError
 import traits.JavaIteratorExtensions.IteratorHasAsScalaArray
+import scala.collection.mutable.Map
 
+import scala.collection.IterableOnce.iterableOnceExtensionMethods
 object Table {
 
   def fromJson(
       tableDesc: ObjectNode,
       baseUrl: String,
       lang: String,
-      commonProperties: ObjectNode,
-      inheritedPropertiesIn: ObjectNode
+      commonProperties: Map[String, JsonNode],
+      inheritedPropertiesIn: Map[String, JsonNode]
   ): Table = {
     val (annotations, tableProperties, inheritedProperties, warnings) =
       partitionAndValidateTablePropertiesByType(
@@ -55,17 +57,23 @@ object Table {
   }
 
   private def partitionAndValidateTablePropertiesByType(
-      commonProperties: ObjectNode,
-      inheritedProperties: ObjectNode,
+      commonProperties: Map[String, JsonNode],
+      inheritedProperties: Map[String, JsonNode],
       tableDesc: ObjectNode,
       baseUrl: String,
       lang: String
-  ): (Map[String, JsonNode], ObjectNode, ObjectNode, Array[ErrorMessage]) = {
+  ): (
+      Map[String, JsonNode],
+      Map[String, JsonNode],
+      Map[String, JsonNode],
+      Array[ErrorMessage]
+  ) = {
     var warnings = Array[ErrorMessage]()
     var annotations = Map[String, JsonNode]()
-    val tableProperties = commonProperties.deepCopy()
-    val inheritedPropertiesCopy = inheritedProperties.deepCopy()
-
+    var tableProperties: Map[String, JsonNode] =
+      MapHelpers.deepCloneJsonPropertiesMap(commonProperties)
+    var inheritedPropertiesCopy: Map[String, JsonNode] =
+      MapHelpers.deepCloneJsonPropertiesMap(inheritedProperties)
     for ((property, value) <- tableDesc.getKeysAndValues) {
       (property, value) match {
         case ("@type", s: TextNode) if s.asText != "Table" => {
@@ -92,7 +100,7 @@ object Table {
                 annotations += (property -> newValue)
               }.asInstanceOf[Any]
             case PropertyType.Table | PropertyType.Common =>
-              tableProperties.set(property, newValue)
+              tableProperties += (property -> newValue)
             case PropertyType.Column => {
               warnings = warnings :+ ErrorMessage(
                 "invalid_property",
@@ -103,10 +111,7 @@ object Table {
                 ""
               )
             }
-            case _ => {
-              inheritedPropertiesCopy.set(property, newValue)
-              ()
-            }
+            case _ => inheritedPropertiesCopy += (property -> newValue)
           }
         }
       }
@@ -114,34 +119,30 @@ object Table {
     (annotations, tableProperties, inheritedPropertiesCopy, warnings)
   }
 
-  private def getUrlEnsureExists(tableProperties: ObjectNode) = {
-    val urlNode = tableProperties.path("url")
-    if (urlNode.isMissingNode) {
-      throw new MetadataError("URL not found for table")
-    }
-    urlNode.asText()
+  private def getUrlEnsureExists(
+      tableProperties: Map[String, JsonNode]
+  ): String = {
+    tableProperties
+      .getOrElse("url", throw new MetadataError("URL not found for table"))
+      .asText()
   }
 
   private def extractTableSchema(
-      tableProperties: ObjectNode,
-      inheritedPropertiesCopy: ObjectNode
-  ) = {
-    if (!tableProperties.path("tableSchema").isMissingNode) {
-      Some(tableProperties.get("tableSchema"))
-    } else if (!inheritedPropertiesCopy.path("tableSchema").isMissingNode) {
-      Some(inheritedPropertiesCopy.get("tableSchema"))
-    } else {
-      None
-    }
+      tableProperties: Map[String, JsonNode],
+      inheritedPropertiesCopy: Map[String, JsonNode]
+  ): Option[JsonNode] = {
+    tableProperties
+      .get("tableSchema")
+      .orElse(inheritedPropertiesCopy.get("tableSchema"))
   }
 
   private def createTableForExistingSchema(
       tableSchema: JsonNode,
-      inheritedProperties: ObjectNode,
+      inheritedProperties: Map[String, JsonNode],
       baseUrl: String,
       lang: String,
       url: String,
-      tableProperties: ObjectNode,
+      tableProperties: Map[String, JsonNode],
       annotations: Map[String, JsonNode]
   ): Table = {
 
@@ -223,7 +224,7 @@ object Table {
   private def validateAndExtractColumnsFromSchema(
       baseUrl: String,
       lang: String,
-      inheritedProperties: ObjectNode,
+      inheritedProperties: Map[String, JsonNode],
       tableSchemaObject: ObjectNode
   ): (Array[Column], Array[ErrorMessage]) = {
     var warnings = Array[ErrorMessage]()
@@ -383,7 +384,7 @@ object Table {
   }
 
   private def setTableSchemaInheritedProperties(
-      inheritedProperties: ObjectNode,
+      inheritedProperties: Map[String, JsonNode],
       tableSchemaObject: ObjectNode
   ): Unit = {
     for ((property, value) <- tableSchemaObject.getKeysAndValues) {
@@ -395,7 +396,7 @@ object Table {
           "rowTitles"
         ).contains(property)
       ) {
-        inheritedProperties.set(property, value)
+        inheritedProperties += (property -> value)
       }
       () // Ensure return type of for loop is consistent.
     }
@@ -433,39 +434,41 @@ object Table {
     }
   }
 
-  private def getId(tableProperties: ObjectNode): Option[String] = {
-    val idNode = tableProperties.path("@id")
-    if (idNode.isMissingNode) {
-      None
-    } else {
-      Some(idNode.asText())
+  private def getId(tableProperties: Map[String, JsonNode]): Option[String] = {
+    val idNode = tableProperties.get("@id")
+    idNode match {
+      case Some(value) => Some(value.asText())
+      case _           => None
     }
   }
 
-  private def getNotes(tableProperties: ObjectNode): Option[ArrayNode] = {
-    if (tableProperties.path("notes").isMissingNode) {
-      None
-    } else {
-      tableProperties.get("notes") match {
-        case a: ArrayNode => Some(a)
-        case _            => throw new MetadataError("Notes property should be an array")
-      }
+  private def getNotes(
+      tableProperties: Map[String, JsonNode]
+  ): Option[ArrayNode] = {
+    val notesNode = tableProperties.get("notes")
+    notesNode match {
+      case Some(value) =>
+        value match {
+          case a: ArrayNode => Some(a)
+          case _            => throw new MetadataError("Notes property should be an array")
+        }
+      case _ => None
     }
   }
 
-  private def getDialect(tableProperties: ObjectNode): Option[JsonNode] = {
-    if (tableProperties.path("dialect").isMissingNode) {
-      None
-    } else {
-      Some(tableProperties.get("dialect"))
-    }
+  private def getDialect(
+      tableProperties: Map[String, JsonNode]
+  ): Option[JsonNode] = {
+    tableProperties.get("dialect")
   }
 
-  private def getSuppressOutput(tableProperties: ObjectNode): Boolean = {
-    if (tableProperties.path("suppressOutput").isMissingNode) {
-      false
-    } else {
-      tableProperties.get("suppressOutput").asBoolean()
+  private def getSuppressOutput(
+      tableProperties: Map[String, JsonNode]
+  ): Boolean = {
+    val suppressOutputNode = tableProperties.get("suppressOutput")
+    suppressOutputNode match {
+      case Some(value) => value.asBoolean()
+      case _           => false
     }
   }
 }

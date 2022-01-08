@@ -2,6 +2,7 @@ package CSVValidation
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.{JsonNodeFactory, ObjectNode}
 import org.scalatest.FunSuite
+import scala.collection.mutable.Map
 
 class TableTest extends FunSuite {
   val objectMapper = new ObjectMapper()
@@ -65,8 +66,8 @@ class TableTest extends FunSuite {
       jsonNode.get("tables").elements().next().asInstanceOf[ObjectNode],
       "http://w3c.github.io/csvw/tests/countries.json",
       "und",
-      JsonNodeFactory.instance.objectNode(),
-      JsonNodeFactory.instance.objectNode()
+      Map(),
+      Map()
     )
 
     assert(table.url === "http://w3c.github.io/csvw/tests/countries.csv")

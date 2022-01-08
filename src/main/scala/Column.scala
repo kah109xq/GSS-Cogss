@@ -9,6 +9,8 @@ import com.fasterxml.jackson.databind.node.{
   TextNode
 }
 import errors.MetadataError
+import scala.collection.mutable.Map
+import traits.JavaIteratorExtensions.IteratorHasAsScalaArray
 
 import scala.jdk.CollectionConverters.IteratorHasAsScala
 
@@ -17,118 +19,149 @@ object Column {
     .objectNode()
     .set("@id", new TextNode("http://www.w3.org/2001/XMLSchema#string"))
 
-  def getOrdered(inheritedProperties: ObjectNode): Boolean = {
-    if (!inheritedProperties.path("ordered").isMissingNode) {
-      inheritedProperties.path("ordered").asBoolean
-    } else {
-      false
+  def getOrdered(inheritedProperties: Map[String, JsonNode]): Boolean = {
+    val inheritedPropertiesNode = inheritedProperties.get("ordered")
+    inheritedPropertiesNode match {
+      case Some(value) => value.asBoolean()
+      case _           => false
     }
   }
 
-  def getTextDirection(inheritedProperties: ObjectNode): String = {
-    if (!inheritedProperties.path("textDirection").isMissingNode) {
-      inheritedProperties.path("textDirection").asText()
-    } else {
-      "inherit"
+  def getTextDirection(inheritedProperties: Map[String, JsonNode]): String = {
+    val textDirectionNode = inheritedProperties.get("textDirection")
+    textDirectionNode match {
+      case Some(value) => value.asText()
+      case _           => "inherit"
     }
   }
 
-  def getSuppressOutput(columnProperties: ObjectNode): Boolean = {
-    if (!columnProperties.path("suppressOutput").isMissingNode) {
-      columnProperties.path("suppressOutput").asBoolean
-    } else {
-      false
+  def getSuppressOutput(columnProperties: Map[String, JsonNode]): Boolean = {
+    val suppressOutputNode = columnProperties.get("suppressOutput")
+    suppressOutputNode match {
+      case Some(value) => value.asBoolean()
+      case _           => false
     }
   }
 
-  def getVirtual(columnProperties: ObjectNode): Boolean = {
-    if (!columnProperties.path("virtual").isMissingNode) {
-      columnProperties.path("virtual").asBoolean
-    } else {
-      false
+  def getVirtual(columnProperties: Map[String, JsonNode]): Boolean = {
+    val virtualNode = columnProperties.get("virtual")
+    virtualNode match {
+      case Some(value) => value.asBoolean()
+      case _           => false
     }
   }
 
-  def getRequired(inheritedProperties: ObjectNode): Boolean = {
-    if (!inheritedProperties.path("required").isMissingNode) {
-      inheritedProperties.path("required").asBoolean()
-    } else {
-      false
+  def getRequired(inheritedProperties: Map[String, JsonNode]): Boolean = {
+    inheritedProperties.get("required") match {
+      case Some(value) => value.asBoolean()
+      case _           => false
     }
   }
 
-  def getDefault(inheritedProperties: ObjectNode): String = {
-    if (!inheritedProperties.path("default").isMissingNode) {
-      inheritedProperties.get("default").asText()
-    } else {
-      ""
+  def getDefault(inheritedProperties: Map[String, JsonNode]): String = {
+    inheritedProperties.get("default") match {
+      case Some(value) => value.asInstanceOf[TextNode].asText()
+      case _           => ""
     }
   }
 
-  def getId(columnProperties: ObjectNode): Option[String] = {
-    val idNode = columnProperties.path("@id")
-    if (idNode.isMissingNode) None else Some(idNode.asText())
+  def getId(columnProperties: Map[String, JsonNode]): Option[String] = {
+    val idNode = columnProperties.get("@id")
+    if (idNode.isDefined) Some(idNode.get.asText()) else None
   }
 
-  def getName(columnProperties: ObjectNode, lang: String): Option[String] = {
-    if (!columnProperties.path("name").isMissingNode) {
-      Some(columnProperties.get("name").asText())
-    } else if (
-      (!columnProperties.path("titles").isMissingNode) && (!columnProperties
-        .path("titles")
-        .path(lang)
-        .isMissingNode)
-    ) {
+  def getName(
+      columnProperties: Map[String, JsonNode],
+      lang: String
+  ): Option[String] = {
+    val name = columnProperties.get("name")
+    val titles = columnProperties.get("titles")
+//
+//    name
+//      .map(n => n.asText())
+//      .orElse(
+//        titles.map(t => {
+//          val langNode = t.path(lang)
+//          if (langNode.isMissingNode) {
+//            langNode.elements.asScalaArray(0).asText()
+//          }
+//        })
+//      )
+
+    if (name.isDefined) {
+      Some(name.get.asInstanceOf[TextNode].asText())
+    } else if (titles.isDefined && titles.get.path(lang).isMissingNode) {
       val langArray = Array.from(
-        columnProperties.path("titles").path(lang).elements().asScala
+        titles.get.path(lang).elements().asScala
       )
-      Some(langArray(0).asText())
-    } else {
-      // Not sure what to return here. Hope it does not reach here
-      None
-    }
+      if (langArray.nonEmpty) {
+        Some(langArray(0).asText())
+      } else None
+    } else None // Not sure what to return here. Hope it does not reach here
   }
 
-  def getNullParam(inheritedProperties: ObjectNode): Array[String] = {
-    if (!inheritedProperties.path("null").isMissingNode) {
-      inheritedProperties.get("null") match {
-        case a: ArrayNode => {
-          var nullParamsToReturn = Array[String]()
-          val nullParams = Array.from(a.elements.asScala)
-          for (np <- nullParams)
-            nullParamsToReturn :+= np.asText()
-          nullParamsToReturn
+  def getNullParam(
+      inheritedProperties: Map[String, JsonNode]
+  ): Array[String] = {
+    inheritedProperties.get("null") match {
+      case Some(value) => {
+        value match {
+          case a: ArrayNode => {
+            var nullParamsToReturn = Array[String]()
+            val nullParams = Array.from(a.elements.asScala)
+            for (np <- nullParams)
+              nullParamsToReturn :+= np.asText()
+            nullParamsToReturn
+          }
+          case s: TextNode => Array[String](s.asText())
         }
-        case s: TextNode => Array[String](s.asText())
       }
-    } else {
-      Array[String]("")
+      case None => Array[String]("")
     }
   }
 
-  def getAboutUrl(inheritedProperties: ObjectNode): Option[String] = {
-    val aboutUrlNode = inheritedProperties.path("aboutUrl")
-    if (aboutUrlNode.isMissingNode) None else Some(aboutUrlNode.asText())
+  def getAboutUrl(
+      inheritedProperties: Map[String, JsonNode]
+  ): Option[String] = {
+    val aboutUrlNode = inheritedProperties.get("aboutUrl")
+    aboutUrlNode match {
+      case Some(value) => Some(value.asText())
+      case _           => None
+    }
   }
 
-  def getPropertyUrl(inheritedProperties: ObjectNode): Option[String] = {
-    val propertyUrlNode = inheritedProperties.path("propertyUrl")
-    if (propertyUrlNode.isMissingNode) None else Some(propertyUrlNode.asText)
+  def getPropertyUrl(
+      inheritedProperties: Map[String, JsonNode]
+  ): Option[String] = {
+    val propertyUrlNode = inheritedProperties.get("propertyUrl")
+    propertyUrlNode match {
+      case Some(value) => Some(value.asText())
+      case _           => None
+    }
   }
 
-  def getValueUrl(inheritedProperties: ObjectNode): Option[String] = {
-    val valueUrlNode = inheritedProperties.path("valueUrl")
-    if (valueUrlNode.isMissingNode) None else Some(valueUrlNode.asText())
+  def getValueUrl(
+      inheritedProperties: Map[String, JsonNode]
+  ): Option[String] = {
+    val valueUrlNode = inheritedProperties.get("valueUrl")
+    valueUrlNode match {
+      case Some(value) => Some(value.asText())
+      case _           => None
+    }
   }
 
-  def getSeparator(inheritedProperties: ObjectNode): Option[String] = {
-    val separatorNode = inheritedProperties.path("separator")
-    if (separatorNode.isMissingNode) None else Some(separatorNode.asText())
+  def getSeparator(
+      inheritedProperties: Map[String, JsonNode]
+  ): Option[String] = {
+    val separatorNode = inheritedProperties.get("separator")
+    separatorNode match {
+      case Some(value) => Some(value.asText())
+      case _           => None
+    }
   }
 
-  def getTitles(columnProperties: ObjectNode): Option[JsonNode] = {
-    val titlesNode = columnProperties.path("titles")
-    if (titlesNode.isMissingNode) None else Some(titlesNode)
+  def getTitles(columnProperties: Map[String, JsonNode]): Option[JsonNode] = {
+    columnProperties.get("titles")
   }
 
   def fromJson(
@@ -136,12 +169,13 @@ object Column {
       columnDesc: ObjectNode,
       baseUrl: String,
       lang: String,
-      inheritedProperties: ObjectNode
+      inheritedProperties: Map[String, JsonNode]
   ): Column = {
     var annotations = Map[String, JsonNode]()
     var warnings = Array[ErrorMessage]()
-    val columnProperties = JsonNodeFactory.instance.objectNode()
-    val inheritedPropertiesCopy = inheritedProperties.deepCopy()
+    val columnProperties = Map[String, JsonNode]()
+    val inheritedPropertiesCopy =
+      MapHelpers.deepCloneJsonPropertiesMap(inheritedProperties)
 
     for ((property, value) <- columnDesc.getKeysAndValues) {
       (property, value) match {
@@ -169,13 +203,9 @@ object Column {
           }
           csvwPropertyType match {
             case PropertyType.Inherited =>
-              inheritedPropertiesCopy
-                .set(property, v)
-                .asInstanceOf[Any] // The return types of the cases statements here are different.
-            // The first case statement is cast as an instance of Any,
-            // so that the compiler knows all other cases statements should be cast as Any.
+              inheritedPropertiesCopy += (property -> v)
             case PropertyType.Common | PropertyType.Column =>
-              columnProperties.set(property, v)
+              columnProperties += (property -> v)
             case PropertyType.Annotation => {
               annotations += (property -> v)
             }
@@ -192,18 +222,9 @@ object Column {
         }
       }
     }
-    val datatype =
-      if (!inheritedPropertiesCopy.path("datatype").isMissingNode) {
-        inheritedPropertiesCopy.get("datatype")
-      } else {
-        datatypeDefaultValue
-      }
+    val datatype = getDatatypeOrDefault(inheritedPropertiesCopy)
 
-    val newLang = if (!inheritedPropertiesCopy.path("lang").isMissingNode) {
-      inheritedPropertiesCopy.get("lang").asText()
-    } else {
-      "und"
-    }
+    val newLang = getLangOrDefault(inheritedPropertiesCopy)
 
     new Column(
       number = number,
@@ -226,6 +247,24 @@ object Column {
       annotations = annotations,
       warnings = warnings
     )
+  }
+
+  private def getLangOrDefault(
+      inheritedPropertiesCopy: Map[String, JsonNode]
+  ): String = {
+    inheritedPropertiesCopy.get("lang") match {
+      case Some(lang) => lang.asText()
+      case _          => "und"
+    }
+  }
+
+  private def getDatatypeOrDefault(
+      inheritedPropertiesCopy: Map[String, JsonNode]
+  ): JsonNode = {
+    inheritedPropertiesCopy.get("datatype") match {
+      case Some(datatype) => datatype
+      case _              => datatypeDefaultValue
+    }
   }
 }
 

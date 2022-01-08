@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.node.{
   TextNode
 }
 import errors.MetadataError
+import scala.collection.mutable.Map
 
 import java.net.{URI, URL}
 
@@ -18,8 +19,6 @@ object TableGroup {
   val validProperties: Array[String] = Array[String]("tables", "notes", "@type")
 
   def fromJson(json: ObjectNode, baseUri: String): TableGroup = {
-    val inheritedProperties = JsonNodeFactory.instance.objectNode()
-    val commonProperties = JsonNodeFactory.instance.objectNode()
     var baseUrl = baseUri.trim
     val containsWhitespaces = ".*\\s.*".r
     val matcher = containsWhitespaces.pattern.matcher(baseUrl)
@@ -39,10 +38,9 @@ object TableGroup {
         jsonArrayNode.insert(0, json)
         json.set("tables", jsonArrayNode)
       }
-    }
+    } // Can be a function ???
+
     doTheOtherStuff(
-      inheritedProperties,
-      commonProperties,
       baseUrl,
       lang,
       json
@@ -118,14 +116,144 @@ object TableGroup {
   }
 
   private def doTheOtherStuff(
-      inheritedProperties: ObjectNode,
-      commonProperties: ObjectNode,
       baseUrl: String,
       lang: String,
       json: ObjectNode
   ): TableGroup = {
+
+    var (annotations, commonProperties, inheritedProperties, warnings) =
+      classifyPropertiesBasedOnPropertyTypeAndSetWarnings(
+        json,
+        baseUrl,
+        lang
+      )
+
+    val id = getId(commonProperties)
+    ensureTypeofTableGroup(json)
+
+    var (tables, w) = createTableObjectsAndSetWarnings(
+      json,
+      baseUrl,
+      lang,
+      commonProperties,
+      inheritedProperties
+    )
+    warnings = warnings.concat(w)
+
+    for ((tableUrl, table) <- tables) {
+      for ((foreignKey, i) <- table.foreignKeys.zipWithIndex) {
+        val reference = foreignKey.jsonObject.get("reference")
+        val resourceNode = reference.path("resource")
+        val referencedTable: Table = setReferencedTableOrThrowException(
+          baseUrl,
+          tables,
+          tableUrl,
+          i,
+          reference,
+          resourceNode
+        )
+        var tableColumns: Map[String, Column] = Map()
+        for (column <- referencedTable.columns) {
+          column.name match {
+            case Some(columnName) => tableColumns += (columnName -> column)
+            case None             => {}
+          }
+        }
+        var referencedColumns: Array[Column] = reference
+          .get("columnReference")
+          .elements()
+          .asScalaArray
+          .map(columnReference => {
+            tableColumns.get(columnReference.asText()) match {
+              case Some(column) => column
+              case None =>
+                throw new MetadataError(
+                  s"column named ${columnReference.asText()} does not exist in #{resource}," +
+                    s" $$.tables[?(@.url = '${tableUrl}')].tableSchema.foreign_keys[${i}].reference.columnReference"
+                )
+            }
+          })
+
+        val foreignKeyWithTable =
+          ForeignKeyWithTable(foreignKey, referencedTable, referencedColumns)
+        referencedTable.foreignKeyReferences :+= foreignKeyWithTable
+      }
+    }
+    return TableGroup(
+      baseUrl,
+      id,
+      tables,
+      getNotes(commonProperties),
+      annotations,
+      warnings
+    )
+  }
+
+  private def setReferencedTableOrThrowException(
+      baseUrl: String,
+      tables: Map[String, Table],
+      tableUrl: String,
+      i: Int,
+      reference: JsonNode,
+      resourceNode: JsonNode
+  ): Table = {
+    if (resourceNode.isMissingNode) {
+      val schemaReferenceNode = reference.get("schemaReference")
+      val schemaUrl = {
+        new URL(new URL(baseUrl), schemaReferenceNode.asText()).toString
+      }
+      val referencedTables = List.from(
+        tables.values.filter(t =>
+          t.schemaId.isDefined && t.schemaId.get == schemaUrl
+        )
+      )
+      referencedTables match {
+        case referencedTable :: _ => referencedTable
+        case Nil =>
+          throw new MetadataError(
+            s"Could not find foreign key referenced schema ${schemaUrl}, " +
+              s"$$.tables[?(@.url = '${tableUrl}')].tableSchema.foreignKeys[${i}].reference.SchemaReference"
+          )
+      }
+    } else {
+      val resource = new URL(
+        new URL(baseUrl),
+        reference.get("resource").asText()
+      ).toString
+      tables.get(resource) match {
+        case Some(refTable) => refTable
+        case None =>
+          throw new MetadataError(
+            s"Could not find foreign key referenced table ${tableUrl}, " +
+              s"$$.tables[?(@.url = '${tableUrl}')].tableSchema.foreignKeys[${i}].reference.resource"
+          )
+      }
+    }
+  }
+
+  private def ensureTypeofTableGroup(json: ObjectNode) = {
+    if (
+      !json
+        .path("@type")
+        .isMissingNode && json.get("@type").asText != "TableGroup"
+    ) {
+      throw new MetadataError("@type of table group is not 'TableGroup'")
+    }
+  }
+
+  def classifyPropertiesBasedOnPropertyTypeAndSetWarnings(
+      json: ObjectNode,
+      baseUrl: String,
+      lang: String
+  ): (
+      Map[String, JsonNode],
+      Map[String, JsonNode],
+      Map[String, JsonNode],
+      Array[ErrorMessage]
+  ) = {
     var annotations = Map[String, JsonNode]()
-    var tables = Map[String, Table]()
+    var commonProperties = Map[String, JsonNode]()
+    var inheritedProperties = Map[String, JsonNode]()
     var warnings = Array[ErrorMessage]()
     for ((property, value) <- json.getKeysAndValues) {
       if (!validProperties.contains(property)) {
@@ -135,17 +263,12 @@ object TableGroup {
           ErrorMessage(x, "metadata", "", "", s"$property : $value", "")
         )
         typeString match {
-          case PropertyType.Annotation => {
-            annotations += (property -> newValue)
-            ()
-          }
-          case PropertyType.Common => commonProperties.set(property, newValue)
-          case PropertyType.Inherited => {
-            inheritedProperties.set(property, newValue)
-            ()
-          }
+          case PropertyType.Annotation => annotations += (property -> newValue)
+          case PropertyType.Common     => commonProperties += (property -> newValue)
+          case PropertyType.Inherited =>
+            inheritedProperties += (property -> newValue)
           case _ => {
-            warnings = warnings :+ ErrorMessage(
+            warnings :+= ErrorMessage(
               "invalid_property",
               "metadata",
               "",
@@ -158,16 +281,18 @@ object TableGroup {
       }
       ()
     }
+    (annotations, commonProperties, inheritedProperties, warnings)
+  }
 
-    val id = getId(commonProperties)
-    if (
-      !json
-        .path("@type")
-        .isMissingNode && json.get("@type").asText != "TableGroup"
-    ) {
-      throw new MetadataError("@type of table group is not 'TableGroup'")
-    }
-
+  private def createTableObjectsAndSetWarnings(
+      json: ObjectNode,
+      baseUrl: String,
+      lang: String,
+      commonProperties: Map[String, JsonNode],
+      inheritedProperties: Map[String, JsonNode]
+  ): (Map[String, Table], Array[ErrorMessage]) = {
+    var warnings = Array[ErrorMessage]()
+    var tables = Map[String, Table]()
     json.path("tables") match {
       case t: ArrayNode if t.isEmpty() =>
         throw new MetadataError("Empty tables property")
@@ -216,96 +341,19 @@ object TableGroup {
       case n if n.isMissingNode => throw new MetadataError("No tables property")
       case _                    => throw new MetadataError("Tables property is not an array")
     }
-
-    for ((tableUrl, table) <- tables) {
-      for ((foreignKey, i) <- table.foreignKeys.zipWithIndex) {
-        val reference = foreignKey.jsonObject.get("reference")
-        val resourceNode = reference.path("resource")
-        val referencedTable: Table = if (resourceNode.isMissingNode) {
-          val schemaReferenceNode = reference.get("schemaReference")
-          val schemaUrl = {
-            new URL(new URL(baseUrl), schemaReferenceNode.asText()).toString
-          }
-          val referencedTables = List.from(
-            tables.values.filter(t =>
-              t.schemaId.isDefined && t.schemaId.get == schemaUrl
-            )
-          )
-          referencedTables match {
-            case referencedTable :: _ => referencedTable
-            case Nil =>
-              throw new MetadataError(
-                s"Could not find foreign key referenced schema ${schemaUrl}, " +
-                  s"$$.tables[?(@.url = '${tableUrl}')].tableSchema.foreignKeys[${i}].reference.SchemaReference"
-              )
-          }
-        } else {
-          val resource = new URL(
-            new URL(baseUrl),
-            reference.get("resource").asText()
-          ).toString
-          tables.get(resource) match {
-            case Some(refTable) => refTable
-            case None =>
-              throw new MetadataError(
-                s"Could not find foreign key referenced table ${tableUrl}, " +
-                  s"$$.tables[?(@.url = '${tableUrl}')].tableSchema.foreignKeys[${i}].reference.resource"
-              )
-          }
-        }
-        var tableColumns: Map[String, Column] = Map()
-        for (column <- referencedTable.columns) {
-          column.name match {
-            case Some(columnName) => tableColumns += (columnName -> column)
-            case None             => {}
-          }
-        }
-        var referencedColumns: Array[Column] = reference
-          .get("columnReference")
-          .elements()
-          .asScalaArray
-          .map(columnReference => {
-            tableColumns.get(columnReference.asText()) match {
-              case Some(column) => column
-              case None =>
-                throw new MetadataError(
-                  s"column named ${columnReference.asText()} does not exist in #{resource}," +
-                    s" $$.tables[?(@.url = '${tableUrl}')].tableSchema.foreign_keys[${i}].reference.columnReference"
-                )
-            }
-          })
-
-        val foreignKeyWithTable =
-          ForeignKeyWithTable(foreignKey, referencedTable, referencedColumns)
-        referencedTable.foreignKeyReferences :+= foreignKeyWithTable
-      }
-    }
-    return TableGroup(
-      baseUrl,
-      id,
-      tables,
-      getNotes(commonProperties),
-      annotations,
-      warnings
-    )
+    (tables, warnings)
   }
 
-  private def getId(commonProperties: ObjectNode) = {
-    if (commonProperties.path("@id").isMissingNode) {
-      None
-    } else {
-      Option(commonProperties.get("@id").asText())
-    }
+  private def getId(commonProperties: Map[String, JsonNode]) = {
+    commonProperties
+      .get("@id")
+      .map(idNode => idNode.asText())
   }
 
-  def getNotes(commonProperties: ObjectNode): Option[JsonNode] = {
-    val notesNode = commonProperties.path("notes")
-    if (notesNode.isMissingNode) {
-      None
-    } else {
-      Some(notesNode)
-    }
+  def getNotes(commonProperties: Map[String, JsonNode]): Option[JsonNode] = {
+    commonProperties.get("notes")
   }
+
   case class TableGroup private (
       baseUrl: String,
       id: Option[String],

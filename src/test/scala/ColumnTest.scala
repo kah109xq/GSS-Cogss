@@ -8,6 +8,9 @@ import com.fasterxml.jackson.databind.node.{
 }
 import org.scalatest.FunSuite
 
+import scala.collection.mutable
+import scala.collection.mutable.Map
+
 class ColumnTest extends FunSuite {
   val objectMapper = new ObjectMapper()
   test("should provide appropriate default values") {
@@ -24,7 +27,7 @@ class ColumnTest extends FunSuite {
       jsonNode.asInstanceOf[ObjectNode],
       "https://www.w3.org/",
       "und",
-      JsonNodeFactory.instance.objectNode()
+      Map[String, JsonNode]()
     )
 
     val datatypeDefaultValue: ObjectNode = JsonNodeFactory.instance
@@ -64,7 +67,7 @@ class ColumnTest extends FunSuite {
       jsonNode.asInstanceOf[ObjectNode],
       "https://www.w3.org/",
       "und",
-      JsonNodeFactory.instance.objectNode()
+      mutable.Map()
     )
 
     val expectedTitlesObject = JsonNodeFactory.instance.objectNode()
@@ -94,7 +97,7 @@ class ColumnTest extends FunSuite {
       jsonNode.asInstanceOf[ObjectNode],
       "https://www.w3.org/",
       "und",
-      JsonNodeFactory.instance.objectNode()
+      Map()
     )
     assert(column.warnings(0).`type` === "invalid_value")
     assert(column.warnings.length === 1)
@@ -116,7 +119,7 @@ class ColumnTest extends FunSuite {
       jsonNode.asInstanceOf[ObjectNode],
       "https://www.w3.org/",
       "und",
-      JsonNodeFactory.instance.objectNode()
+      Map()
     )
     val expectedDatatypeValue: ObjectNode = JsonNodeFactory.instance
       .objectNode()
