@@ -124,4 +124,66 @@ class TableGroupTest extends FunSuite {
       table.columns(0).nullParam === Array("")
     ) // should inherit null to all columns - assertion which justifies test name
   }
+
+  test(
+    "should work as expected when tables key is not present (just one table)"
+  ) {
+    val json =
+      """
+        |{
+        |    "@context": ["http://www.w3.org/ns/csvw", {"@language": "en"}],
+        |    "url": "tree-ops.csv",
+        |    "dc:title": "Tree Operations",
+        |    "dcat:keyword": ["tree", "street", "maintenance"],
+        |    "dc:publisher": {
+        |      "schema:name": "Example Municipality",
+        |      "schema:url": {"@id": "http://example.org"}
+        |    },
+        |    "dc:license": {"@id": "http://opendefinition.org/licenses/cc-by/"},
+        |    "dc:modified": {"@value": "2010-12-31", "@type": "xsd:date"},
+        |    "tableSchema": {
+        |      "columns": [{
+        |        "name": "GID",
+        |        "titles": ["GID", "Generic Identifier"],
+        |        "dc:description": "An identifier for the operation on a tree.",
+        |        "datatype": "string",
+        |        "required": true
+        |      }, {
+        |        "name": "on_street",
+        |        "titles": "On Street",
+        |        "dc:description": "The street that the tree is on.",
+        |        "datatype": "string"
+        |      }, {
+        |        "name": "species",
+        |        "titles": "Species",
+        |        "dc:description": "The species of the tree.",
+        |        "datatype": "string"
+        |      }, {
+        |        "name": "trim_cycle",
+        |        "titles": "Trim Cycle",
+        |        "dc:description": "The operation performed on the tree.",
+        |        "datatype": "string"
+        |      }, {
+        |        "name": "inventory_date",
+        |        "titles": "Inventory Date",
+        |        "dc:description": "The date of the operation that was performed.",
+        |        "datatype": {"base": "date", "format": "M/d/yyyy"}
+        |      }],
+        |      "primaryKey": "GID",
+        |      "aboutUrl": "#gid-{GID}"
+        |    }
+        |  }
+        |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val tableGroup = TableGroup.fromJson(
+      jsonNode.asInstanceOf[ObjectNode],
+      "http://w3c.github.io/csvw/tests/test040-metadata.json"
+    )
+    val table =
+      tableGroup.tables("http://w3c.github.io/csvw/tests/tree-ops.csv")
+
+    assert(tableGroup.tables.size === 1)
+    assert(table.columns.length === 5)
+  }
+
 }

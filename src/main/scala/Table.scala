@@ -488,6 +488,10 @@ case class Table private (
     warnings: Array[ErrorMessage]
 ) {
   var foreignKeyValues: Map[String, JsonNode] = Map()
+
+  /**
+    * This array contains the foreign keys defined in other tables' schemas which reference data inside this table.
+    */
   var foreignKeyReferences: Array[ForeignKeyWithTable] = Array()
   var foreignKeyReferenceValues: Map[String, JsonNode] = Map()
 }
