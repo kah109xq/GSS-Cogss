@@ -1,10 +1,8 @@
 package CSVValidation
-import errors.{DateFormatError, MetadataError, NumberFormatError}
 import com.fasterxml.jackson.databind.node._
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 
 import java.net.{URI, URL}
-import scala.collection.mutable.HashMap
 import scala.jdk.CollectionConverters._
 import scala.util.matching.Regex
 

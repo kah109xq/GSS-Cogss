@@ -9,11 +9,10 @@ import com.fasterxml.jackson.databind.node.{
   ObjectNode,
   TextNode
 }
-import errors.MetadataError
 
-import scala.collection.mutable.Map
-import java.net.{URI, URL}
+import java.net.URL
 import scala.collection.mutable
+import scala.collection.mutable.Map
 
 object TableGroup {
   val csvwContextUri = "http://www.w3.org/ns/csvw"
@@ -61,7 +60,7 @@ object TableGroup {
       baseUrl,
       id,
       tables,
-      getNotes(commonProperties),
+      commonProperties.get("notes"),
       annotations,
       warnings
     )
@@ -271,7 +270,7 @@ object TableGroup {
   }
 
   def classifyPropertiesBasedOnPropertyTypeAndSetWarnings(
-      json: ObjectNode,
+      tableGroupNode: ObjectNode,
       baseUrl: String,
       lang: String
   ): (
@@ -284,7 +283,7 @@ object TableGroup {
     val commonProperties = Map[String, JsonNode]()
     val inheritedProperties = Map[String, JsonNode]()
     var warnings = Array[ErrorMessage]()
-    for ((property, value) <- json.getKeysAndValues) {
+    for ((property, value) <- tableGroupNode.getKeysAndValues) {
       if (!validProperties.contains(property)) {
         val (newValue, w, csvwPropertyType) =
           PropertyChecker.checkProperty(property, value, baseUrl, lang)
@@ -394,10 +393,6 @@ object TableGroup {
     commonProperties
       .get("@id")
       .map(idNode => idNode.asText())
-  }
-
-  def getNotes(commonProperties: Map[String, JsonNode]): Option[JsonNode] = {
-    commonProperties.get("notes")
   }
 
   case class TableGroup private (

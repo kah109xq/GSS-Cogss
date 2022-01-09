@@ -1,5 +1,6 @@
 package CSVValidation
 
+import CSVValidation.traits.JavaIteratorExtensions.IteratorHasAsScalaArray
 import CSVValidation.traits.ObjectNodeExtentions.IteratorHasGetKeysAndValues
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.{
@@ -8,11 +9,8 @@ import com.fasterxml.jackson.databind.node.{
   ObjectNode,
   TextNode
 }
-import errors.MetadataError
-import traits.JavaIteratorExtensions.IteratorHasAsScalaArray
-import scala.collection.mutable.Map
 
-import scala.collection.IterableOnce.iterableOnceExtensionMethods
+import scala.collection.mutable.Map
 object Table {
 
   def fromJson(

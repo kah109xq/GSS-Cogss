@@ -1,17 +1,15 @@
 package CSVValidation
 
 import CSVValidation.traits.ObjectNodeExtentions.IteratorHasGetKeysAndValues
-import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
+import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.{
   ArrayNode,
   JsonNodeFactory,
   ObjectNode,
   TextNode
 }
-import errors.MetadataError
-import scala.collection.mutable.Map
-import traits.JavaIteratorExtensions.IteratorHasAsScalaArray
 
+import scala.collection.mutable.Map
 import scala.jdk.CollectionConverters.IteratorHasAsScala
 
 object Column {
