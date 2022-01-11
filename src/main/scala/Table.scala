@@ -264,7 +264,7 @@ object Table {
   private def ensureNoDuplicateColumnNames(columnNames: Array[String]): Unit = {
     val duplicateColumnNames = columnNames
       .groupBy(identity)
-      .filter(grp => grp._2.length > 1)
+      .filter { case (_, elements) => elements.length > 1 }
       .keys
 
     if (duplicateColumnNames.nonEmpty) {

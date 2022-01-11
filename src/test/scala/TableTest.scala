@@ -72,6 +72,48 @@ class TableTest extends FunSuite {
 
     assert(table.url === "http://w3c.github.io/csvw/tests/countries.csv")
     assert(table.columns.length === 4)
+  }
 
+  test("should raise exception for duplicate column names") {
+    val json =
+      """{
+        |  "@context": "http://www.w3.org/ns/csvw",
+        |  "tables": [{
+        |    "url": "country_slice.csv",
+        |    "tableSchema": {
+        |      "columns": [{
+        |        "name": "countryRef",
+        |        "titles": "countryRef",
+        |        "valueUrl": "http://example.org/countries.csv{#countryRef}"
+        |      }, {
+        |        "name": "year",
+        |        "titles": "year",
+        |        "datatype": "gYear"
+        |      }, {
+        |        "name": "year",
+        |        "titles": "population",
+        |        "datatype": "integer"
+        |      }],
+        |      "foreignKeys": [{
+        |        "columnReference": "countryRef",
+        |        "reference": {
+        |          "resource": "countries.csv",
+        |          "columnReference": "countryCode"
+        |        }
+        |      }]
+        |    }
+        |  }]
+        |}""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val thrown = intercept[MetadataError] {
+      Table.fromJson(
+        jsonNode.get("tables").elements().next().asInstanceOf[ObjectNode],
+        "http://w3c.github.io/csvw/tests/countries.json",
+        "und",
+        Map(),
+        Map()
+      )
+    }
+    assert(thrown.getMessage === "Multiple columns named year")
   }
 }
