@@ -13,14 +13,16 @@ import com.fasterxml.jackson.databind.node.{
 import java.net.URL
 import scala.collection.mutable
 import scala.collection.mutable.Map
+import scala.util.matching.Regex
 
 object TableGroup {
   val csvwContextUri = "http://www.w3.org/ns/csvw"
   val validProperties: Array[String] = Array[String]("tables", "notes", "@type")
+  val containsWhitespaces: Regex = ".*\\s.*".r
 
   def fromJson(tableGroupNode: ObjectNode, baseUri: String): TableGroup = {
     var baseUrl = baseUri.trim
-    val containsWhitespaces = ".*\\s.*".r
+    var warnings = Array[ErrorMessage]()
     val matcher = containsWhitespaces.pattern.matcher(baseUrl)
     if (matcher.matches()) {
       println(
@@ -32,27 +34,27 @@ object TableGroup {
       processContextGetBaseUrlLang(tableGroupNode, baseUrl, "und")
     baseUrl = processContextResult._1
     val lang = processContextResult._2
-
+    warnings = Array.concat(warnings, processContextResult._3)
     restructureIfNodeIsSingleTable(tableGroupNode)
 
-    var (annotations, commonProperties, inheritedProperties, warnings) =
+    val (annotations, commonProperties, inheritedProperties, w1) =
       classifyPropertiesBasedOnPropertyTypeAndSetWarnings(
         tableGroupNode,
         baseUrl,
         lang
       )
-
+    warnings = Array.concat(warnings, w1)
     val id = getId(commonProperties)
     ensureTypeofTableGroup(tableGroupNode)
 
-    val (tables, w) = createTableObjectsAndSetWarnings(
+    val (tables, w2) = createTableObjectsAndSetWarnings(
       tableGroupNode,
       baseUrl,
       lang,
       commonProperties,
       inheritedProperties
     )
-    warnings = warnings.concat(w)
+    warnings = warnings.concat(w2)
 
     findForeignKeysLinkToReferencedTables(baseUrl, tables)
 
@@ -69,9 +71,9 @@ object TableGroup {
   private def restructureIfNodeIsSingleTable(
       tableGroupNode: ObjectNode
   ): Unit = {
-    val tableGroupNodeCopy = tableGroupNode.deepCopy()
     if (tableGroupNode.path("tables").isMissingNode) {
       if (!tableGroupNode.path("url").isMissingNode) {
+        val tableGroupNodeCopy = tableGroupNode.deepCopy()
         val jsonArrayNode = JsonNodeFactory.instance.arrayNode()
         jsonArrayNode.insert(0, tableGroupNodeCopy)
         tableGroupNode.set("tables", jsonArrayNode)
@@ -79,19 +81,28 @@ object TableGroup {
     }
   }
 
+  /**
+    * This function validates the second item in context property.
+    * The second element can be @language or @base - "@context": ["http://www.w3.org/ns/csvw", {"@language": "en"}]
+    * @param contextBaseAndLangObject
+    * @param baseUrl
+    * @param lang
+    * @return newBaseUrl, newLang, warnings (if any)
+    */
   def getAndValidateBaseAndLangFromContextObject(
       contextBaseAndLangObject: ObjectNode,
       baseUrl: String,
       lang: String
-  ): (String, String) = {
+  ): (String, String, Array[ErrorMessage]) = {
     var baseUrlNew = baseUrl
     var langNew: String = lang
+    var warnings = Array[ErrorMessage]()
 
     for ((property, value) <- contextBaseAndLangObject.getKeysAndValues) {
-      val (newValue, warning, typeString) = PropertyChecker
+      val (newValue, w, csvwPropertyType) = PropertyChecker
         .checkProperty(property, value, baseUrl, lang)
-      if (warning.isEmpty) {
-        if (typeString == PropertyType.Context) {
+      if (w.isEmpty) {
+        if (csvwPropertyType == PropertyType.Context) {
           property match {
             case "@base"     => baseUrlNew = newValue.asText()
             case "@language" => langNew = newValue.asText()
@@ -106,19 +117,21 @@ object TableGroup {
           throw new MetadataError(
             s"@context contains properties other than @base or @language $property)"
           )
-          // Error Message class to deal with each of the warnings received
         }
+        warnings = warnings.concat(w.map { w =>
+          ErrorMessage(w, "metadata", "", "", s"${property}: ${value}", "")
+        })
       }
     }
-    // https://www.w3.org/TR/2015/REC-tabular-metadata-20151217/#top-level-properties
-    (baseUrlNew, langNew)
+    (baseUrlNew, langNew, warnings)
   }
 
+  // https://www.w3.org/TR/2015/REC-tabular-metadata-20151217/#top-level-properties
   def validateContextArrayNode(
       context: ArrayNode,
       baseUrl: String,
       lang: String
-  ): (String, String) = {
+  ): (String, String, Array[ErrorMessage]) = {
     def validateFirstItemInContext(): Unit = {
       context.get(0) match {
         case s: TextNode if s.asText == csvwContextUri => {}
@@ -151,7 +164,7 @@ object TableGroup {
         // If @context contains just one element, the namespace for csvw should always be http://www.w3.org/ns/csvw
         // "@context": "http://www.w3.org/ns/csvw"
         validateFirstItemInContext()
-        (baseUrl, lang)
+        (baseUrl, lang, Array[ErrorMessage]())
       }
       case l =>
         throw new MetadataError(s"Unexpected @context array length $l")
@@ -162,17 +175,17 @@ object TableGroup {
       rootNode: ObjectNode,
       baseUrl: String,
       lang: String
-  ): (String, String) = {
+  ): (String, String, Array[ErrorMessage]) = {
     val context = rootNode.get("@context")
 
-    val (baseUrlNew, langNew) = context match {
+    val (baseUrlNew, langNew, warnings) = context match {
       case a: ArrayNode => validateContextArrayNode(a, baseUrl, lang)
       case s: TextNode if s.asText == csvwContextUri =>
-        (baseUrl, lang)
+        (baseUrl, lang, Array[ErrorMessage]())
       case _ => throw new MetadataError("Invalid Context")
     }
     rootNode.remove("@context")
-    (baseUrlNew, langNew)
+    (baseUrlNew, langNew, warnings)
   }
 
   private def findForeignKeysLinkToReferencedTables(
@@ -191,10 +204,10 @@ object TableGroup {
           reference,
           resourceNode
         )
-        val tableColumns: mutable.Map[String, Column] = Map()
+        val mapNameToColumn: mutable.Map[String, Column] = Map()
         for (column <- referencedTable.columns) {
           column.name
-            .foreach(columnName => tableColumns += (columnName -> column))
+            .foreach(columnName => mapNameToColumn += (columnName -> column))
         }
 
         val referencedColumns: Array[Column] = reference
@@ -202,7 +215,7 @@ object TableGroup {
           .elements()
           .asScalaArray
           .map(columnReference => {
-            tableColumns.get(columnReference.asText()) match {
+            mapNameToColumn.get(columnReference.asText()) match {
               case Some(column) => column
               case None =>
                 throw new MetadataError(
@@ -215,6 +228,7 @@ object TableGroup {
         val foreignKeyWithTable =
           ForeignKeyWithTable(foreignKey, referencedTable, referencedColumns)
         referencedTable.foreignKeyReferences :+= foreignKeyWithTable
+        tables += (tableUrl -> referencedTable)
       }
     }
   }
@@ -223,12 +237,15 @@ object TableGroup {
       baseUrl: String,
       tables: Map[String, Table],
       tableUrl: String,
-      i: Int,
+      foreignKeyArrayIndex: Int,
       reference: JsonNode,
       resourceNode: JsonNode
   ): Table = {
     if (resourceNode.isMissingNode) {
-      val schemaReferenceNode = reference.get("schemaReference")
+      val schemaReferenceNode =
+        reference.get(
+          "schemaReference"
+        ) // Perform more checks and provide useful error messages if schemaReference is not present
       val schemaUrl =
         new URL(new URL(baseUrl), schemaReferenceNode.asText()).toString
       val referencedTables = List.from(
@@ -241,7 +258,7 @@ object TableGroup {
         case Nil =>
           throw new MetadataError(
             s"Could not find foreign key referenced schema ${schemaUrl}, " +
-              s"$$.tables[?(@.url = '${tableUrl}')].tableSchema.foreignKeys[${i}].reference.SchemaReference"
+              s"$$.tables[?(@.url = '${tableUrl}')].tableSchema.foreignKeys[${foreignKeyArrayIndex}].reference.SchemaReference"
           )
       }
     } else {
@@ -254,7 +271,7 @@ object TableGroup {
         case None =>
           throw new MetadataError(
             s"Could not find foreign key referenced table ${tableUrl}, " +
-              s"$$.tables[?(@.url = '${tableUrl}')].tableSchema.foreignKeys[${i}].reference.resource"
+              s"$$.tables[?(@.url = '${tableUrl}')].tableSchema.foreignKeys[${foreignKeyArrayIndex}].reference.resource"
           )
       }
     }
@@ -316,9 +333,9 @@ object TableGroup {
       tableGroupNode: ObjectNode,
       baseUrl: String,
       lang: String,
-      commonProperties: Map[String, JsonNode],
-      inheritedProperties: Map[String, JsonNode]
-  ): (Map[String, Table], Array[ErrorMessage]) = {
+      commonProperties: mutable.Map[String, JsonNode],
+      inheritedProperties: mutable.Map[String, JsonNode]
+  ): (mutable.Map[String, Table], Array[ErrorMessage]) = {
     var warnings = Array[ErrorMessage]()
 
     tableGroupNode.path("tables") match {
@@ -380,7 +397,7 @@ object TableGroup {
             "metadata",
             "",
             "",
-            tableElement.toPrettyString,
+            s"Value must be instance of object, found: ${tableElement.toPrettyString}",
             ""
           )
         }

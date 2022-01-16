@@ -40,7 +40,7 @@ class ColumnTest extends FunSuite {
     assert(column.textDirection === "inherit")
     assert(column.annotations === Map[String, JsonNode]())
     assert(!column.virtual)
-    assert(column.number == 1)
+    assert(column.columnOrdinal == 1)
     assert(!column.ordered)
     assert(!column.required)
     assert(!column.suppressOutput)
@@ -57,7 +57,21 @@ class ColumnTest extends FunSuite {
         |{
         |   "name": "countryCode",
         |   "titles": "countryCode",
-        |   "propertyUrl": "http://www.geonames.org/ontology"
+        |   "propertyUrl": "http://www.geonames.org/ontology",
+        |   "aboutUrl": "sampleUrl",
+        |   "datatype": "integer",
+        |   "lang": "en",
+        |   "default": "00",
+        |   "null": "-",
+        |   "ordered": true,
+        |   "propertyUrl": "http://www.geonames.org/ontology",
+        |   "required": true, 
+        |   "separator": ",",
+        |   "suppressOutput": true,
+        |   "textDirection": "rtl",
+        |   "titles": [ "countryCode" ],
+        |   "valueUrl": "http://www.geonames.org/ontology",
+        |   "virtual": true
         |}
         |""".stripMargin
 
@@ -71,18 +85,37 @@ class ColumnTest extends FunSuite {
     )
 
     val expectedTitlesObject = JsonNodeFactory.instance.objectNode()
+    val expectedDataType = JsonNodeFactory.instance.objectNode()
+    expectedDataType.set(
+      "@id",
+      new TextNode("http://www.w3.org/2001/XMLSchema#integer")
+    )
     val arrayNode = JsonNodeFactory.instance.arrayNode()
     arrayNode.add("countryCode")
     expectedTitlesObject.set("lang", arrayNode)
 
-    assert(
-      column.propertyUrl.get === "http://www.geonames.org/ontology"
-    )
     assert(column.name.get === "countryCode")
+    assert(column.columnOrdinal === 1)
+    assert(column.id === None)
+    assert(column.aboutUrl.get === "sampleUrl")
+    assert(column.datatype === expectedDataType)
+    assert(column.default === "00")
+    assert(column.lang === "en")
+    assert(column.nullParam === Array[String]("-"))
+    assert(column.ordered === true)
+    assert(column.propertyUrl.get === "http://www.geonames.org/ontology")
+    assert(column.required === true)
+    assert(column.separator.get === ",")
+    assert(column.suppressOutput === true)
+    assert(column.textDirection === "rtl")
     assert(column.titles.get === expectedTitlesObject)
+    assert(column.valueUrl.get === "http://www.geonames.org/ontology")
+    assert(column.virtual === true)
+    assert(column.annotations === mutable.Map[String, JsonNode]())
+    assert(column.warnings === Array[ErrorMessage]())
   }
 
-  test("it should generate warnings for invalid null values") {
+  test("it should generate warnings for null values of unexpected type") {
     val json =
       """
         |{
@@ -100,7 +133,30 @@ class ColumnTest extends FunSuite {
       Map()
     )
     assert(column.warnings(0).`type` === "invalid_value")
+    assert(column.warnings(0).content === "null: true")
     assert(column.warnings.length === 1)
+  }
+
+  test("it should return no warnings for a null value of null") {
+
+    val json =
+      """
+        |{
+        |   "name": "countryCode",
+        |   "null": null
+        |}
+        |""".stripMargin
+
+    val jsonNode = objectMapper.readTree(json)
+    val column = Column.fromJson(
+      1,
+      jsonNode.asInstanceOf[ObjectNode],
+      "https://www.w3.org/",
+      "und",
+      Map()
+    )
+    assert(column.warnings.length === 0)
+    assert(column.nullParam === Array[String](""))
   }
 
   test("should set the correct datatype") {

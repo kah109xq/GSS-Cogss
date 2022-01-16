@@ -67,14 +67,15 @@ object Table {
       Array[ErrorMessage]
   ) = {
     var warnings = Array[ErrorMessage]()
-    var annotations = Map[String, JsonNode]()
-    var tableProperties: Map[String, JsonNode] =
+    val annotations = Map[String, JsonNode]()
+    val tableProperties: Map[String, JsonNode] =
       MapHelpers.deepCloneJsonPropertiesMap(commonProperties)
-    var inheritedPropertiesCopy: Map[String, JsonNode] =
+    val inheritedPropertiesCopy: Map[String, JsonNode] =
       MapHelpers.deepCloneJsonPropertiesMap(inheritedProperties)
     for ((property, value) <- tableDesc.getKeysAndValues) {
       (property, value) match {
-        case ("@type", s: TextNode) if s.asText != "Table" => {
+        case ("@type", s: TextNode) if s.asText == "Table" => {}
+        case ("@type", s: TextNode) => {
           throw new MetadataError(
             s"@type of table is not 'Table' - ${tableDesc.get("url").asText()}.@type"
           )
@@ -83,9 +84,9 @@ object Table {
           throw new MetadataError(
             s"Unexpected value for '@type'. Expected string but got ${v.getNodeType} (${v.toPrettyString})"
           )
-        case (_, v) => {
-          val (newValue, w, typeString) =
-            PropertyChecker.checkProperty(property, v, baseUrl, lang)
+        case _ => {
+          val (newValue, w, csvwPropertyType) =
+            PropertyChecker.checkProperty(property, value, baseUrl, lang)
           warnings = Array
             .concat(
               warnings,
@@ -93,10 +94,9 @@ object Table {
                 ErrorMessage(x, "metadata", "", "", s"$property : $value", "")
               )
             )
-          typeString match {
-            case PropertyType.Annotation => {
-                annotations += (property -> newValue)
-              }.asInstanceOf[Any]
+          csvwPropertyType match {
+            case PropertyType.Annotation =>
+              annotations += (property -> newValue)
             case PropertyType.Table | PropertyType.Common =>
               tableProperties += (property -> newValue)
             case PropertyType.Column => {
@@ -148,7 +148,7 @@ object Table {
       case tableSchemaObject: ObjectNode => {
         var warnings = Array[ErrorMessage]()
 
-        ensureColumnsNodeIsArray(tableSchemaObject)
+        ensureColumnsNodeIsArray(tableSchemaObject, url)
           .foreach(w => warnings :+= w)
 
         setTableSchemaInheritedProperties(
@@ -181,7 +181,7 @@ object Table {
           url = url,
           id = getId(tableProperties),
           columns = columns,
-          dialect = getDialect(tableProperties),
+          dialect = tableProperties.get("dialect"),
           foreignKeys = foreignKeyMappings, // a new type here?
           notes = getNotes(tableProperties),
           primaryKey = primaryKeyToReturn,
@@ -194,13 +194,14 @@ object Table {
       }
       case _ =>
         throw new MetadataError(
-          "Table schema not object, not sure how to process"
+          s"Table schema must be object for table $url "
         )
     }
   }
 
   private def ensureColumnsNodeIsArray(
-      tableSchemaObject: ObjectNode
+      tableSchemaObject: ObjectNode,
+      url: String
   ): Option[ErrorMessage] = {
     if (tableSchemaObject.get("columns").isArray) {
       None
@@ -212,7 +213,7 @@ object Table {
           "metadata",
           "",
           "",
-          "columns",
+          s"columns is not array for table: $url",
           ""
         )
       )
@@ -233,26 +234,28 @@ object Table {
       .asScalaArray
 
     val columns = columnObjects.zipWithIndex
-      .flatMap(c => {
-        val (col, i) = c
-        col match {
-          case colObj: ObjectNode =>
-            Some(
-              Column.fromJson(i + 1, colObj, baseUrl, lang, inheritedProperties)
-            )
-          case _ => {
-            warnings = warnings :+ ErrorMessage(
-              "invalid_column_description",
-              "metadata",
-              "",
-              "",
-              col.toString,
-              ""
-            )
-            None
+      .flatMap {
+        case (col, i) => {
+          col match {
+            case colObj: ObjectNode =>
+              Some(
+                Column
+                  .fromJson(i + 1, colObj, baseUrl, lang, inheritedProperties)
+              )
+            case _ => {
+              warnings = warnings :+ ErrorMessage(
+                "invalid_column_description",
+                "metadata",
+                "",
+                "",
+                col.toString,
+                ""
+              )
+              None
+            }
           }
         }
-      })
+      }
 
     val columnNames = columns.flatMap(c => c.name)
 
@@ -279,7 +282,7 @@ object Table {
     for (column <- columns) {
       if (virtualColumns && !column.virtual) {
         throw new MetadataError(
-          s"virtual columns before non-virtual column ${column.name} (${column.number})"
+          s"virtual columns before non-virtual column ${column.name.get} (${column.columnOrdinal})"
         )
       }
       virtualColumns = virtualColumns || column.virtual
@@ -452,12 +455,6 @@ object Table {
         }
       case _ => None
     }
-  }
-
-  private def getDialect(
-      tableProperties: Map[String, JsonNode]
-  ): Option[JsonNode] = {
-    tableProperties.get("dialect")
   }
 
   private def getSuppressOutput(

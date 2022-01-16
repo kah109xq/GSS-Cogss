@@ -66,6 +66,7 @@ object PropertyChecker {
     "propertyUrl" -> uriTemplateProperty(PropertyType.Inherited),
     "valueUrl" -> uriTemplateProperty(PropertyType.Inherited),
     "textDirection" -> textDirectionProperty(PropertyType.Inherited),
+    "dialect" -> dialectProperty(PropertyType.Common),
     // Column level properties
     "titles" -> naturalLanguageProperty(PropertyType.Column),
     "virtual" -> booleanProperty(PropertyType.Column),
@@ -155,14 +156,8 @@ object PropertyChecker {
           val p = fieldAndValue.getKey
           var v = fieldAndValue.getValue
           p match {
-            case "@context" =>
-              throw new MetadataError(
-                s"$p: common property has @context property"
-              )
-            case "@list" =>
-              throw new MetadataError(s"$p: common property has @list property")
-            case "@set" =>
-              throw new MetadataError(s"$p: common property has @set property")
+            case "@context" | "@list" | "@set" =>
+              throw new MetadataError(s"$p: common property has $p property")
             case "@type" => ProcessCommonPropertyType(valueCopy, p, v)
             case "@id" => {
               if (!baseUrl.isBlank) {
@@ -459,11 +454,16 @@ object PropertyChecker {
         val arrayNode: ArrayNode = PropertyChecker.mapper.valueToTree(values)
         (arrayNode, warnings, csvwPropertyType)
       } else {
+        val warnings = if (value.isNull) {
+          Array[String]()
+        } else {
+          Array[String](PropertyChecker.invalidValueWarning)
+        }
         val arrayNodeToReturn = JsonNodeFactory.instance.arrayNode()
         arrayNodeToReturn.add("")
         (
           arrayNodeToReturn,
-          Array[String](PropertyChecker.invalidValueWarning),
+          warnings,
           csvwPropertyType
         )
       }
@@ -510,7 +510,7 @@ object PropertyChecker {
             case "" => s.asText()
             case _  => new URL(new URL(baseUrl), s.asText()).toString
           }
-          (new TextNode(baseUrlCopy), Array[String](""), csvwPropertyType)
+          (new TextNode(baseUrlCopy), Array[String](), csvwPropertyType)
         }
         case _ =>
           (
@@ -1522,6 +1522,10 @@ object PropertyChecker {
           (valueCopy, warnings, csvwPropertyType)
         }
         case _ =>
+          // May be we might need to support dialect property of type other than ObjectNode.
+          //  The dialect of a table is an object property. It could be provided as a URL that indicates
+          //  a commonly used dialect, like this:
+          //  "dialect": "http://example.org/tab-separated-values"
           (
             NullNode.instance,
             Array[String](PropertyChecker.invalidValueWarning),

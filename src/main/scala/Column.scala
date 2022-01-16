@@ -74,17 +74,6 @@ object Column {
   ): Option[String] = {
     val name = columnProperties.get("name")
     val titles = columnProperties.get("titles")
-//
-//    name
-//      .map(n => n.asText())
-//      .orElse(
-//        titles.map(t => {
-//          val langNode = t.path(lang)
-//          if (langNode.isMissingNode) {
-//            langNode.elements.asScalaArray(0).asText()
-//          }
-//        })
-//      )
 
     if (name.isDefined) {
       Some(name.get.asInstanceOf[TextNode].asText())
@@ -112,6 +101,8 @@ object Column {
             nullParamsToReturn
           }
           case s: TextNode => Array[String](s.asText())
+          case _ =>
+            throw new MetadataError("unexpected value for null property")
         }
       }
       case None => Array[String]("")
@@ -158,50 +149,41 @@ object Column {
     }
   }
 
-  def getTitles(columnProperties: Map[String, JsonNode]): Option[JsonNode] = {
-    columnProperties.get("titles")
-  }
-
-  def fromJson(
-      number: Int,
+  def partitionAndValidateColumnPropertiesByType(
       columnDesc: ObjectNode,
+      columnOrdinal: Int,
       baseUrl: String,
       lang: String,
       inheritedProperties: Map[String, JsonNode]
-  ): Column = {
-    var annotations = Map[String, JsonNode]()
+  ): (Map[String, JsonNode], Map[String, JsonNode], Array[ErrorMessage]) = {
     var warnings = Array[ErrorMessage]()
+    val annotations = Map[String, JsonNode]()
     val columnProperties = Map[String, JsonNode]()
-    val inheritedPropertiesCopy =
-      MapHelpers.deepCloneJsonPropertiesMap(inheritedProperties)
-
     for ((property, value) <- columnDesc.getKeysAndValues) {
       (property, value) match {
         case ("@type", v: TextNode) if v.asText != "Column" => {
           throw new MetadataError(
-            s"columns[$number].@type, @type of column is not 'Column'"
+            s"columns[$columnOrdinal].@type, @type of column is not 'Column'"
           )
         }
         case _ => {
           val (v, w, csvwPropertyType) =
             PropertyChecker.checkProperty(property, value, baseUrl, lang)
-          if (w.nonEmpty) {
-            warnings = warnings.concat(
-              w.map(warningString =>
-                ErrorMessage(
-                  warningString,
-                  "metadata",
-                  "",
-                  "",
-                  s"$property: ${value.asText}",
-                  ""
-                )
+          warnings = warnings.concat(
+            w.map(warningString =>
+              ErrorMessage(
+                warningString,
+                "metadata",
+                "",
+                "",
+                s"$property: ${value.asText}",
+                ""
               )
             )
-          }
+          )
           csvwPropertyType match {
             case PropertyType.Inherited =>
-              inheritedPropertiesCopy += (property -> v)
+              inheritedProperties += (property -> v)
             case PropertyType.Common | PropertyType.Column =>
               columnProperties += (property -> v)
             case PropertyType.Annotation => {
@@ -220,12 +202,34 @@ object Column {
         }
       }
     }
+    (annotations, columnProperties, warnings)
+  }
+
+  def fromJson(
+      columnOrdinal: Int,
+      columnDesc: ObjectNode,
+      baseUrl: String,
+      lang: String,
+      inheritedProperties: Map[String, JsonNode]
+  ): Column = {
+
+    val inheritedPropertiesCopy =
+      MapHelpers.deepCloneJsonPropertiesMap(inheritedProperties)
+
+    var (annotations, columnProperties, warnings) =
+      partitionAndValidateColumnPropertiesByType(
+        columnDesc,
+        columnOrdinal,
+        baseUrl,
+        lang,
+        inheritedPropertiesCopy
+      )
     val datatype = getDatatypeOrDefault(inheritedPropertiesCopy)
 
     val newLang = getLangOrDefault(inheritedPropertiesCopy)
 
     new Column(
-      number = number,
+      columnOrdinal = columnOrdinal,
       name = getName(columnProperties, lang),
       id = getId(columnProperties),
       datatype = datatype,
@@ -238,7 +242,7 @@ object Column {
       valueUrl = getValueUrl(inheritedPropertiesCopy),
       separator = getSeparator(inheritedPropertiesCopy),
       ordered = getOrdered(inheritedPropertiesCopy),
-      titles = getTitles(columnProperties),
+      titles = columnProperties.get("titles"),
       suppressOutput = getSuppressOutput(columnProperties),
       virtual = getVirtual(columnProperties),
       textDirection = getTextDirection(inheritedPropertiesCopy),
@@ -267,7 +271,7 @@ object Column {
 }
 
 case class Column private (
-    number: Int,
+    columnOrdinal: Int,
     name: Option[String],
     id: Option[String],
     aboutUrl: Option[String],
@@ -281,7 +285,6 @@ case class Column private (
     separator: Option[String],
     suppressOutput: Boolean,
     textDirection: String,
-//  defaultName: String, // Not used, this logic is included in name param
     titles: Option[JsonNode],
     valueUrl: Option[String],
     virtual: Boolean,
