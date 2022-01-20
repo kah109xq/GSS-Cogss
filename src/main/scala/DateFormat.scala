@@ -1,5 +1,4 @@
 package CSVValidation
-import Errors.DateFormatError
 
 case class DateFormat(pattern: Option[String], dataType: Option[String]) {
   private var `type`: String = _
@@ -17,8 +16,8 @@ case class DateFormat(pattern: Option[String], dataType: Option[String]) {
     "XX",
     "XXX",
     "x",
-    "xx" ,
-    "xxx",
+    "xx",
+    "xxx"
   )
   private val xmlSchemaBaseUrl = "http://www.w3.org/2001/XMLSchema#"
 
@@ -43,16 +42,19 @@ case class DateFormat(pattern: Option[String], dataType: Option[String]) {
         s"${xmlSchemaBaseUrl}time"
       } else if (includesHours && includesYears) {
         s"${xmlSchemaBaseUrl}dateTime"
-      } else throw new DateFormatError(s"Unexpected datetime format '${p}' does not appear to contain date or time components.")
+      } else
+        throw new DateFormatError(
+          s"Unexpected datetime format '${p}' does not appear to contain date or time components."
+        )
     }
   }
 
   /**
-   * This function ensures that the pattern received does not contain symbols which this class does not
-   * know to process. An exception is thrown when it finds a symbol outside the recognised list.
-   *
-   * @param pattern
-   */
+    * This function ensures that the pattern received does not contain symbols which this class does not
+    * know to process. An exception is thrown when it finds a symbol outside the recognised list.
+    *
+    * @param pattern
+    */
   private def ensureDateTimeFormatContainsRecognizedSymbols(pattern: String) = {
     var testPattern = pattern
     // Fractional sections are variable length so are dealt with outside of the `fields` map.
@@ -61,9 +63,12 @@ case class DateFormat(pattern: Option[String], dataType: Option[String]) {
     val fieldsLongestFirst = fields.sortBy(_.length).reverse
     for (k <- fieldsLongestFirst) testPattern = testPattern.replaceAll(k, "")
     // http://www.unicode.org/reports/tr35/tr35-dates.html#Date_Field_Symbol_Table
-    val matcher = "[GyYuUrQqMLlwWdDFgEecahHKkjJmsSAzZOvVXx]".r.pattern.matcher(testPattern)
+    val matcher =
+      "[GyYuUrQqMLlwWdDFgEecahHKkjJmsSAzZOvVXx]".r.pattern.matcher(testPattern)
     if (matcher.find()) {
-      throw new DateFormatError("Unrecognised date field symbols in date format")
+      throw new DateFormatError(
+        "Unrecognised date field symbols in date format"
+      )
     }
   }
 }

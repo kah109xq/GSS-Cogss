@@ -1,10 +1,13 @@
 package CSVValidation
 
-import Errors.NumberFormatError
 import com.ibm.icu.text.DecimalFormat
 
-case class NumberFormat(pattern:Option[String], groupChar: Option[Char] = None, decimalChar: Option[Char] = None) {
-  private var df:DecimalFormat = new DecimalFormat()
+case class NumberFormat(
+    pattern: Option[String],
+    groupChar: Option[Char] = None,
+    decimalChar: Option[Char] = None
+) {
+  private var df: DecimalFormat = new DecimalFormat()
   private val decimalFormatSymbols = df.getDecimalFormatSymbols
   decimalFormatSymbols.setInfinity("INF")
   try {
@@ -30,14 +33,14 @@ case class NumberFormat(pattern:Option[String], groupChar: Option[Char] = None, 
       }
     }
   } catch {
-    case e:Exception => throw new NumberFormatError(e.getMessage)
+    case e: Exception => throw new NumberFormatError(e.getMessage)
   }
 
-  def parse(value:String): Number = {
+  def parse(value: String): Number = {
     df.parse(value)
   }
 
-  def format(value:Number): String = {
+  def format(value: Number): String = {
     df.format(value)
   }
 }

@@ -1,10 +1,10 @@
 package CSVValidation
-import Errors.NumberFormatError
-import com.ibm.icu.math
 import org.scalatest.FunSuite
 
 class NumberFormatTest extends FunSuite {
-  test("it formats the number received to the specified format (zero padding)") {
+  test(
+    "it formats the number received to the specified format (zero padding)"
+  ) {
     val numberFormatObj = NumberFormat(Some("00000.0000"))
     assert(numberFormatObj.format(21.334) === "00021.3340")
   }
@@ -88,23 +88,39 @@ class NumberFormatTest extends FunSuite {
     assert(numberFormatObj.parse("1000‰") === 1)
   }
 
-
-  test("should correctly parse numbers in non-english-convention when Group and Decimal chars are configured to that convention") {
+  test(
+    "should correctly parse numbers in non-english-convention when Group and Decimal chars are configured to that convention"
+  ) {
     // English convention: 5,246.30
     // Non-English convention: 5.246,30
     // https://en.wikipedia.org/wiki/Decimal_separator#Hindu-Arabic_numerals
-    
-    val numberFormatObjWithConfiguration = NumberFormat(Some("#,##0.00"), Some('.'), Some(','))
-    assert(numberFormatObjWithConfiguration.parse("36.756,32").doubleValue() === 36756.32)
+
+    val numberFormatObjWithConfiguration =
+      NumberFormat(Some("#,##0.00"), Some('.'), Some(','))
+    assert(
+      numberFormatObjWithConfiguration
+        .parse("36.756,32")
+        .doubleValue() === 36756.32
+    )
   }
 
-  test("should not parse numbers in non-english-convention when Group and Decimal chars are standard") {
-    val numberFormatObjWithoutConfiguration = NumberFormat(Some("#,##0.00"), None, None)
-    assert(numberFormatObjWithoutConfiguration.parse("36.756,32").doubleValue() != 36756.32)
+  test(
+    "should not parse numbers in non-english-convention when Group and Decimal chars are standard"
+  ) {
+    val numberFormatObjWithoutConfiguration =
+      NumberFormat(Some("#,##0.00"), None, None)
+    assert(
+      numberFormatObjWithoutConfiguration
+        .parse("36.756,32")
+        .doubleValue() != 36756.32
+    )
   }
 
-  test("should correctly format numbers in non-english-convention when Group and Decimal chars are configured to that convention") {
-    val numberFormatObjWithConfiguration = NumberFormat(Some("#,##0.00"), Some('.'), Some(','))
+  test(
+    "should correctly format numbers in non-english-convention when Group and Decimal chars are configured to that convention"
+  ) {
+    val numberFormatObjWithConfiguration =
+      NumberFormat(Some("#,##0.00"), Some('.'), Some(','))
     assert(numberFormatObjWithConfiguration.format(36756.32) === "36.756,32")
   }
 
@@ -118,7 +134,9 @@ class NumberFormatTest extends FunSuite {
     assert(numberFormatObj.format(3456.12345) === "3,456.123")
   }
 
-  test("should throw NumberFormatError when the pattern provided is not valid") {
+  test(
+    "should throw NumberFormatError when the pattern provided is not valid"
+  ) {
     intercept[NumberFormatError] {
       NumberFormat(Some("0.#00#"))
     }
