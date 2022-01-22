@@ -166,15 +166,16 @@ object Table {
         warnings = warnings.concat(columnWarnings)
 
         // Collect primary keys in primaryKeyColumns
-        val primaryKeyToReturn =
+        val (primaryKeyToReturn, primaryKeyWarnings) =
           collectPrimaryKeyColumns(tableSchemaObject, columns)
+        warnings = warnings.concat(primaryKeyWarnings)
 
         // Collect foreign Keys in foreignKeyColumns
         val foreignKeyMappings =
           collectForeignKeyColumns(tableSchemaObject, columns)
 
         // Collect row titles column
-        var rowTitlesColumns =
+        val rowTitlesColumns =
           collectRowTitlesColumns(tableSchemaObject, columns)
 
         new Table(
@@ -203,7 +204,8 @@ object Table {
       tableSchemaObject: ObjectNode,
       url: String
   ): Option[ErrorMessage] = {
-    if (tableSchemaObject.get("columns").isArray) {
+    val columnsNode = tableSchemaObject.path("columns")
+    if (!columnsNode.isMissingNode && columnsNode.isArray) {
       None
     } else {
       tableSchemaObject.set("columns", JsonNodeFactory.instance.arrayNode())
@@ -352,9 +354,9 @@ object Table {
   private def collectPrimaryKeyColumns(
       tableSchemaObject: ObjectNode,
       columns: Array[Column]
-  ): Array[Column] = {
+  ): (Array[Column], Array[ErrorMessage]) = {
+    var warnings = Array[ErrorMessage]()
     if (!tableSchemaObject.path("primaryKey").isMissingNode) {
-      var w = Array[ErrorMessage]()
       var primaryKeyColumns = Array[Column]()
       val primaryKeys = tableSchemaObject.get("primaryKey")
       var primaryKeyValid = true
@@ -365,7 +367,7 @@ object Table {
         maybeCol match {
           case Some(col) => primaryKeyColumns :+= col
           case None => {
-            w = w :+ ErrorMessage(
+            warnings = warnings :+ ErrorMessage(
               "invalid_column_reference",
               "metadata",
               "",
@@ -379,9 +381,9 @@ object Table {
         }
       }
       if (primaryKeyValid && primaryKeyColumns.nonEmpty)
-        return primaryKeyColumns
+        return (primaryKeyColumns, warnings)
     }
-    Array[Column]()
+    (Array[Column](), warnings)
   }
 
   private def setTableSchemaInheritedProperties(
@@ -480,7 +482,7 @@ case class Table private (
     schemaId: Option[String],
     suppressOutput: Boolean,
     annotations: Map[String, JsonNode],
-    warnings: Array[ErrorMessage]
+    var warnings: Array[ErrorMessage]
 ) {
   var foreignKeyValues: Map[String, JsonNode] = Map()
 
@@ -489,4 +491,11 @@ case class Table private (
     */
   var foreignKeyReferences: Array[ForeignKeyWithTable] = Array()
   var foreignKeyReferenceValues: Map[String, JsonNode] = Map()
+  var warningsFromColumns: Array[ErrorMessage] = Array[ErrorMessage]()
+  for (c <- columns) {
+    for (w <- c.warnings) {
+      warningsFromColumns :+= w
+    }
+  }
+  warnings = warnings.concat(warningsFromColumns)
 }

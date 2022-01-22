@@ -111,7 +111,7 @@ object PropertyChecker {
       baseUrl: String,
       lang: String
   ): (JsonNode, Array[String], PropertyType.Value) = {
-    val propertyRegEx = "^[a-z]+:".r
+    val propertyRegEx = "^[a-z]+:.*$".r
     val matcher = propertyRegEx.pattern.matcher(property)
     if (Properties.contains(property)) {
       val f = Properties(property)
@@ -124,7 +124,7 @@ object PropertyChecker {
     } else {
       // property name must be an absolute URI
       try {
-        val scheme = new URI(property).getScheme
+        val scheme = Option(new URI(property).getScheme)
         if (scheme.isEmpty)
           return (
             value,
@@ -158,7 +158,7 @@ object PropertyChecker {
           p match {
             case "@context" | "@list" | "@set" =>
               throw new MetadataError(s"$p: common property has $p property")
-            case "@type" => ProcessCommonPropertyType(valueCopy, p, v)
+            case "@type" => processCommonPropertyType(valueCopy, p, v)
             case "@id" => {
               if (!baseUrl.isBlank) {
                 try {
@@ -187,6 +187,7 @@ object PropertyChecker {
             }
           }
           valueCopy.set(p, v)
+          ()
         }
         (valueCopy, warnings)
       }
@@ -249,31 +250,34 @@ object PropertyChecker {
     }
   }
 
-  private def ProcessCommonPropertyType(
+  private def processCommonPropertyType(
       valueCopy: ObjectNode,
       p: String,
       v: JsonNode
-  ) = {
+  ): Unit = {
+    val valueNode = valueCopy.path("@value")
     v match {
       case s: TextNode => {
         if (
-          (!valueCopy.path("@value").isMissingNode) && BuiltInDataTypes.types
+          (!valueNode.isMissingNode) && BuiltInDataTypes.types
             .contains(s.asText)
         ) {
           // No exceptions raised in this case
         } else if (
-          (valueCopy.path("@value").isMissingNode) && BuiltInTypes.contains(
+          (valueNode.isMissingNode) && BuiltInTypes.contains(
             s.asText
           )
         ) {
           // No exceptions raised in this case as well
         } else {
-          throw new MetadataError(s"$p: common property has invalid @type")
+          val arr: ArrayNode = JsonNodeFactory.instance.arrayNode()
+          arr.add(s)
+          processCommonPropertyType(valueCopy, p, arr)
         }
       }
       case a: ArrayNode => {
         val typeArrayElements = Array.from(a.elements().asScala)
-        val propertyRegEx = "^[a-z]+:".r
+        val propertyRegEx = "^[a-z]+:.*$".r
         for (typeElement <- typeArrayElements) {
           // typeElement should be Textual here
           val matcher = propertyRegEx.pattern.matcher(typeElement.asText())
