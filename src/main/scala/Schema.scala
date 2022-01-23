@@ -10,8 +10,7 @@ object Schema {
   val objectMapper = new ObjectMapper()
 
   def loadMetadataAndValidate(
-      uri: String,
-      outputErrors: Boolean = true
+      uri: String
   ): (Option[TableGroup], Option[String]) = {
     try {
       val jsonNode = objectMapper.readTree(Paths.get(uri).toFile)
@@ -26,8 +25,8 @@ object Schema {
       case metadataError: MetadataError => {
         (None, Some(metadataError.getMessage))
       }
-      case _: Throwable => {
-        (None, Some("Unknown Exception occurred"))
+      case e: Throwable => {
+        (None, Some(s"${e.getMessage} ${e.getStackTrace}"))
       }
     }
   }
@@ -36,22 +35,6 @@ object Schema {
     TableGroup.fromJson(json, uri)
   }
 
-  // Not in use now
-  private def fromJsonTable(uri: String, json: ObjectNode): Schema = {
-    var fields = Array[Field]()
-    val fieldsNode = json.path("fields")
-    if (!fieldsNode.isMissingNode) {
-      for (fieldDesc <- fieldsNode.elements().asScalaArray) {
-        fields :+= Field(
-          Some(fieldDesc.get("name")),
-          Some(fieldDesc.get("constraints")),
-          Some(fieldDesc.get("title")),
-          Some(fieldDesc.get("description"))
-        )
-      }
-    }
-    Schema(uri, fields, json.get("title"), json.get("description"))
-  }
 }
 
 case class Schema(

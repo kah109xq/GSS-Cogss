@@ -6,7 +6,7 @@ object Main extends App {
   val logger = Logger("Root")
   val parser = new scopt.OptionParser[Config]("csvwvalidation") {
     head("CSVW-Validation", "1.0")
-    arg[String]("<schema_file_path>")
+    arg[String]("<schemaFilePath>")
       .action { (x, c) => c.copy(inputSchema = x) }
       .text("filename of schema")
       .optional()
@@ -15,7 +15,7 @@ object Main extends App {
   parser.parse(args, Config()) match {
     case Some(config) =>
       val validator = new Validator(config.inputSchema)
-      val (warnings, error) = validator.validate(true)
+      val (warnings, error) = validator.validate()
       println(Console.YELLOW + "Warnings")
       warnings.foreach(x => logger.warn(x))
       if (error.nonEmpty) {

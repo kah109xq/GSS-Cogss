@@ -4,17 +4,15 @@ package CSVValidation
 // schema and return errors and warnings collection when validate method is invoked. Changes to this signature can be
 // made in the due course or as per requirements
 class Validator(val schemaUri: String) {
-  def validate(outputErrors: Boolean): (Array[String], Option[String]) = {
+  def validate(): (Array[String], Option[String]) = {
     val result = Schema.loadMetadataAndValidate(schemaUri)
     val schema = result._1
     val errorMessage = result._2
     var warnings = Array[String]()
     schema match {
       case Some(tableGroup) => {
-        if (outputErrors) {
-          warnings =
-            warnings.concat(tableGroup.warnings.map(w => processWarnings(w)))
-        }
+        warnings =
+          warnings.concat(tableGroup.warnings.map(w => processWarnings(w)))
         (warnings, errorMessage)
       }
       case None => (warnings, errorMessage)
