@@ -3,19 +3,13 @@ package CSVValidation
 // This is only a skeleton for the core Validator class to be created. It is planned to accept the source csv and
 // schema and return errors and warnings collection when validate method is invoked. Changes to this signature can be
 // made in the due course or as per requirements
-class Validator(val schemaUri: String) {
-  def validate(): (Array[String], Option[String]) = {
-    val result = Schema.loadMetadataAndValidate(schemaUri)
-    val schema = result._1
-    val errorMessage = result._2
-    var warnings = Array[String]()
-    schema match {
-      case Some(tableGroup) => {
-        warnings =
-          warnings.concat(tableGroup.warnings.map(w => processWarnings(w)))
-        (warnings, errorMessage)
-      }
-      case None => (warnings, errorMessage)
+class Validator(val filePath: String) {
+  def validate(): Either[String, Array[String]] = {
+    val result = Schema.loadMetadataAndValidate(filePath)
+    result match {
+      case Right(tableGroup) =>
+        Right(tableGroup.warnings.map(w => processWarnings(w)))
+      case Left(errorMessage) => Left(errorMessage)
     }
   }
 

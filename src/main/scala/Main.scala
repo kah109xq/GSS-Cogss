@@ -15,18 +15,20 @@ object Main extends App {
   parser.parse(args, Config()) match {
     case Some(config) =>
       val validator = new Validator(config.inputSchema)
-      val (warnings, error) = validator.validate()
-      println(Console.YELLOW + "Warnings")
-      warnings.foreach(x => logger.warn(x))
-      if (error.nonEmpty) {
-        println(Console.RED + "Error")
-        println(error.get)
-        sys.exit(1)
+      val result = validator.validate()
+      result match {
+        case Right(warnings) => {
+          println(Console.YELLOW + "Warnings")
+          warnings.foreach(x => logger.warn(x))
+        }
+        case Left(errorMessage) => {
+          println(Console.RED + "Error")
+          logger.error(errorMessage)
+          sys.exit(1)
+        }
       }
-      if (error.isEmpty) {
-        println((Console.GREEN + "Result"))
-        println("Valid metadata")
-      }
+      println((Console.GREEN + "Result"))
+      println("Valid metadata")
     case None =>
   }
 }

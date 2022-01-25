@@ -2,6 +2,8 @@ package CSVValidation
 
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.fasterxml.jackson.databind.node.ObjectNode
+import java.io.PrintWriter
+import java.io.StringWriter
 import traits.JavaIteratorExtensions.IteratorHasAsScalaArray
 
 import java.net.URL
@@ -10,23 +12,24 @@ object Schema {
   val objectMapper = new ObjectMapper()
 
   def loadMetadataAndValidate(
-      uri: String
-  ): (Option[TableGroup], Option[String]) = {
+      filePath: String
+  ): Either[String, TableGroup] = {
     try {
-      val jsonNode = objectMapper.readTree(Paths.get(uri).toFile)
-      (
-        Some(
-          Schema
-            .fromCsvwMetadata(s"file:$uri", jsonNode.asInstanceOf[ObjectNode])
-        ),
-        None
+      val jsonNode = objectMapper.readTree(Paths.get(filePath).toFile)
+      Right(
+        Schema.fromCsvwMetadata(
+          s"file:$filePath",
+          jsonNode.asInstanceOf[ObjectNode]
+        )
       )
     } catch {
       case metadataError: MetadataError => {
-        (None, Some(metadataError.getMessage))
+        Left(metadataError.getMessage)
       }
       case e: Throwable => {
-        (None, Some(s"${e.getMessage} ${e.getStackTrace}"))
+        val sw = new StringWriter
+        e.printStackTrace(new PrintWriter(sw))
+        Left(sw.toString)
       }
     }
   }
@@ -39,7 +42,6 @@ object Schema {
 
 case class Schema(
     uri: String,
-    fields: Array[Field],
     title: JsonNode,
     description: JsonNode
 ) {}
