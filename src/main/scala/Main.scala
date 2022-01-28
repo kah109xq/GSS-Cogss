@@ -1,15 +1,12 @@
 import scopt.OParser
 import CSVValidation.Validator
 import com.typesafe.scalalogging.Logger
-case class Config(inputCSV: String = "", inputSchema: String = "")
+case class Config(inputSchema: String = "")
 object Main extends App {
   val logger = Logger("Root")
   val parser = new scopt.OptionParser[Config]("csvwvalidation") {
     head("CSVW-Validation", "1.0")
-    arg[String]("<source_file_path>")
-      .action { (x, c) => c.copy(inputCSV = x) }
-      .text("filename of source csv")
-    arg[String]("<schema_file_path>")
+    arg[String]("<schemaFilePath>")
       .action { (x, c) => c.copy(inputSchema = x) }
       .text("filename of schema")
       .optional()
@@ -17,12 +14,21 @@ object Main extends App {
 
   parser.parse(args, Config()) match {
     case Some(config) =>
-      var validator = new Validator(config.inputCSV)
-      val (errors, warnings) = validator.validate()
-      println(Console.YELLOW + "Warnings")
-      warnings.map(x => logger.warn(x))
-      println(Console.RED + "errors")
-      errors.map(x => logger.error(x))
+      val validator = new Validator(config.inputSchema)
+      val result = validator.validate()
+      result match {
+        case Right(warnings) => {
+          println(Console.YELLOW + "Warnings")
+          warnings.foreach(x => logger.warn(x))
+        }
+        case Left(errorMessage) => {
+          println(Console.RED + "Error")
+          logger.error(errorMessage)
+          sys.exit(1)
+        }
+      }
+      println((Console.GREEN + "Result"))
+      println("Valid metadata")
     case None =>
   }
 }

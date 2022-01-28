@@ -195,14 +195,12 @@ object TableGroup {
     for ((tableUrl, table) <- tables) {
       for ((foreignKey, i) <- table.foreignKeys.zipWithIndex) {
         val reference = foreignKey.jsonObject.get("reference")
-        val resourceNode = reference.path("resource")
         val referencedTable: Table = setReferencedTableOrThrowException(
           baseUrl,
           tables,
           tableUrl,
           i,
-          reference,
-          resourceNode
+          reference
         )
         val mapNameToColumn: mutable.Map[String, Column] = Map()
         for (column <- referencedTable.columns) {
@@ -219,7 +217,7 @@ object TableGroup {
               case Some(column) => column
               case None =>
                 throw new MetadataError(
-                  s"column named ${columnReference.asText()} does not exist in #{resource}," +
+                  s"column named ${columnReference.asText()} does not exist in ${referencedTable.url}," +
                     s" $$.tables[?(@.url = '${tableUrl}')].tableSchema.foreign_keys[${i}].reference.columnReference"
                 )
             }
@@ -228,7 +226,7 @@ object TableGroup {
         val foreignKeyWithTable =
           ForeignKeyWithTable(foreignKey, referencedTable, referencedColumns)
         referencedTable.foreignKeyReferences :+= foreignKeyWithTable
-        tables += (tableUrl -> referencedTable)
+        tables += (referencedTable.url -> referencedTable)
       }
     }
   }
@@ -238,9 +236,9 @@ object TableGroup {
       tables: Map[String, Table],
       tableUrl: String,
       foreignKeyArrayIndex: Int,
-      reference: JsonNode,
-      resourceNode: JsonNode
+      reference: JsonNode
   ): Table = {
+    val resourceNode = reference.path("resource")
     if (resourceNode.isMissingNode) {
       val schemaReferenceNode =
         reference.get(
@@ -262,15 +260,17 @@ object TableGroup {
           )
       }
     } else {
-      val resource = new URL(
+      val referencedTableUrl = new URL(
         new URL(baseUrl),
         resourceNode.asText()
       ).toString
-      tables.get(resource) match {
-        case Some(refTable) => refTable
+      tables.get(referencedTableUrl) match {
+        case Some(refTable) => {
+          refTable
+        }
         case None =>
           throw new MetadataError(
-            s"Could not find foreign key referenced table ${tableUrl}, " +
+            s"Could not find foreign key referenced table ${referencedTableUrl}, " +
               s"$$.tables[?(@.url = '${tableUrl}')].tableSchema.foreignKeys[${foreignKeyArrayIndex}].reference.resource"
           )
       }
@@ -336,8 +336,6 @@ object TableGroup {
       commonProperties: mutable.Map[String, JsonNode],
       inheritedProperties: mutable.Map[String, JsonNode]
   ): (mutable.Map[String, Table], Array[ErrorMessage]) = {
-    var warnings = Array[ErrorMessage]()
-
     tableGroupNode.path("tables") match {
       case t: ArrayNode if t.isEmpty() =>
         throw new MetadataError("Empty tables property")
@@ -411,14 +409,18 @@ object TableGroup {
       .get("@id")
       .map(idNode => idNode.asText())
   }
-
-  case class TableGroup private (
-      baseUrl: String,
-      id: Option[String],
-      tables: Map[String, Table],
-      notes: Option[JsonNode],
-      annotations: Map[String, JsonNode],
-      warnings: Array[ErrorMessage]
-  ) {}
-
+}
+case class TableGroup private (
+    baseUrl: String,
+    id: Option[String],
+    tables: Map[String, Table],
+    notes: Option[JsonNode],
+    annotations: Map[String, JsonNode],
+    var warnings: Array[ErrorMessage]
+) {
+  val warningsFromTables: Array[ErrorMessage] =
+    Array.from(tables.flatMap {
+      case (_, table) => table.warnings
+    })
+  warnings = warnings.concat(warningsFromTables)
 }

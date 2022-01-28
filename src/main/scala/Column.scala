@@ -175,8 +175,8 @@ object Column {
                 warningString,
                 "metadata",
                 "",
-                "",
-                s"$property: ${value.asText}",
+                s"$columnOrdinal",
+                s"$property: ${value.toPrettyString}",
                 ""
               )
             )

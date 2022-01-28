@@ -16,7 +16,7 @@ libraryDependencies += "io.cucumber" % "cucumber-junit" % "6.8.2" % Test
 libraryDependencies += "com.novocode" % "junit-interface" % "0.11" % Test
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.8" % Test
 
-libraryDependencies += "io.spray" %%  "spray-json" % "1.3.5"
+libraryDependencies += "io.spray" %% "spray-json" % "1.3.5"
 libraryDependencies += "org.apache.jena" % "jena-arq" % "3.14.0"
 libraryDependencies += "joda-time" % "joda-time" % "2.10.8"
 libraryDependencies += "com.github.scopt" %% "scopt" % "4.0.0"
@@ -25,10 +25,9 @@ libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3"
 libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2"
 libraryDependencies += "com.fasterxml.jackson.core" % "jackson-databind" % "2.12.1"
 libraryDependencies += "com.fasterxml.jackson.core" % "jackson-annotations" % "2.12.1"
-libraryDependencies += "com.fasterxml.jackson.core" %"jackson-core" % "2.12.1"
+libraryDependencies += "com.fasterxml.jackson.core" % "jackson-core" % "2.12.1"
 libraryDependencies += "com.softwaremill.sttp.client3" %% "core" % "3.0.0"
-libraryDependencies += "com.ibm.icu" % "icu4j" %	"68.2"
-
+libraryDependencies += "com.ibm.icu" % "icu4j" % "68.2"
 
 // Here, `libraryDependencies` is a set of dependencies, and by using `+=`,
 // we're adding the scala-parser-combinators dependency to the set of dependencies
@@ -83,6 +82,7 @@ Compile / resourceGenerators += Def.task {
   import sys.process._
   val path = "pwd".!!.trim
   s"$path/src/main/ruby/GenerateTests.rb".!
-  val file = (Compile / resourceManaged).value/".."/".."/".."/".."/"src"/"test"/"resources"/"features"/"csvw_validation_tests.feature"
+  val file =
+    (Compile / resourceManaged).value / ".." / ".." / ".." / ".." / "src" / "test" / "resources" / "features" / "csvw_validation_tests.feature"
   Seq(file)
 }.taskValue
