@@ -76,8 +76,10 @@ class TableGroupTest extends FunSuite {
     assert(tableGroup.id.isEmpty)
     assert(tableGroup.tables.size === 2)
     assert(tableGroup.annotations.size === 0)
-    assert(table2.foreignKeyReferences.length === 1)
-    val foreignKeyReference = table2.foreignKeyReferences(0)
+    val referencedTable =
+      tableGroup.tables("http://w3c.github.io/csvw/tests/countries.csv")
+    assert(referencedTable.foreignKeyReferences.length === 1)
+    val foreignKeyReference = referencedTable.foreignKeyReferences(0)
     assert(
       foreignKeyReference.referencedTable.url === "http://w3c.github.io/csvw/tests/countries.csv"
     )
@@ -163,14 +165,12 @@ class TableGroupTest extends FunSuite {
       jsonNode.asInstanceOf[ObjectNode],
       "http://w3c.github.io/csvw/tests/"
     )
-    val table =
-      tableGroup.tables("http://w3c.github.io/csvw/tests/country_slice.csv")
+    val referencedTable =
+      tableGroup.tables("http://w3c.github.io/csvw/tests/countries.csv")
 
-    assert(table.foreignKeyReferences.length === 1)
-    val foreignKeyReference = table.foreignKeyReferences(0)
-    assert(
-      foreignKeyReference.referencedTable.url === "http://w3c.github.io/csvw/tests/countries.csv"
-    )
+    assert(referencedTable.foreignKeyReferences.length === 1)
+    val foreignKeyReference = referencedTable.foreignKeyReferences(0)
+    assert(foreignKeyReference.referencedTable.url === referencedTable.url)
     assert(foreignKeyReference.referencedTableColumns.length === 1)
     assert(
       foreignKeyReference

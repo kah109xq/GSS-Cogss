@@ -78,7 +78,7 @@ libraryDependencies += "com.ibm.icu" % "icu4j" % "68.2"
 // To learn more about multi-project builds, head over to the official sbt
 // documentation at http://www.scala-sbt.org/documentation.html
 
-Test / resourceGenerators += Def.task {
+Compile / resourceGenerators += Def.task {
   import sys.process._
   val path = "pwd".!!.trim
   s"$path/src/main/ruby/GenerateTests.rb".!
