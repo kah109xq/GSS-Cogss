@@ -8,7 +8,6 @@ pipeline {
                 }
             }
             steps {
-                sh "bundle install"
                 sh "if [ -f src/main/bin/run-csvw-tests ]; then rm src/main/bin/run-csvw-tests; fi"
                 sh "if [ -f test/resources/features/csvw_validation_tests.feature ]; then rm test/resources/features/csvw_validation_tests.feature; fi"
                 sh "if [ -d test/resources/features/fixtures/csvw ]; then rm -Rf test/resources/features/fixtures/csvw; fi"
