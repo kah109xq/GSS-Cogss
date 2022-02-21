@@ -20,7 +20,7 @@ pipeline {
         always {
             script {
                 node {
-                    junit allowEmptyResults: true, testResults: 'test-results/*.xml'
+                    junit allowEmptyResults: true, testResults: 'target/test-reports/*.xml'
                 }
             }
         }
