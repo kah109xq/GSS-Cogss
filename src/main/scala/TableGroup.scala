@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.node.{
   ObjectNode,
   TextNode
 }
+import org.apache.commons.csv.CSVRecord
 
 import java.net.URL
 import scala.collection.mutable
@@ -409,6 +410,7 @@ object TableGroup {
       .get("@id")
       .map(idNode => idNode.asText())
   }
+
 }
 case class TableGroup private (
     baseUrl: String,
@@ -423,4 +425,9 @@ case class TableGroup private (
       case (_, table) => table.warnings
     })
   warnings = warnings.concat(warningsFromTables)
+
+  def validateHeader(
+      header: CSVRecord,
+      tableUrl: String
+  ): WarningsAndErrors = tables(tableUrl).validateHeader(header)
 }

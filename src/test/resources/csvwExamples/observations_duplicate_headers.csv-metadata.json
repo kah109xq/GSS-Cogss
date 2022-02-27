@@ -1,0 +1,211 @@
+{
+  "@context": [
+    "http://www.w3.org/ns/csvw",
+    {
+      "@language": "en"
+    }
+  ],
+  "tables": [
+    {
+      "url": "observations_duplicate_headers.csv",
+      "tableSchema": {
+        "columns": [
+          {
+            "name": "geography",
+            "titles": "Geography",
+            "datatype": "string",
+            "propertyUrl": "http://gss-data.org.uk/data/gss_data/census-2011#dimension/geography",
+            "valueUrl": "http://statistics.data.gov.uk/id/statistical-geography/{geography}"
+          },
+          {
+            "name": "tenure",
+            "titles": "Tenure",
+            "datatype": "string",
+            "propertyUrl": "http://gss-data.org.uk/data/gss_data/census-2011#dimension/tenure",
+            "valueUrl": "http://gss-data.org.uk/data/gss_data/census-2011#concept/tenure/{tenure}"
+          },
+          {
+            "name": "age",
+            "titles": "Age",
+            "datatype": "string",
+            "propertyUrl": "http://gss-data.org.uk/data/gss_data/census-2011#dimension/age",
+            "valueUrl": "http://gss-data.org.uk/data/gss_data/census-2011#concept/age/{age}"
+          },
+          {
+            "name": "health",
+            "titles": "Health",
+            "datatype": "string",
+            "propertyUrl": "http://gss-data.org.uk/data/gss_data/census-2011#dimension/health",
+            "valueUrl": "http://gss-data.org.uk/data/gss_data/census-2011#concept/health/{health}"
+          },
+          {
+            "name": "value",
+            "titles": "Value",
+            "datatype": "integer",
+            "propertyUrl": "http://gss-data.org.uk/def/measure/count"
+          },
+          {
+            "name": "virt_unit",
+            "virtual": true,
+            "propertyUrl": "http://purl.org/linked-data/sdmx/2009/attribute#unitMeasure",
+            "valueUrl": "http://gss-data.org.uk/def/concept/measurement-units/residents"
+          },
+          {
+            "name": "virt_measure",
+            "virtual": true,
+            "propertyUrl": "http://purl.org/linked-data/cube#measureType",
+            "valueUrl": "http://gss-data.org.uk/def/measure/count"
+          },
+          {
+            "name": "virt_dataset",
+            "virtual": true,
+            "propertyUrl": "qb:dataSet",
+            "valueUrl": "http://gss-data.org.uk/data/gss_data/census-2011#dataset"
+          },
+          {
+            "name": "virt_type",
+            "virtual": true,
+            "propertyUrl": "rdf:type",
+            "valueUrl": "qb:Observation"
+          }
+        ],
+        "primaryKey": [
+          "geography",
+          "tenure",
+          "age",
+          "health"
+        ],
+        "aboutUrl": "http://gss-data.org.uk/data/gss_data/census-2011/{geography}/{tenure}/{age}/{health}"
+      }
+    }
+  ],
+  "@id": "http://gss-data.org.uk/data/gss_data/census-2011#tables",
+  "prov:hadDerivation": {
+    "@id": "http://gss-data.org.uk/data/gss_data/census-2011#dataset",
+    "@type": [
+      "qb:DataSet",
+      "dcat:Dataset"
+    ],
+    "qb:structure": {
+      "@id": "http://gss-data.org.uk/data/gss_data/census-2011#structure",
+      "@type": "qb:DataStructureDefinition",
+      "qb:component": [
+        {
+          "@id": "http://gss-data.org.uk/data/gss_data/census-2011#component/geography",
+          "qb:dimension": {
+            "@id": "http://gss-data.org.uk/data/gss_data/census-2011#dimension/geography",
+            "@type": "qb:DimensionProperty",
+            "qb:codeList": {
+              "@id": "http://gss-data.org.uk/data/gss_data/census-2011#scheme/geography"
+            },
+            "rdfs:range": {
+              "@id": "http://gss-data.org.uk/data/gss_data/census-2011#class/Geography"
+            },
+            "rdfs:label": "Geography",
+            "rdfs:comment": "2011 Output Areas. Open linked data, geographical codes for areas of the UK",
+            "rdfs:subPropertyOf": {
+              "@id": "http://purl.org/linked-data/sdmx/2009/dimension#refArea"
+            }
+          },
+          "@type": "qb:ComponentSpecification",
+          "qb:componentProperty": {
+            "@id": "http://gss-data.org.uk/data/gss_data/census-2011#dimension/geography"
+          }
+        },
+        {
+          "@id": "http://gss-data.org.uk/data/gss_data/census-2011#component/tenure",
+          "qb:dimension": {
+            "@id": "http://gss-data.org.uk/data/gss_data/census-2011#dimension/tenure",
+            "@type": "qb:DimensionProperty",
+            "qb:codeList": {
+              "@id": "http://gss-data.org.uk/data/gss_data/census-2011#scheme/tenure"
+            },
+            "rdfs:range": {
+              "@id": "http://gss-data.org.uk/data/gss_data/census-2011#class/Tenure"
+            },
+            "rdfs:label": "Tenure",
+            "rdfs:comment": "Tenure provides information about whether a household rents or owns the accommodation that it occupies and, if rented, combines this with information about the type of landlord who owns or manages the accommodation. Owned: Owned with a mortgage or loan or shared ownership includes Owned: Owned with a mortgage or loan and Shared ownership (part owned and part rented). Rented: Private rented or living rent free' includes the groups Private rented: Other and Living rent free."
+          },
+          "@type": "qb:ComponentSpecification",
+          "qb:componentProperty": {
+            "@id": "http://gss-data.org.uk/data/gss_data/census-2011#dimension/tenure"
+          }
+        },
+        {
+          "@id": "http://gss-data.org.uk/data/gss_data/census-2011#component/age",
+          "qb:dimension": {
+            "@id": "http://gss-data.org.uk/data/gss_data/census-2011#dimension/age",
+            "@type": "qb:DimensionProperty",
+            "qb:codeList": {
+              "@id": "http://gss-data.org.uk/data/gss_data/census-2011#scheme/age"
+            },
+            "rdfs:range": {
+              "@id": "http://gss-data.org.uk/data/gss_data/census-2011#class/Age"
+            },
+            "rdfs:label": "Age",
+            "rdfs:comment": "Age is derived from the date of birth question and is a person's age at their last birthday, at 27 March 2011. Dates of birth that imply an age over 115 are treated as invalid and the person's age is imputed. Infants less than one year old are classified as 0 years of age."
+          },
+          "@type": "qb:ComponentSpecification",
+          "qb:componentProperty": {
+            "@id": "http://gss-data.org.uk/data/gss_data/census-2011#dimension/age"
+          }
+        },
+        {
+          "@id": "http://gss-data.org.uk/data/gss_data/census-2011#component/health",
+          "qb:dimension": {
+            "@id": "http://gss-data.org.uk/data/gss_data/census-2011#dimension/health",
+            "@type": "qb:DimensionProperty",
+            "qb:codeList": {
+              "@id": "http://gss-data.org.uk/data/gss_data/census-2011#scheme/health"
+            },
+            "rdfs:range": {
+              "@id": "http://gss-data.org.uk/data/gss_data/census-2011#class/Health"
+            },
+            "rdfs:label": "Health",
+            "rdfs:comment": "General health is a self-assessment of a person's general state of health. People were asked to assess whether their health was very good, good, fair, bad or very bad. This assessment is not based on a person's health over any specified period of time."
+          },
+          "@type": "qb:ComponentSpecification",
+          "qb:componentProperty": {
+            "@id": "http://gss-data.org.uk/data/gss_data/census-2011#dimension/health"
+          }
+        },
+        {
+          "@id": "http://gss-data.org.uk/data/gss_data/census-2011#component/measure_type",
+          "qb:dimension": {
+            "@id": "http://purl.org/linked-data/cube#measureType",
+            "@type": "qb:DimensionProperty",
+            "rdfs:range": {
+              "@id": "http://purl.org/linked-data/cube#MeasureProperty"
+            }
+          },
+          "@type": "qb:ComponentSpecification",
+          "qb:componentProperty": {
+            "@id": "http://purl.org/linked-data/cube#measureType"
+          }
+        },
+        {
+          "@id": "http://gss-data.org.uk/data/gss_data/census-2011#component/value",
+          "qb:measure": {
+            "@id": "http://gss-data.org.uk/def/measure/count",
+            "@type": "qb:MeasureProperty"
+          },
+          "@type": "qb:ComponentSpecification",
+          "qb:componentProperty": {
+            "@id": "http://gss-data.org.uk/def/measure/count"
+          }
+        },
+        {
+          "@id": "http://gss-data.org.uk/data/gss_data/census-2011#component/unit",
+          "qb:attribute": {
+            "@id": "http://purl.org/linked-data/sdmx/2009/attribute#unitMeasure",
+            "@type": "qb:AttributeProperty"
+          },
+          "@type": "qb:ComponentSpecification",
+          "qb:componentProperty": {
+            "@id": "http://purl.org/linked-data/sdmx/2009/attribute#unitMeasure"
+          }
+        }
+      ]
+    }
+  }
+}

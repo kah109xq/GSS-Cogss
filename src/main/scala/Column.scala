@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.node.{
   ObjectNode,
   TextNode
 }
+import org.apache.commons.csv.CSVRecord
 
 import scala.collection.mutable.Map
 import scala.jdk.CollectionConverters.IteratorHasAsScala
@@ -290,4 +291,43 @@ case class Column private (
     virtual: Boolean,
     annotations: Map[String, JsonNode],
     warnings: Array[ErrorMessage]
-) {}
+) {
+  def validateHeader(columnName: String): WarningsAndErrors = {
+    var errors = Array[ErrorMessage]()
+    titles match {
+      case Some(titles) => {
+        var validHeaders = Array[String]()
+        for ((_, v) <- titles.asInstanceOf[ObjectNode].getKeysAndValues) {
+          val titlesArray = Array.from(v.elements().asScala)
+          for (title <- titlesArray) {
+            val titleString = title.asText()
+            if (languagesMatch(titleString, lang)) {
+              validHeaders :+= titleString
+            }
+          }
+        }
+        if (!validHeaders.contains(columnName)) {
+          errors :+= ErrorMessage(
+            "Invalid Header",
+            "Schema",
+            "1",
+            columnOrdinal.toString,
+            columnName,
+            titles.toPrettyString
+          )
+        }
+        WarningsAndErrors(Array(), errors)
+      }
+      case None => WarningsAndErrors(Array(), Array())
+    }
+  }
+
+  def languagesMatch(l1: String, l2: String): Boolean = {
+    val languagesMatchOrEitherIsUndefined =
+      l1 == l2 || l1 == "und" || l2 == "und"
+    val oneLanguageIsSubClassOfAnother =
+      l1.startsWith(s"$l2-") || l2.startsWith(s"$l1-")
+
+    languagesMatchOrEitherIsUndefined || oneLanguageIsSubClassOfAnother
+  }
+}

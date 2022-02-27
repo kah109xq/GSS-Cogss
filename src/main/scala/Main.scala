@@ -1,6 +1,8 @@
 import scopt.OParser
 import CSVValidation.Validator
 import com.typesafe.scalalogging.Logger
+import java.io.File
+import java.net.URI
 case class Config(inputSchema: String = "")
 object Main extends App {
   val logger = Logger("Root")
@@ -14,7 +16,7 @@ object Main extends App {
 
   parser.parse(args, Config()) match {
     case Some(config) =>
-      val validator = new Validator(config.inputSchema)
+      val validator = new Validator(getAbsoluteSchemaUri(config.inputSchema))
       val result = validator.validate()
       result match {
         case Right(warnings) => {
@@ -30,5 +32,14 @@ object Main extends App {
       println((Console.GREEN + "Result"))
       println("Valid metadata")
     case None =>
+  }
+
+  private def getAbsoluteSchemaUri(schemaPath: String): URI = {
+    val inputSchemaUri = new URI(schemaPath)
+    if (inputSchemaUri.getScheme == null) {
+      new URI(s"file://${new File(schemaPath).getAbsolutePath}")
+    } else {
+      inputSchemaUri
+    }
   }
 }

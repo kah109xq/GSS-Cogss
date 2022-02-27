@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.node.{
   ObjectNode,
   TextNode
 }
+import org.apache.commons.csv.CSVRecord
 
 import scala.collection.mutable.Map
 object Table {
@@ -498,4 +499,46 @@ case class Table private (
     }
   }
   warnings = warnings.concat(warningsFromColumns)
+
+  def validateHeader(
+      header: CSVRecord
+  ): WarningsAndErrors = {
+    var warnings: Array[ErrorMessage] = Array()
+    var errors: Array[ErrorMessage] = Array()
+    var columnIndex = 0
+    var columnNames: Array[String] = Array()
+    while (columnIndex < header.size()) {
+      val columnName = header.get(columnIndex)
+      if (columnName == "") {
+        warnings :+= ErrorMessage(
+          "Empty column name",
+          "Schema",
+          "",
+          (columnIndex + 1).toString,
+          "",
+          ""
+        )
+      }
+      if (columnNames.contains(columnName)) {
+        warnings :+= ErrorMessage(
+          "Duplicate column name",
+          "Schema",
+          "",
+          (columnIndex + 1).toString,
+          columnName,
+          ""
+        )
+      } else (columnNames :+= columnName)
+      if (columnIndex < columns.length) {
+        val column = columns(columnIndex)
+        val WarningsAndErrors(w, e) = column.validateHeader(columnName)
+        warnings = warnings.concat(w)
+        errors = errors.concat(e)
+      } else {
+        errors :+= ErrorMessage("Malformed header", "Schema", "1", "", "", "")
+      }
+      columnIndex = columnIndex + 1
+    }
+    WarningsAndErrors(warnings, errors)
+  }
 }
