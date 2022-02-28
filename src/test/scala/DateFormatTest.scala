@@ -20,13 +20,21 @@ class DateFormatTest extends FunSuite {
   }
 
   test("new test") {
-    val dateFormatObj =
-      DateFormat(None, Some("http://www.w3.org/2001/XMLSchema#dateTime"))
-    assert(
-      dateFormatObj.parse(
-        "2002-10-10T12:00:00.012-05:00"
-      ) === "#dateTime"
+    val dateFormatObj = DateFormat(None, Some("http://www.w3.org/2001/XMLSchema#dateTime"))
+    val maybeParsedDateTime = dateFormatObj.parse(
+      "2002-10-10T12:00:00.012-05:00"
     )
+
+    assert(maybeParsedDateTime.isDefined)
+    val parsedDateTime = maybeParsedDateTime.get
+    assert(2002 == parsedDateTime.getYear)
+    assert(10 == parsedDateTime.getMonthValue)
+    assert(10 == parsedDateTime.getDayOfMonth)
+    assert(12 == parsedDateTime.getHour)
+    assert(0 == parsedDateTime.getMinute)
+    assert(0 == parsedDateTime.getSecond)
+    assert(0.012 * 1e9 == parsedDateTime.getNano)
+    assert(-5 * 60 * 60 == parsedDateTime.getOffset.getTotalSeconds)
   }
 
 }

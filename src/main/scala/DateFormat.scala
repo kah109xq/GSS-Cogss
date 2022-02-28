@@ -2,27 +2,24 @@ package CSVValidation
 
 import CSVValidation.DateFormat.defaultFormats
 import com.ibm.icu.text.SimpleDateFormat
-import com.ibm.icu.util.{
-  BasicTimeZone,
-  Calendar,
-  GregorianCalendar,
-  SimpleTimeZone,
-  TimeZone
-}
+import com.ibm.icu.util.GregorianCalendar
 
-import java.util.Date
+import java.text.ParsePosition
+import java.time.{LocalDateTime, ZoneId, ZoneOffset, ZonedDateTime}
+import java.util
+import java.util.{Calendar, Date, TimeZone}
 
 object DateFormat {
   val defaultFormats = Map(
-    "http://www.w3.org/2001/XMLSchema#date" -> "yyyy-MM-ddX",
-    "http://www.w3.org/2001/XMLSchema#dateTime" -> "yyyy-MM-dd'T'HH:mm:ss.SX",
-    "http://www.w3.org/2001/XMLSchema#dateTimeStamp" -> "yyyy-MM-dd'T'HH:mm:ss.SX",
-    "http://www.w3.org/2001/XMLSchema#gDay" -> "---ddX",
-    "http://www.w3.org/2001/XMLSchema#gMonth" -> "--MMX",
-    "http://www.w3.org/2001/XMLSchema#gMonthDay" -> "--MM-ddX",
-    "http://www.w3.org/2001/XMLSchema#gYear" -> "yyyyX",
-    "http://www.w3.org/2001/XMLSchema#gYearMonth" -> "yyyy-MMX",
-    "http://www.w3.org/2001/XMLSchema#time" -> "HH:mm:ss.SX"
+    "http://www.w3.org/2001/XMLSchema#date" -> "yyyy-MM-ddXXX",
+    "http://www.w3.org/2001/XMLSchema#dateTime" -> "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+    "http://www.w3.org/2001/XMLSchema#dateTimeStamp" -> "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+    "http://www.w3.org/2001/XMLSchema#gDay" -> "---ddXXX",
+    "http://www.w3.org/2001/XMLSchema#gMonth" -> "--MMXXX",
+    "http://www.w3.org/2001/XMLSchema#gMonthDay" -> "--MM-ddXXX",
+    "http://www.w3.org/2001/XMLSchema#gYear" -> "yyyyXXX",
+    "http://www.w3.org/2001/XMLSchema#gYearMonth" -> "yyyy-MMXXX",
+    "http://www.w3.org/2001/XMLSchema#time" -> "HH:mm:ss.SSSXXX"
   )
 }
 case class DateFormat(pattern: Option[String], dataType: Option[String]) {
@@ -50,9 +47,7 @@ case class DateFormat(pattern: Option[String], dataType: Option[String]) {
   (pattern, dataType) match {
     case (None, Some(dt)) => {
       format = defaultFormats(dt)
-//      simpleDateFormatter = new SimpleDateFormat(format)
-      simpleDateFormatter = new SimpleDateFormat()
-      simpleDateFormatter.applyLocalizedPattern(format)
+      simpleDateFormatter = new SimpleDateFormat(format)
     }
     case (Some(p), _) => {
       format = p
@@ -86,18 +81,40 @@ case class DateFormat(pattern: Option[String], dataType: Option[String]) {
     }
   }
 
-  def parse(inputDate: String): Option[Date] = {
-    val timeZoneForInputDate =
-      simpleDateFormatter.getTimeZoneFormat.parse("-05:00")
-    simpleDateFormatter.setTimeZone(timeZoneForInputDate)
-    val date = simpleDateFormatter.parse(inputDate)
-    val formattedDate = simpleDateFormatter.format(date)
-    if (formattedDate == inputDate) {
-      // If the `formattedDate` is exactly equal to the `inputDate`, then we know that the inputDate matches
-      // the `format` exactly.
-      Some(date)
+  def parse(inputDate: String): Option[ZonedDateTime] = {
+    val parsedDateTime = parseInputDateTimeRetainTimeZoneInfo(inputDate)
+    simpleDateFormatter.setTimeZone(parsedDateTime.getTimeZone)
+
+    val formattedDate = simpleDateFormatter.format(parsedDateTime.getTime)
+    val formatPreservesAllInformation = formattedDate == inputDate
+
+    if (formatPreservesAllInformation) {
+      Some(getZonedDateTimeForIcuCalendar(parsedDateTime))
     } else {
       None
     }
+  }
+
+  private def getZonedDateTimeForIcuCalendar(parsedDateTime: GregorianCalendar): ZonedDateTime = {
+    val zoneOffset = ZoneOffset.ofTotalSeconds(parsedDateTime.getTimeZone.getRawOffset / 1000)
+    val dateTime = LocalDateTime.ofEpochSecond(
+      parsedDateTime.getTimeInMillis / 1000,
+      ((parsedDateTime.getTimeInMillis % 1000) * 1e6).toInt,
+      zoneOffset
+    )
+
+    ZonedDateTime.ofLocal(
+      dateTime,
+      ZoneId.ofOffset("UTC", zoneOffset),
+      zoneOffset
+    )
+  }
+
+  private def parseInputDateTimeRetainTimeZoneInfo(inputDate: String) = {
+    val calendar = new GregorianCalendar()
+    calendar.setLenient(false)
+    simpleDateFormatter.setLenient(false)
+    simpleDateFormatter.parse(inputDate, calendar, new ParsePosition(0))
+    calendar
   }
 }
