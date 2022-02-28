@@ -13,29 +13,20 @@ class DateFormatTest extends FunSuite {
     )
   }
 
-  test("it sets type as date when a date is provided") {
-    val dateFormatObj = DateFormat(Some("yyyy-mm-dd"), None)
-    assert(dateFormatObj.getType() === "http://www.w3.org/2001/XMLSchema#date")
-  }
-
-  test("it sets type as datetime when a datetime pattern is provided") {
-    val dateFormatObj = DateFormat(Some("MM/dd/yyyy HH:mm"), None)
-    assert(
-      dateFormatObj.getType() === "http://www.w3.org/2001/XMLSchema#dateTime"
-    )
-  }
-
-  test("it sets type as time when a time pattern is provided") {
-    val dateFormatObj = DateFormat(Some("HH:mm:ss"), None)
-    assert(dateFormatObj.getType() === "http://www.w3.org/2001/XMLSchema#time")
-  }
-
   test("it sets the default format when format is not supplied") {
     val dateFormatObj =
       DateFormat(None, Some("http://www.w3.org/2001/XMLSchema#dateTime"))
-    assert(
-      dateFormatObj.getType() === "http://www.w3.org/2001/XMLSchema#dateTime"
-    )
     assert(dateFormatObj.getFormat() === "YYYY-MM-DDThh:mm:ss.sTZD")
   }
+
+  test("new test") {
+    val dateFormatObj =
+      DateFormat(None, Some("http://www.w3.org/2001/XMLSchema#dateTime"))
+    assert(
+      dateFormatObj.parse(
+        "2002-10-10T12:00:00.012-05:00"
+      ) === "#dateTime"
+    )
+  }
+
 }

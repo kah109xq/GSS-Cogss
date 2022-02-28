@@ -33,7 +33,7 @@ case class NumberFormat(
       }
     }
   } catch {
-    case e: Exception => throw new NumberFormatError(e.getMessage)
+    case e: Exception => throw new NumberFormatError(e.getMessage, e)
   }
 
   def parse(value: String): Number = {

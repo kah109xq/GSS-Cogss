@@ -500,6 +500,16 @@ case class Table private (
   }
   warnings = warnings.concat(warningsFromColumns)
 
+  def validateRow(row: CSVRecord): WarningsAndErrors = {
+    if (columns.nonEmpty) {
+      for ((value, i) <- row.iterator.asScalaArray.zipWithIndex) {
+        //catch any exception here, possibly outOfBounds  and set warning too many values
+        val column = columns(i)
+        column.validate(value, row.getRecordNumber)
+      }
+    }
+    WarningsAndErrors(Array(), Array())
+  }
   def validateHeader(
       header: CSVRecord
   ): WarningsAndErrors = {
@@ -537,7 +547,7 @@ case class Table private (
       } else {
         errors :+= ErrorMessage("Malformed header", "Schema", "1", "", "", "")
       }
-      columnIndex = columnIndex + 1
+      columnIndex += 1
     }
     WarningsAndErrors(warnings, errors)
   }

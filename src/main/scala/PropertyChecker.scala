@@ -792,10 +792,10 @@ object PropertyChecker {
           try {
             // In ruby regexp is stored in format key. Also regexp validated. Determine how to handle this in scala
             // value["format"] = Regexp.new(value["format"])
-            objectNode.set(
-              "format",
-              new TextNode(objectNode.get("format").asText)
-            )
+            objectNode
+              .get("format")
+              .asText
+              .r //Add a unit test for invalid format warning
           } catch {
             case e: Exception => {
               objectNode.remove("format")
@@ -813,13 +813,8 @@ object PropertyChecker {
             if (formatValues.length != 2) {
               objectNode.remove("format")
               warnings = warnings :+ "invalid_boolean_format"
-            } else {
-              val arrayNodeObject = JsonNodeFactory.instance.arrayNode()
-              arrayNodeObject.add(formatValues(0))
-              arrayNodeObject.add(formatValues(1))
-              objectNode.replace("format", arrayNodeObject)
             }
-          }
+          } // Do we want to cope with an array node here? Do we not at least want a warning if it isn't textual or doesn't exist?
         } else if (
           PropertyCheckerConstants.DateFormatDataTypes.contains(baseValue)
         ) {

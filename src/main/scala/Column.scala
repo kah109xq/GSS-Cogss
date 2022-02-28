@@ -8,8 +8,9 @@ import com.fasterxml.jackson.databind.node.{
   ObjectNode,
   TextNode
 }
-import org.apache.commons.csv.CSVRecord
 
+import java.math.BigInteger
+import java.util.OptionalLong
 import scala.collection.mutable.Map
 import scala.jdk.CollectionConverters.IteratorHasAsScala
 
@@ -17,6 +18,186 @@ object Column {
   val datatypeDefaultValue: ObjectNode = JsonNodeFactory.instance
     .objectNode()
     .set("@id", new TextNode("http://www.w3.org/2001/XMLSchema#string"))
+
+  val DatatypeParser
+      : Map[String, (String, Option[String]) => Either[String, Any]] = Map(
+    "http://www.w3.org/1999/02/22-rdf-syntax-ns#XMLLiteral" -> trimValue(),
+    "http://www.w3.org/1999/02/22-rdf-syntax-ns#HTML" -> trimValue(),
+    "http://www.w3.org/ns/csvw#JSON" -> trimValue(),
+    "http://www.w3.org/2001/XMLSchema#anyAtomicType" -> allValueValid(),
+    "http://www.w3.org/2001/XMLSchema#anyURI" -> trimValue(),
+    "http://www.w3.org/2001/XMLSchema#base64Binary" -> trimValue(),
+    "http://www.w3.org/2001/XMLSchema#hexBinary" -> trimValue(),
+    "http://www.w3.org/2001/XMLSchema#QName" -> trimValue(),
+    "http://www.w3.org/2001/XMLSchema#string" -> allValueValid(),
+    "http://www.w3.org/2001/XMLSchema#normalizedString" -> trimValue(),
+    "http://www.w3.org/2001/XMLSchema#token" -> trimValue(),
+    "http://www.w3.org/2001/XMLSchema#language" -> trimValue(),
+    "http://www.w3.org/2001/XMLSchema#Name" -> trimValue(),
+    "http://www.w3.org/2001/XMLSchema#NMTOKEN" -> trimValue(),
+    "http://www.w3.org/2001/XMLSchema#boolean" -> processBooleanDatatype(),
+    "http://www.w3.org/2001/XMLSchema#decimal" -> processDecimalDatatype(),
+    "http://www.w3.org/2001/XMLSchema#integer" -> processIntegerDatatype(),
+    "http://www.w3.org/2001/XMLSchema#long" -> processLongDatatype(),
+    "http://www.w3.org/2001/XMLSchema#int" -> processIntDatatype(),
+    "http://www.w3.org/2001/XMLSchema#short" -> processShortDatatype()
+  )
+
+  def trimValue(): (String, Option[String]) => Either[String, String] =
+    (v, _) => Right(v.strip())
+
+  def allValueValid(): (String, Option[String]) => Either[String, String] =
+    (v, _) => Right(v)
+
+  // In csvlint the native boolean types are returned from this function. Returning strings to make it in line with
+  // other datatype validation functions
+  def processBooleanDatatype()
+      : (String, Option[String]) => Either[String, Boolean] = { (v, format) =>
+    {
+      Left("")
+      // tdo: Cope with where format hasn't been specified.
+      // retun boolean
+      // split on   | and do things
+//        else {
+//        val arrayNodeObject = JsonNodeFactory.instance.arrayNode()
+//        arrayNodeObject.add(formatValues(0))
+//        arrayNodeObject.add(formatValues(1))
+//        objectNode.replace("format", arrayNodeObject)
+//      }
+//      var tupleToReturn = (v, "invalid_boolean")
+//      if (format.isArray) {
+//        if (v == format.get(0).asText()) {
+//          tupleToReturn = ("true", "")
+//        } else if (v == format.get(1).asText()) {
+//          tupleToReturn = ("false", "")
+//        }
+//      } else if (format.isMissingNode) {
+//        if (Array[String]("true", "1").contains(v)) {
+//          tupleToReturn = ("true", "")
+//        } else if (Array[String]("false", "0").contains(v)) {
+//          tupleToReturn = ("false", "")
+//        } `format: "Y|N"`
+//      }
+//      tupleToReturn
+    }
+  }
+
+  def processDecimalDatatype()
+      : (String, Option[String]) => Either[String, Double] = {
+    (value, format) =>
+      {
+        Left("hi")
+//        val validDecimalDatatypeRegex =
+//          "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)".r
+//        if (!validDecimalDatatypeRegex.pattern.matcher(value).matches()) {
+//          Left("invalid_decimal")
+//        } else {
+//          val f = numericParser(value, format)
+//          Right(0.3d)
+//        }
+      }
+  }
+
+  def processIntegerDatatype()
+      : (String, Option[String]) => Either[String, BigInteger] = {
+    (value, format) =>
+      {
+        numericParser(value, format) match {
+          case Right(newValue) => {
+            try {
+              val bigIntValue = newValue match {
+                case _: java.lang.Long | _: Integer | _: java.lang.Short =>
+                  BigInteger.valueOf(newValue.longValue())
+                case bigDecimalValue: com.ibm.icu.math.BigDecimal =>
+                  bigDecimalValue.toBigIntegerExact
+                case _ =>
+                  throw new IllegalArgumentException(
+                    s"Unexpected type ${newValue.getClass}"
+                  )
+              }
+              Right(bigIntValue)
+            } catch {
+              case e => Left(s"invalid_integer - '$value' - ${e.getMessage}")
+            }
+          }
+          case Left(warning) => Left(s"invalid_integer - '${value}' ${warning}")
+        }
+      }
+  }
+
+  def processLongDatatype()
+      : (String, Option[String]) => Either[String, Long] = { (value, format) =>
+    {
+      Left("haii")
+//        val validLongDatatypeRegex = "[\\-+]?[0-9]+".r
+//        if (!validLongDatatypeRegex.pattern.matcher(value).matches()) {
+//          Left("invalid_integer")
+//        } else {
+//          numericParser(value, format) match {
+//            case Left(warning) => Left(s"invalid_long - ${warning}")
+//            case Right(newValue) => {
+//              val doubleValue = newValue.doubleValue()
+//              if (doubleValue > Long.MaxValue || doubleValue < Long.MinValue) {
+//                Left(s"invalid_long - '$value' Outside Long Range")
+//              } else Right(newValue.longValue())
+//            }
+//          }
+//        }
+    }
+  }
+
+  def processIntDatatype(): (String, Option[String]) => Either[String, Int] = {
+    (value, format) =>
+      {
+        Left("hi")
+//        val f = processIntegerDatatype()
+//        val (newValue, warning) = f(value, format)
+//        if (warning.nonEmpty) {
+//          ("", "invalid_int")
+//        } else if (
+//          newValue.toInt > Int.MaxValue || newValue.toInt < Int.MinValue
+//        )
+//          ("", "invalid_int")
+//        else (newValue, "")
+      }
+  }
+
+  def processShortDatatype()
+      : (String, Option[String]) => Either[String, Short] = { (value, format) =>
+    {
+      Left("hi")
+//        val f = processIntegerDatatype()
+//        val (newValue, warning) = f(value, format)
+
+    }
+  }
+
+  def numericParser(
+      value: String,
+      format: Option[String]
+  ): Either[String, Number] = {
+    val numberFormatObject = NumberFormat(format, None, None)
+    try {
+      Right(numberFormatObject.parse(value))
+    } catch {
+      case e: NumberFormatError => Left(e.getMessage)
+    }
+    // what should be returned from this string or Number from NumberFormat class ??
+  }
+
+//  def createDateParser(
+//      dateType: String,
+//      warning: String
+//  ): (String, String) => (String, String) = { (value, format) =>
+//    {
+//      val dateFormatObject = if (format.isEmpty) {
+//        DateFormat(None, Some(dateType))
+//      } else {
+//        DateFormat(Some(format), None)
+//      }
+////      dateFormatObject.parse(value)
+//    }
+//  }
 
   def getOrdered(inheritedProperties: Map[String, JsonNode]): Boolean = {
     val inheritedPropertiesNode = inheritedProperties.get("ordered")
@@ -248,7 +429,8 @@ object Column {
       virtual = getVirtual(columnProperties),
       textDirection = getTextDirection(inheritedPropertiesCopy),
       annotations = annotations,
-      warnings = warnings
+      warnings = warnings,
+      errors = Array()
     )
   }
 
@@ -269,6 +451,16 @@ object Column {
       case _              => datatypeDefaultValue
     }
   }
+
+  def languagesMatch(l1: String, l2: String): Boolean = {
+    val languagesMatchOrEitherIsUndefined =
+      l1 == l2 || l1 == "und" || l2 == "und"
+    val oneLanguageIsSubClassOfAnother =
+      l1.startsWith(s"$l2-") || l2.startsWith(s"$l1-")
+
+    languagesMatchOrEitherIsUndefined || oneLanguageIsSubClassOfAnother
+  }
+
 }
 
 case class Column private (
@@ -290,8 +482,43 @@ case class Column private (
     valueUrl: Option[String],
     virtual: Boolean,
     annotations: Map[String, JsonNode],
-    warnings: Array[ErrorMessage]
+    warnings: Array[ErrorMessage],
+    var errors: Array[ErrorMessage]
 ) {
+  def addErrorIfRequiredValueAndValueEmpty(
+      value: String,
+      rowNumber: Long
+  ): Unit = {
+    if (required && value.isEmpty) {
+      errors :+= ErrorMessage(
+        "Required",
+        "schema",
+        rowNumber.toString,
+        columnOrdinal.toString,
+        value,
+        s"required => $required"
+      )
+    }
+  }
+
+  def validate(value: String, rowNumber: Long) = {
+    if (nullParam.contains(value)) {
+      addErrorIfRequiredValueAndValueEmpty(value, rowNumber)
+    } else {
+      val newValue = separator match {
+        case Some(separator) => value.split(separator)
+        case None            => Array[String](value)
+      }
+      for (s <- newValue) {
+
+//        val (value, warning) = //CREATE DATATYPE PARSERS
+//        val format = ""
+//        val (value, warning) = Column.DatatypeParser(s)(value, format)
+      }
+
+    }
+  }
+
   def validateHeader(columnName: String): WarningsAndErrors = {
     var errors = Array[ErrorMessage]()
     titles match {
@@ -301,7 +528,7 @@ case class Column private (
           val titlesArray = Array.from(v.elements().asScala)
           for (title <- titlesArray) {
             val titleString = title.asText()
-            if (languagesMatch(titleString, lang)) {
+            if (Column.languagesMatch(titleString, lang)) {
               validHeaders :+= titleString
             }
           }
@@ -320,14 +547,5 @@ case class Column private (
       }
       case None => WarningsAndErrors(Array(), Array())
     }
-  }
-
-  def languagesMatch(l1: String, l2: String): Boolean = {
-    val languagesMatchOrEitherIsUndefined =
-      l1 == l2 || l1 == "und" || l2 == "und"
-    val oneLanguageIsSubClassOfAnother =
-      l1.startsWith(s"$l2-") || l2.startsWith(s"$l1-")
-
-    languagesMatchOrEitherIsUndefined || oneLanguageIsSubClassOfAnother
   }
 }

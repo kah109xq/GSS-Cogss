@@ -1,7 +1,31 @@
 package CSVValidation
 
+import CSVValidation.DateFormat.defaultFormats
+import com.ibm.icu.text.SimpleDateFormat
+import com.ibm.icu.util.{
+  BasicTimeZone,
+  Calendar,
+  GregorianCalendar,
+  SimpleTimeZone,
+  TimeZone
+}
+
+import java.util.Date
+
+object DateFormat {
+  val defaultFormats = Map(
+    "http://www.w3.org/2001/XMLSchema#date" -> "yyyy-MM-ddX",
+    "http://www.w3.org/2001/XMLSchema#dateTime" -> "yyyy-MM-dd'T'HH:mm:ss.SX",
+    "http://www.w3.org/2001/XMLSchema#dateTimeStamp" -> "yyyy-MM-dd'T'HH:mm:ss.SX",
+    "http://www.w3.org/2001/XMLSchema#gDay" -> "---ddX",
+    "http://www.w3.org/2001/XMLSchema#gMonth" -> "--MMX",
+    "http://www.w3.org/2001/XMLSchema#gMonthDay" -> "--MM-ddX",
+    "http://www.w3.org/2001/XMLSchema#gYear" -> "yyyyX",
+    "http://www.w3.org/2001/XMLSchema#gYearMonth" -> "yyyy-MMX",
+    "http://www.w3.org/2001/XMLSchema#time" -> "HH:mm:ss.SX"
+  )
+}
 case class DateFormat(pattern: Option[String], dataType: Option[String]) {
-  private var `type`: String = _
   private var format: String = _
   private val fields = Array[String](
     "yyyy",
@@ -20,33 +44,23 @@ case class DateFormat(pattern: Option[String], dataType: Option[String]) {
     "xxx"
   )
   private val xmlSchemaBaseUrl = "http://www.w3.org/2001/XMLSchema#"
-
-  def getType() = `type`
+  private var simpleDateFormatter: SimpleDateFormat = _
   def getFormat() = format
 
   (pattern, dataType) match {
     case (None, Some(dt)) => {
-      `type` = dt
-      format = "YYYY-MM-DDThh:mm:ss.sTZD"
+      format = defaultFormats(dt)
+//      simpleDateFormatter = new SimpleDateFormat(format)
+      simpleDateFormatter = new SimpleDateFormat()
+      simpleDateFormatter.applyLocalizedPattern(format)
     }
-    case (Some(p), None) => {
+    case (Some(p), _) => {
       format = p
+      simpleDateFormatter = new SimpleDateFormat(format)
       ensureDateTimeFormatContainsRecognizedSymbols(p)
-      val hoursRegExp = "HH".r
-      val yearsRegExp = "yyyy".r
-      val includesHours = hoursRegExp.pattern.matcher(p).find()
-      val includesYears = yearsRegExp.pattern.matcher(p).find
-      `type` = if (!includesHours && includesYears) {
-        s"${xmlSchemaBaseUrl}date"
-      } else if (includesHours && !(includesYears)) {
-        s"${xmlSchemaBaseUrl}time"
-      } else if (includesHours && includesYears) {
-        s"${xmlSchemaBaseUrl}dateTime"
-      } else
-        throw new DateFormatError(
-          s"Unexpected datetime format '${p}' does not appear to contain date or time components."
-        )
     }
+    case (None, None) =>
+      throw new DateFormatError("Pattern or datatype must be specified")
   }
 
   /**
@@ -69,6 +83,21 @@ case class DateFormat(pattern: Option[String], dataType: Option[String]) {
       throw new DateFormatError(
         "Unrecognised date field symbols in date format"
       )
+    }
+  }
+
+  def parse(inputDate: String): Option[Date] = {
+    val timeZoneForInputDate =
+      simpleDateFormatter.getTimeZoneFormat.parse("-05:00")
+    simpleDateFormatter.setTimeZone(timeZoneForInputDate)
+    val date = simpleDateFormatter.parse(inputDate)
+    val formattedDate = simpleDateFormatter.format(date)
+    if (formattedDate == inputDate) {
+      // If the `formattedDate` is exactly equal to the `inputDate`, then we know that the inputDate matches
+      // the `format` exactly.
+      Some(date)
+    } else {
+      None
     }
   }
 }

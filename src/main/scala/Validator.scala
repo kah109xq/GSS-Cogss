@@ -48,8 +48,6 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
     }
   }
 
-  var headerToBeProcessed = true
-
   def readCSV(tableUri: URI) = {
     val parser = if (tableUri.getScheme == "file") {
       CSVParser
@@ -66,11 +64,24 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
       )
     }
     for (row <- parser.asScala) {
-      if (
-        row.getRecordNumber == 1 && csvHeaderExpected && headerToBeProcessed
-      ) {
+      if (row.getRecordNumber == 1 && csvHeaderExpected) {
         validateHeader(row, tableUri)
-        headerToBeProcessed = false
+      } else {
+        if (row.size == 0) {
+          warnings :+= ErrorMessage(
+            "Blank rows",
+            "structure",
+            row.getRecordNumber.toString,
+            "",
+            "",
+            ""
+          )
+        }
+        schema match {
+          case Some(tableGroup) => {
+            tableGroup.validateRow(row, tableUri.toString)
+          }
+        }
       }
     }
   }

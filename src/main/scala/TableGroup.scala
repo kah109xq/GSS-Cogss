@@ -426,6 +426,10 @@ case class TableGroup private (
     })
   warnings = warnings.concat(warningsFromTables)
 
+  def validateRow(row: CSVRecord, tableUrl: String) = {
+    // revisit if we need a variable validatedTables (hash) as in csvlint
+    tables(tableUrl).validateRow(row)
+  }
   def validateHeader(
       header: CSVRecord,
       tableUrl: String
