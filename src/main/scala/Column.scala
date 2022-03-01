@@ -10,9 +10,9 @@ import com.fasterxml.jackson.databind.node.{
 }
 
 import java.math.BigInteger
-import java.util.OptionalLong
 import scala.collection.mutable.Map
 import scala.jdk.CollectionConverters.IteratorHasAsScala
+import scala.math.BigInt.javaBigInteger2bigInt
 
 object Column {
   val datatypeDefaultValue: ObjectNode = JsonNodeFactory.instance
@@ -40,7 +40,18 @@ object Column {
     "http://www.w3.org/2001/XMLSchema#integer" -> processIntegerDatatype(),
     "http://www.w3.org/2001/XMLSchema#long" -> processLongDatatype(),
     "http://www.w3.org/2001/XMLSchema#int" -> processIntDatatype(),
-    "http://www.w3.org/2001/XMLSchema#short" -> processShortDatatype()
+    "http://www.w3.org/2001/XMLSchema#short" -> processShortDatatype(),
+    "http://www.w3.org/2001/XMLSchema#byte" -> processByteDatatype(),
+    "http://www.w3.org/2001/XMLSchema#nonNegativeInteger" -> processNonNegativeInteger(),
+    "http://www.w3.org/2001/XMLSchema#positiveInteger" -> processPositiveInteger(),
+    "http://www.w3.org/2001/XMLSchema#unsignedLong" -> processUnsignedLong(),
+    "http://www.w3.org/2001/XMLSchema#unsignedInt" -> processUnsignedInt(),
+    "http://www.w3.org/2001/XMLSchema#unsignedShort" -> processUnsignedShort(),
+    "http://www.w3.org/2001/XMLSchema#unsignedByte" -> processUnsignedByte(),
+    "http://www.w3.org/2001/XMLSchema#nonPositiveInteger" -> processNonPositiveInteger(),
+    "http://www.w3.org/2001/XMLSchema#negativeInteger" -> processNegativeInteger(),
+    "http://www.w3.org/2001/XMLSchema#double" -> processDoubleDatatype(),
+    "http://www.w3.org/2001/XMLSchema#float" -> processFloatDatatype()
   )
 
   def trimValue(): (String, Option[String]) => Either[String, String] =
@@ -49,36 +60,27 @@ object Column {
   def allValueValid(): (String, Option[String]) => Either[String, String] =
     (v, _) => Right(v)
 
-  // In csvlint the native boolean types are returned from this function. Returning strings to make it in line with
-  // other datatype validation functions
   def processBooleanDatatype()
-      : (String, Option[String]) => Either[String, Boolean] = { (v, format) =>
+      : (String, Option[JsonNode]) => Either[String, Boolean] = { (v, format) =>
     {
-      Left("")
-      // tdo: Cope with where format hasn't been specified.
-      // retun boolean
-      // split on   | and do things
-//        else {
-//        val arrayNodeObject = JsonNodeFactory.instance.arrayNode()
-//        arrayNodeObject.add(formatValues(0))
-//        arrayNodeObject.add(formatValues(1))
-//        objectNode.replace("format", arrayNodeObject)
-//      }
-//      var tupleToReturn = (v, "invalid_boolean")
-//      if (format.isArray) {
-//        if (v == format.get(0).asText()) {
-//          tupleToReturn = ("true", "")
-//        } else if (v == format.get(1).asText()) {
-//          tupleToReturn = ("false", "")
-//        }
-//      } else if (format.isMissingNode) {
-//        if (Array[String]("true", "1").contains(v)) {
-//          tupleToReturn = ("true", "")
-//        } else if (Array[String]("false", "0").contains(v)) {
-//          tupleToReturn = ("false", "")
-//        } `format: "Y|N"`
-//      }
-//      tupleToReturn
+      var formatValues = Array[String]()
+      format match {
+        case Some(f) => {
+          formatValues = f.asText.split("""\|""")
+          if (formatValues(0) == v) {
+            Right(true)
+          } else if (formatValues(1) == v) {
+            Right(false)
+          } else Left("invalid_boolean")
+        }
+        case None => {
+          if (Array[String]("true", "1").contains(v)) {
+            Right(true)
+          } else if (Array[String]("false", "0").contains(v)) {
+            Right(false)
+          } else Left("invalid_boolean")
+        }
+      }
     }
   }
 
@@ -86,16 +88,50 @@ object Column {
       : (String, Option[String]) => Either[String, Double] = {
     (value, format) =>
       {
-        Left("hi")
-//        val validDecimalDatatypeRegex =
-//          "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)".r
-//        if (!validDecimalDatatypeRegex.pattern.matcher(value).matches()) {
-//          Left("invalid_decimal")
-//        } else {
-//          val f = numericParser(value, format)
-//          Right(0.3d)
-//        }
+        val validDecimalDatatypeRegex =
+          "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)".r
+        if (!validDecimalDatatypeRegex.pattern.matcher(value).matches()) {
+          Left("invalid_decimal")
+        } else {
+          numericParser(value, format) match {
+            case Left(_)         => Left("invalid_decimal")
+            case Right(newValue) => Right(newValue.doubleValue())
+          }
+        }
       }
+  }
+
+  def processDoubleDatatype()
+      : (String, Option[String]) => Either[String, Double] = {
+    (value, format) =>
+      {
+        val validDoubleDatatypeRegex =
+          "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([Ee](\\+|-)?[0-9]+)?|(\\+|-)?INF|NaN".r
+        if (!validDoubleDatatypeRegex.pattern.matcher(value).matches()) {
+          Left("invalid_double")
+        } else {
+          numericParser(value, format) match {
+            case Left(_)         => Left("invalid_double")
+            case Right(newValue) => Right(newValue.doubleValue())
+          }
+        }
+      }
+  }
+
+  def processFloatDatatype()
+      : (String, Option[String]) => Either[String, Float] = { (value, format) =>
+    {
+      val validFloatDatatypeRegex =
+        "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([Ee](\\+|-)?[0-9]+)?|(\\+|-)?INF|NaN".r
+      if (!validFloatDatatypeRegex.pattern.matcher(value).matches()) {
+        Left("invalid_float")
+      } else {
+        numericParser(value, format) match {
+          case Left(_)         => Left("invalid_float")
+          case Right(newValue) => Right(newValue.floatValue())
+        }
+      }
+    }
   }
 
   def processIntegerDatatype()
@@ -128,48 +164,194 @@ object Column {
   def processLongDatatype()
       : (String, Option[String]) => Either[String, Long] = { (value, format) =>
     {
-      Left("haii")
-//        val validLongDatatypeRegex = "[\\-+]?[0-9]+".r
-//        if (!validLongDatatypeRegex.pattern.matcher(value).matches()) {
-//          Left("invalid_integer")
-//        } else {
-//          numericParser(value, format) match {
-//            case Left(warning) => Left(s"invalid_long - ${warning}")
-//            case Right(newValue) => {
-//              val doubleValue = newValue.doubleValue()
-//              if (doubleValue > Long.MaxValue || doubleValue < Long.MinValue) {
-//                Left(s"invalid_long - '$value' Outside Long Range")
-//              } else Right(newValue.longValue())
-//            }
-//          }
-//        }
+      val validLongDatatypeRegex = "[\\-+]?[0-9]+".r
+      if (!validLongDatatypeRegex.pattern.matcher(value).matches()) {
+        Left("invalid_integer")
+      } else {
+        numericParser(value, format) match {
+          case Left(warning) => Left(s"invalid_long - ${warning}")
+          case Right(newValue) => {
+            val doubleValue = newValue.doubleValue()
+            if (doubleValue > Long.MaxValue || doubleValue < Long.MinValue) {
+              Left(s"invalid_long - '$value' Outside Long Range")
+            } else Right(newValue.longValue())
+          }
+        }
+      }
     }
   }
 
   def processIntDatatype(): (String, Option[String]) => Either[String, Int] = {
     (value, format) =>
       {
-        Left("hi")
-//        val f = processIntegerDatatype()
-//        val (newValue, warning) = f(value, format)
-//        if (warning.nonEmpty) {
-//          ("", "invalid_int")
-//        } else if (
-//          newValue.toInt > Int.MaxValue || newValue.toInt < Int.MinValue
-//        )
-//          ("", "invalid_int")
-//        else (newValue, "")
+        val result = processIntegerDatatype()(value, format)
+        result match {
+          case Left(_) => Left("invalid_int")
+          case Right(newValue) => {
+            val newValueInt = newValue.intValue()
+            if (newValueInt > Int.MaxValue || newValueInt < Int.MinValue)
+              Left("invalid_int")
+            else Right(newValue.intValue())
+          }
+        }
       }
   }
 
   def processShortDatatype()
       : (String, Option[String]) => Either[String, Short] = { (value, format) =>
     {
-      Left("hi")
-//        val f = processIntegerDatatype()
-//        val (newValue, warning) = f(value, format)
-
+      val result = processIntegerDatatype()(value, format)
+      result match {
+        case Left(_) => Left("invalid_short")
+        case Right(newValue) => {
+          val newValueShort = newValue.shortValue()
+          if (
+            newValueShort > Short.MaxValue || newValueShort < Short.MinValue
+          ) {
+            Left("invalid_short")
+          } else Right(newValue.shortValue())
+        }
+      }
     }
+  }
+
+  def processByteDatatype()
+      : (String, Option[String]) => Either[String, Byte] = { (value, format) =>
+    {
+      val result = processIntegerDatatype()(value, format)
+      result match {
+        case Left(_) => Left("invalid_byte")
+        case Right(newValue) => {
+          val newValueByte = newValue.byteValue()
+          if (newValueByte > Byte.MaxValue || newValueByte < Byte.MinValue) {
+            Left("invalid_byte")
+          } else Right(newValue.byteValue())
+        }
+      }
+    }
+  }
+
+  def processNonNegativeInteger()
+      : (String, Option[String]) => Either[String, BigInteger] = {
+    (value, format) =>
+      val result = processIntegerDatatype()(value, format)
+      result match {
+        case Left(_) => Left("invalid_nonNegativeInteger")
+        case Right(newValue) => {
+          if (newValue < 0) {
+            Left("invalid_nonNegativeInteger")
+          } else Right(newValue)
+        }
+      }
+  }
+
+  def processPositiveInteger()
+      : (String, Option[String]) => Either[String, BigInteger] = {
+    (value, format) =>
+      {
+        val result = processIntegerDatatype()(value, format)
+        result match {
+          case Left(_) => Left("invalid_positiveInteger")
+          case Right(newValue) => {
+            if (newValue <= 0) {
+              Left("invalid_positiveInteger")
+            } else Right(newValue)
+          }
+        }
+      }
+  }
+
+  def processUnsignedLong()
+      : (String, Option[String]) => Either[String, BigInteger] = {
+    (value, format) =>
+      {
+        val result = processNonNegativeInteger()(value, format)
+        result match {
+          case Left(_) => Left("invalid_unsignedLong")
+          case Right(newValue) => {
+            if (newValue > Long.MaxValue) { // This is not quite right X2 this value is what I need. FIX ME
+              Left("invalid_unsignedLong")
+            } else Right(newValue)
+          }
+        }
+      }
+  }
+
+  def processUnsignedInt(): (String, Option[String]) => Either[String, Long] = {
+    (value, format) =>
+      {
+        val result = processNonNegativeInteger()(value, format)
+        result match {
+          case Left(_) => Left("invalid_unsignedInt")
+          case Right(newValue) => {
+            if (newValue > 4294967295L) {
+              Left("invalid_unsignedInt")
+            } else Right(newValue.longValue())
+          }
+        }
+      }
+  }
+
+  def processUnsignedShort()
+      : (String, Option[String]) => Either[String, Long] = { (value, format) =>
+    {
+      val result = processNonNegativeInteger()(value, format)
+      result match {
+        case Left(_) => Left("invalid_unsignedShort")
+        case Right(newValue) => {
+          if (newValue > 65535) {
+            Left("invalid_unsignedShort")
+          } else Right(newValue.intValue())
+        }
+      }
+    }
+  }
+
+  def processUnsignedByte()
+      : (String, Option[String]) => Either[String, Short] = { (value, format) =>
+    {
+      val result = processNonNegativeInteger()(value, format)
+      result match {
+        case Left(_) => Left("invalid_unsignedByte")
+        case Right(newValue) => {
+          if (newValue > 255) {
+            Left("invalid_unsignedByte")
+          } else Right(newValue.shortValue())
+        }
+      }
+    }
+  }
+
+  def processNonPositiveInteger()
+      : (String, Option[String]) => Either[String, BigInteger] = {
+    (value, format) =>
+      {
+        val result = processNonNegativeInteger()(value, format)
+        result match {
+          case Left(_) => Left("invalid_nonPositiveInteger")
+          case Right(newValue) => {
+            if (newValue > 0) {
+              Left("invalid_nonPositiveInteger")
+            } else Right(newValue)
+          }
+        }
+      }
+  }
+
+  def processNegativeInteger()
+      : (String, Option[String]) => Either[String, BigInteger] = {
+    (value, format) =>
+      {
+        val result = processNonNegativeInteger()(value, format)
+        result match {
+          case Left(_) => Left("invalid_negativeInteger")
+          case Right(newValue) => {
+            if (newValue >= 0) {
+              Left("invalid_negativeInteger")
+            } else Right(newValue)
+          }
+        }
+      }
   }
 
   def numericParser(
@@ -182,7 +364,6 @@ object Column {
     } catch {
       case e: NumberFormatError => Left(e.getMessage)
     }
-    // what should be returned from this string or Number from NumberFormat class ??
   }
 
 //  def createDateParser(
