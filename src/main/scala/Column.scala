@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.node.{
 }
 
 import java.math.BigInteger
+import java.time.ZonedDateTime
 import scala.collection.mutable.Map
 import scala.jdk.CollectionConverters.IteratorHasAsScala
 import scala.math.BigInt.javaBigInteger2bigInt
@@ -51,7 +52,17 @@ object Column {
     "http://www.w3.org/2001/XMLSchema#nonPositiveInteger" -> processNonPositiveInteger(),
     "http://www.w3.org/2001/XMLSchema#negativeInteger" -> processNegativeInteger(),
     "http://www.w3.org/2001/XMLSchema#double" -> processDoubleDatatype(),
-    "http://www.w3.org/2001/XMLSchema#float" -> processFloatDatatype()
+    "http://www.w3.org/2001/XMLSchema#float" -> processFloatDatatype(),
+    // Date Time related datatype
+    "http://www.w3.org/2001/XMLSchema#date" -> processDateDatatype(),
+    "http://www.w3.org/2001/XMLSchema#dateTime" -> processDateTimeDatatype(),
+    "http://www.w3.org/2001/XMLSchema#dateTimeStamp" -> processDateTimeStamp(),
+    "http://www.w3.org/2001/XMLSchema#gDay" -> processGDay(),
+    "http://www.w3.org/2001/XMLSchema#gMonth" -> processGMonth(),
+    "http://www.w3.org/2001/XMLSchema#gMonthDay" -> processGMonthDay(),
+    "http://www.w3.org/2001/XMLSchema#gYear" -> processGYear(),
+    "http://www.w3.org/2001/XMLSchema#gYearMonth" -> processGYearMonth(),
+    "http://www.w3.org/2001/XMLSchema#time" -> processTime()
   )
 
   def trimValue(): (String, Option[String]) => Either[String, String] =
@@ -61,12 +72,12 @@ object Column {
     (v, _) => Right(v)
 
   def processBooleanDatatype()
-      : (String, Option[JsonNode]) => Either[String, Boolean] = { (v, format) =>
+      : (String, Option[String]) => Either[String, Boolean] = { (v, format) =>
     {
       var formatValues = Array[String]()
       format match {
         case Some(f) => {
-          formatValues = f.asText.split("""\|""")
+          formatValues = f.split("""\|""")
           if (formatValues(0) == v) {
             Right(true)
           } else if (formatValues(1) == v) {
@@ -344,7 +355,10 @@ object Column {
       {
         val result = processNonNegativeInteger()(value, format)
         result match {
-          case Left(_) => Left("invalid_negativeInteger")
+          case Left(_) =>
+            Left(
+              "invalid_negativeInteger"
+            ) // Add the original value in warnings
           case Right(newValue) => {
             if (newValue >= 0) {
               Left("invalid_negativeInteger")
@@ -366,19 +380,139 @@ object Column {
     }
   }
 
-//  def createDateParser(
-//      dateType: String,
-//      warning: String
-//  ): (String, String) => (String, String) = { (value, format) =>
-//    {
-//      val dateFormatObject = if (format.isEmpty) {
-//        DateFormat(None, Some(dateType))
-//      } else {
-//        DateFormat(Some(format), None)
-//      }
-////      dateFormatObject.parse(value)
-//    }
-//  }
+  def processDateDatatype()
+      : (String, Option[String]) => Either[String, ZonedDateTime] = {
+    (value, format) =>
+      {
+        dateTimeParser(
+          "http://www.w3.org/2001/XMLSchema#date",
+          "invalid_date",
+          value,
+          format
+        )
+      }
+  }
+
+  def processDateTimeDatatype()
+      : (String, Option[String]) => Either[String, ZonedDateTime] = {
+    (value, format) =>
+      {
+        dateTimeParser(
+          "http://www.w3.org/2001/XMLSchema#dateTime",
+          "invalid_datetime",
+          value,
+          format
+        )
+      }
+  }
+
+  def processDateTimeStamp()
+      : (String, Option[String]) => Either[String, ZonedDateTime] = {
+    (value, format) =>
+      {
+        dateTimeParser(
+          "http://www.w3.org/2001/XMLSchema#dateTimeStamp",
+          "invalid_dateTimeStamp",
+          value,
+          format
+        )
+      }
+  }
+
+  def processGDay()
+      : (String, Option[String]) => Either[String, ZonedDateTime] = {
+    (value, format) =>
+      {
+        dateTimeParser(
+          "http://www.w3.org/2001/XMLSchema#gDay",
+          "invalid_gDay",
+          value,
+          format
+        )
+      }
+  }
+
+  def processGMonth()
+      : (String, Option[String]) => Either[String, ZonedDateTime] = {
+    (value, format) =>
+      {
+        dateTimeParser(
+          "http://www.w3.org/2001/XMLSchema#gMonth",
+          "invalid_gMonth",
+          value,
+          format
+        )
+      }
+  }
+
+  def processGMonthDay()
+      : (String, Option[String]) => Either[String, ZonedDateTime] = {
+    (value, format) =>
+      {
+        dateTimeParser(
+          "http://www.w3.org/2001/XMLSchema#gMonthDay",
+          "invalid_gMonthDat",
+          value,
+          format
+        )
+      }
+  }
+
+  def processGYear()
+      : (String, Option[String]) => Either[String, ZonedDateTime] = {
+    (value, format) =>
+      {
+        dateTimeParser(
+          "http://www.w3.org/2001/XMLSchema#gYear",
+          "invalid_gYear",
+          value,
+          format
+        )
+      }
+  }
+
+  def processGYearMonth()
+      : (String, Option[String]) => Either[String, ZonedDateTime] = {
+    (value, format) =>
+      {
+        dateTimeParser(
+          "http://www.w3.org/2001/XMLSchema#gYearMonth",
+          "invalid_gYearMonth",
+          value,
+          format
+        )
+      }
+  }
+
+  def processTime()
+      : (String, Option[String]) => Either[String, ZonedDateTime] = {
+    (value, format) =>
+      {
+        dateTimeParser(
+          "http://www.w3.org/2001/XMLSchema#time",
+          "invalid_time",
+          value,
+          format
+        )
+      }
+  }
+
+  def dateTimeParser(
+      datatype: String,
+      warning: String,
+      value: String,
+      format: Option[String]
+  ): Either[String, ZonedDateTime] = {
+    val dateFormatObject = if (format.isEmpty) {
+      DateFormat(None, datatype)
+    } else {
+      DateFormat(format, datatype)
+    }
+    dateFormatObject.parse(value) match {
+      case Some(newValue) => Right(newValue)
+      case None           => Left(warning)
+    }
+  }
 
   def getOrdered(inheritedProperties: Map[String, JsonNode]): Boolean = {
     val inheritedPropertiesNode = inheritedProperties.get("ordered")

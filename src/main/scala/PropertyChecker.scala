@@ -821,8 +821,11 @@ object PropertyChecker {
           if (objectNode.get("format").isTextual) {
             try {
               val dateFormatString = objectNode.get("format").asText()
-              val format = DateFormat(Some(dateFormatString), None).getFormat()
-              objectNode.set("format", new TextNode(format))
+              val format =
+                DateFormat(Some(dateFormatString), baseValue).getFormat()
+              if (format.isDefined) {
+                objectNode.set("format", new TextNode(format.get))
+              }
             } catch {
               case e: DateFormatError => {
                 objectNode.remove("format")
