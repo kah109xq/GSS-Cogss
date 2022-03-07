@@ -33,9 +33,9 @@ object DateFormat {
   val timeZone = s"Z|[+-]((0$digit|1[0-3]):$minute|14:00)"
 
   val mapDataTypeToDefaultValueRegEx = Map(
-    "http://www.w3.org/2001/XMLSchema#dateTime" -> s"^$year-$month-${day}T($hour:$minute:$second|$endOfDay)($timeZone)?$$".r,
+    "http://www.w3.org/2001/XMLSchema#dateTime" -> s"^$year-$month-($day)T($hour:$minute:$second|$endOfDay)($timeZone)?$$".r,
     "http://www.w3.org/2001/XMLSchema#date" -> s"^$year-$month-$day($timeZone)?$$".r,
-    "http://www.w3.org/2001/XMLSchema#dateTimeStamp" -> s"^$year-$month-${day}T($hour:$minute:$second|$endOfDay)($timeZone)$$".r,
+    "http://www.w3.org/2001/XMLSchema#dateTimeStamp" -> s"^$year-$month-($day)T($hour:$minute:$second|$endOfDay)($timeZone)$$".r,
     "http://www.w3.org/2001/XMLSchema#gDay" -> s"^---$day($timeZone)?$$".r,
     "http://www.w3.org/2001/XMLSchema#gMonth" -> s"^--$month($timeZone)?$$".r,
     "http://www.w3.org/2001/XMLSchema#gMonthDay" -> s"^--$month-$day($timeZone)?$$".r,
@@ -127,10 +127,16 @@ case class DateFormat(format: Option[String], dataType: String) {
           case Some(defaultValueRegex) => {
             val matcher = defaultValueRegex.pattern.matcher(inputDate)
             if (matcher.matches()) {
-              val parsedDateTime = parseInputDateTimeRetainTimeZoneInfo(
-                inputDate
-              )
-              Some(getZonedDateTimeForIcuCalendar(parsedDateTime))
+              try {
+                val parsedDateTime = parseInputDateTimeRetainTimeZoneInfo(
+                  inputDate
+                )
+                Some(getZonedDateTimeForIcuCalendar(parsedDateTime))
+              } catch { // If there are some errors, don't break program execution - return None
+                // For example 04-31 is not a valid date since april has only 30 days. Invalid range exception will be
+                // thrown here, but if the date is non parsable return None as the return type for this method is Option
+                case e => None
+              }
             } else {
               None
             }
