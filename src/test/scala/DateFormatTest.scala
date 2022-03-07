@@ -57,7 +57,7 @@ class DateFormatTest extends FunSuite {
     assert(parsedDateTime.getHour == 12)
     assert(parsedDateTime.getMinute == 0)
     assert(parsedDateTime.getSecond == 0)
-    assert(parsedDateTime.getNano == 0.012 * 1e9)
+    assert(parsedDateTime.getNano == 0.0123456 * 1e9)
     assert(parsedDateTime.getOffset.getTotalSeconds == -5 * 60 * 60)
   }
 
@@ -76,7 +76,7 @@ class DateFormatTest extends FunSuite {
     assert(parsedDateTime.getHour == 12)
     assert(parsedDateTime.getMinute == 0)
     assert(parsedDateTime.getSecond == 0)
-    assert(parsedDateTime.getNano == 0.012 * 1e9)
+    assert(parsedDateTime.getNano == 0.0123456 * 1e9)
   }
 
   test("it should parse gDay") {
@@ -185,7 +185,7 @@ class DateFormatTest extends FunSuite {
     assert(maybeParsedDateTime.isDefined)
     val parsedDateTime = maybeParsedDateTime.get
     assert(parsedDateTime.getOffset.getTotalSeconds == -5 * 60 * 60)
-    assert(parsedDateTime.getNano == 0.555 * 1e9)
+    assert(parsedDateTime.getNano == 0.5555 * 1e9)
     assert(parsedDateTime.getHour == 13)
     assert(parsedDateTime.getMinute == 20)
     assert(parsedDateTime.getSecond == 30)
