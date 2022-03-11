@@ -149,16 +149,11 @@ case class DateFormat(format: Option[String], dataType: String) {
     utcZoneId
   }
 
-  private var simpleDateFormatter: Option[SimpleDateFormat] = None
   def getFormat() = format
-
-  format match {
-    case Some(f) => {
-      simpleDateFormatter = Some(new SimpleDateFormat(f))
-      ensureDateTimeFormatContainsRecognizedSymbols(f)
-    }
-    case None => {}
-  }
+  val simpleDateFormatter: Option[SimpleDateFormat] = format.map(f => {
+    ensureDateTimeFormatContainsRecognizedSymbols(f)
+    new SimpleDateFormat(f)
+  })
 
   /**
     * This function ensures that the pattern received does not contain symbols which this class does not
