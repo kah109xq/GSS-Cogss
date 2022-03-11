@@ -23,18 +23,6 @@ import java.util.regex.Matcher
 object DateFormat {
   private val xmlSchemaBaseUrl = "http://www.w3.org/2001/XMLSchema#"
 
-  val defaultFormats = Map(
-    s"${xmlSchemaBaseUrl}date" -> "yyyy-MM-ddX",
-    s"${xmlSchemaBaseUrl}dateTime" -> "yyyy-MM-dd'T'HH:mm:ss.SX",
-    s"${xmlSchemaBaseUrl}dateTimeStamp" -> "yyyy-MM-dd'T'HH:mm:ss.SX",
-    s"${xmlSchemaBaseUrl}gDay" -> "---ddX",
-    s"${xmlSchemaBaseUrl}gMonth" -> "--MMX",
-    s"${xmlSchemaBaseUrl}gMonthDay" -> "--MM-ddX",
-    s"${xmlSchemaBaseUrl}gYear" -> "yyyyX",
-    s"${xmlSchemaBaseUrl}gYearMonth" -> "yyyy-MMX",
-    s"${xmlSchemaBaseUrl}time" -> "HH:mm:ss.SX"
-  )
-
   object RegExGroups {
     val years = "years"
     val months = "months"
@@ -153,27 +141,23 @@ object DateFormat {
   )
 
   val utcZoneId = TimeZone.getTimeZone("UTC").toZoneId
-
 }
 case class DateFormat(format: Option[String], dataType: String) {
   import CSVValidation.DateFormat.{
-    defaultFormats,
     fields,
     mapDataTypeToDefaultValueRegEx,
     utcZoneId
   }
 
-  private var simpleDateFormatter: SimpleDateFormat = _
+  private var simpleDateFormatter: Option[SimpleDateFormat] = None
   def getFormat() = format
 
   format match {
     case Some(f) => {
-      simpleDateFormatter = new SimpleDateFormat(f)
+      simpleDateFormatter = Some(new SimpleDateFormat(f))
       ensureDateTimeFormatContainsRecognizedSymbols(f)
     }
-    case None => {
-      simpleDateFormatter = new SimpleDateFormat(defaultFormats(dataType))
-    }
+    case None => {}
   }
 
   /**
@@ -201,19 +185,20 @@ case class DateFormat(format: Option[String], dataType: String) {
   }
 
   def parse(inputDate: String): Option[ZonedDateTime] = {
-    format match {
-      case Some(_) => parseWithUts35FormatString(inputDate)
+    simpleDateFormatter match {
+      case Some(formatter) => parseWithUts35FormatString(formatter, inputDate)
       case None    => parseWithDefaultFormatForDataType(inputDate)
     }
   }
 
   private def parseWithUts35FormatString(
-      inputDate: String
+    formatter: SimpleDateFormat,
+    inputDate: String
   ): Option[ZonedDateTime] = {
-    val parsedDateTime = parseInputDateTimeRetainTimeZoneInfo(inputDate)
-    simpleDateFormatter.setTimeZone(parsedDateTime.getTimeZone)
+    val parsedDateTime = parseInputDateTimeRetainTimeZoneInfo(formatter, inputDate)
+    formatter.setTimeZone(parsedDateTime.getTimeZone)
 
-    val formattedDate = simpleDateFormatter.format(parsedDateTime.getTime)
+    val formattedDate = formatter.format(parsedDateTime.getTime)
     val formatPreservesAllInformation = formattedDate == inputDate
 
     if (formatPreservesAllInformation) {
@@ -382,14 +367,14 @@ case class DateFormat(format: Option[String], dataType: String) {
     )
   }
 
-  private def parseInputDateTimeRetainTimeZoneInfo(inputDate: String) = {
+  private def parseInputDateTimeRetainTimeZoneInfo(formatter: SimpleDateFormat, inputDate: String) = {
     val calendar = new GregorianCalendar(
       // Default timezone where the user's string does not specify one.
       com.ibm.icu.util.TimeZone.getTimeZone("UTC")
     )
     calendar.setLenient(false)
-    simpleDateFormatter.setLenient(false)
-    simpleDateFormatter.parse(inputDate, calendar, new ParsePosition(0))
+    formatter.setLenient(false)
+    formatter.parse(inputDate, calendar, new ParsePosition(0))
     calendar
   }
 }
