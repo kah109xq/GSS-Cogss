@@ -149,25 +149,31 @@ object Column {
       : (String, Option[String]) => Either[String, BigInteger] = {
     (value, format) =>
       {
-        numericParser(value, format) match {
-          case Right(newValue) => {
-            try {
-              val bigIntValue = newValue match {
-                case _: java.lang.Long | _: Integer | _: java.lang.Short =>
-                  BigInteger.valueOf(newValue.longValue())
-                case bigDecimalValue: com.ibm.icu.math.BigDecimal =>
-                  bigDecimalValue.toBigIntegerExact
-                case _ =>
-                  throw new IllegalArgumentException(
-                    s"Unexpected type ${newValue.getClass}"
-                  )
+        val validIntegerRegex = "[\\-+]?[0-9]+".r
+        if (!validIntegerRegex.pattern.matcher(value).matches()) {
+          Left("invalid_integer")
+        } else {
+          numericParser(value, format) match {
+            case Right(newValue) => {
+              try {
+                val bigIntValue = newValue match {
+                  case _: java.lang.Long | _: Integer | _: java.lang.Short =>
+                    BigInteger.valueOf(newValue.longValue())
+                  case bigDecimalValue: com.ibm.icu.math.BigDecimal =>
+                    bigDecimalValue.toBigIntegerExact
+                  case _ =>
+                    throw new IllegalArgumentException(
+                      s"Unexpected type ${newValue.getClass}"
+                    )
+                }
+                Right(bigIntValue)
+              } catch {
+                case e => Left(s"invalid_integer - '$value' - ${e.getMessage}")
               }
-              Right(bigIntValue)
-            } catch {
-              case e => Left(s"invalid_integer - '$value' - ${e.getMessage}")
             }
+            case Left(warning) =>
+              Left(s"invalid_integer - '${value}' ${warning}")
           }
-          case Left(warning) => Left(s"invalid_integer - '${value}' ${warning}")
         }
       }
   }
@@ -177,13 +183,13 @@ object Column {
     {
       val validLongDatatypeRegex = "[\\-+]?[0-9]+".r
       if (!validLongDatatypeRegex.pattern.matcher(value).matches()) {
-        Left("invalid_integer")
+        Left("invalid_long")
       } else {
-        numericParser(value, format) match {
+        processIntegerDatatype()(value, format) match {
           case Left(warning) => Left(s"invalid_long - ${warning}")
           case Right(newValue) => {
             val doubleValue = newValue.doubleValue()
-            if (doubleValue > Long.MaxValue || doubleValue < Long.MinValue) {
+            if (newValue > Long.MaxValue || newValue < Long.MinValue) {
               Left(s"invalid_long - '$value' Outside Long Range")
             } else Right(newValue.longValue())
           }
@@ -199,9 +205,8 @@ object Column {
         result match {
           case Left(_) => Left("invalid_int")
           case Right(newValue) => {
-            val newValueInt = newValue.intValue()
-            if (newValueInt > Int.MaxValue || newValueInt < Int.MinValue)
-              Left("invalid_int")
+            if (newValue > Int.MaxValue || newValue < Int.MinValue)
+              Left(s"invalid_int - '$value' Outside Int Range")
             else Right(newValue.intValue())
           }
         }
@@ -215,10 +220,7 @@ object Column {
       result match {
         case Left(_) => Left("invalid_short")
         case Right(newValue) => {
-          val newValueShort = newValue.shortValue()
-          if (
-            newValueShort > Short.MaxValue || newValueShort < Short.MinValue
-          ) {
+          if (newValue > Short.MaxValue || newValue < Short.MinValue) {
             Left("invalid_short")
           } else Right(newValue.shortValue())
         }
@@ -233,8 +235,7 @@ object Column {
       result match {
         case Left(_) => Left("invalid_byte")
         case Right(newValue) => {
-          val newValueByte = newValue.byteValue()
-          if (newValueByte > Byte.MaxValue || newValueByte < Byte.MinValue) {
+          if (newValue > Byte.MaxValue || newValue < Byte.MinValue) {
             Left("invalid_byte")
           } else Right(newValue.byteValue())
         }
@@ -337,7 +338,7 @@ object Column {
       : (String, Option[String]) => Either[String, BigInteger] = {
     (value, format) =>
       {
-        val result = processNonNegativeInteger()(value, format)
+        val result = processIntegerDatatype()(value, format)
         result match {
           case Left(_) => Left("invalid_nonPositiveInteger")
           case Right(newValue) => {
@@ -353,7 +354,7 @@ object Column {
       : (String, Option[String]) => Either[String, BigInteger] = {
     (value, format) =>
       {
-        val result = processNonNegativeInteger()(value, format)
+        val result = processIntegerDatatype()(value, format)
         result match {
           case Left(_) =>
             Left(
