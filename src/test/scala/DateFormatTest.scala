@@ -213,7 +213,7 @@ class DateFormatTest extends FunSuite {
     val dateFormatObj =
       DateFormat(None, "http://www.w3.org/2001/XMLSchema#dateTimeStamp")
     val maybeParsedDateTime = dateFormatObj.parse(
-      "2004-04-12T13:20:00-05:00" // Will fail for this value - check this "2004-04-12T13:20:00-05:00" from http://www.datypic.com/sc/xsd11/t-xsd_dateTimeStamp.html
+      "2004-04-12T13:20:00-05:00"
     )
     assert(maybeParsedDateTime.isDefined)
     val parsedDateTime = maybeParsedDateTime.get
@@ -227,9 +227,6 @@ class DateFormatTest extends FunSuite {
     val maybeParsedDateTime = dateFormatObj.parse(
       "-0045-01-01"
     )
-    // edge case "-0045-01-01" is a valid date but it cant be parsed properly
-    // the problem is in the DateFormat class. This exception is being caught and None is returned.
-    // Issue associated with dealing BC dates
     assert(maybeParsedDateTime.isDefined)
     val parsedDateTime = maybeParsedDateTime.get
     assert(parsedDateTime.getDayOfMonth == 1)
