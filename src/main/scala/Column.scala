@@ -1,5 +1,6 @@
 package CSVValidation
 
+import CSVValidation.Column.datatypeParser
 import CSVValidation.traits.ObjectNodeExtentions.IteratorHasGetKeysAndValues
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.{
@@ -20,353 +21,352 @@ object Column {
     .objectNode()
     .set("@id", new TextNode("http://www.w3.org/2001/XMLSchema#string"))
 
-  val DatatypeParser
-      : Map[String, (String, Option[String]) => Either[String, Any]] = Map(
-    "http://www.w3.org/1999/02/22-rdf-syntax-ns#XMLLiteral" -> trimValue(),
-    "http://www.w3.org/1999/02/22-rdf-syntax-ns#HTML" -> trimValue(),
-    "http://www.w3.org/ns/csvw#JSON" -> trimValue(),
-    "http://www.w3.org/2001/XMLSchema#anyAtomicType" -> allValueValid(),
-    "http://www.w3.org/2001/XMLSchema#anyURI" -> trimValue(),
-    "http://www.w3.org/2001/XMLSchema#base64Binary" -> trimValue(),
-    "http://www.w3.org/2001/XMLSchema#hexBinary" -> trimValue(),
-    "http://www.w3.org/2001/XMLSchema#QName" -> trimValue(),
-    "http://www.w3.org/2001/XMLSchema#string" -> allValueValid(),
-    "http://www.w3.org/2001/XMLSchema#normalizedString" -> trimValue(),
-    "http://www.w3.org/2001/XMLSchema#token" -> trimValue(),
-    "http://www.w3.org/2001/XMLSchema#language" -> trimValue(),
-    "http://www.w3.org/2001/XMLSchema#Name" -> trimValue(),
-    "http://www.w3.org/2001/XMLSchema#NMTOKEN" -> trimValue(),
-    "http://www.w3.org/2001/XMLSchema#boolean" -> processBooleanDatatype(),
-    "http://www.w3.org/2001/XMLSchema#decimal" -> processDecimalDatatype(),
-    "http://www.w3.org/2001/XMLSchema#integer" -> processIntegerDatatype(),
-    "http://www.w3.org/2001/XMLSchema#long" -> processLongDatatype(),
-    "http://www.w3.org/2001/XMLSchema#int" -> processIntDatatype(),
-    "http://www.w3.org/2001/XMLSchema#short" -> processShortDatatype(),
-    "http://www.w3.org/2001/XMLSchema#byte" -> processByteDatatype(),
-    "http://www.w3.org/2001/XMLSchema#nonNegativeInteger" -> processNonNegativeInteger(),
-    "http://www.w3.org/2001/XMLSchema#positiveInteger" -> processPositiveInteger(),
-    "http://www.w3.org/2001/XMLSchema#unsignedLong" -> processUnsignedLong(),
-    "http://www.w3.org/2001/XMLSchema#unsignedInt" -> processUnsignedInt(),
-    "http://www.w3.org/2001/XMLSchema#unsignedShort" -> processUnsignedShort(),
-    "http://www.w3.org/2001/XMLSchema#unsignedByte" -> processUnsignedByte(),
-    "http://www.w3.org/2001/XMLSchema#nonPositiveInteger" -> processNonPositiveInteger(),
-    "http://www.w3.org/2001/XMLSchema#negativeInteger" -> processNegativeInteger(),
-    "http://www.w3.org/2001/XMLSchema#double" -> processDoubleDatatype(),
-    "http://www.w3.org/2001/XMLSchema#float" -> processFloatDatatype(),
+  val datatypeParser = Map(
+    "http://www.w3.org/1999/02/22-rdf-syntax-ns#XMLLiteral" -> trimValue _,
+    "http://www.w3.org/1999/02/22-rdf-syntax-ns#HTML" -> trimValue _,
+    "http://www.w3.org/ns/csvw#JSON" -> trimValue _,
+    "http://www.w3.org/2001/XMLSchema#anyAtomicType" -> allValueValid _,
+    "http://www.w3.org/2001/XMLSchema#anyURI" -> trimValue _,
+    "http://www.w3.org/2001/XMLSchema#base64Binary" -> trimValue _,
+    "http://www.w3.org/2001/XMLSchema#hexBinary" -> trimValue _,
+    "http://www.w3.org/2001/XMLSchema#QName" -> trimValue _,
+    "http://www.w3.org/2001/XMLSchema#string" -> allValueValid _,
+    "http://www.w3.org/2001/XMLSchema#normalizedString" -> trimValue _,
+    "http://www.w3.org/2001/XMLSchema#token" -> trimValue _,
+    "http://www.w3.org/2001/XMLSchema#language" -> trimValue _,
+    "http://www.w3.org/2001/XMLSchema#Name" -> trimValue _,
+    "http://www.w3.org/2001/XMLSchema#NMTOKEN" -> trimValue _,
+    "http://www.w3.org/2001/XMLSchema#boolean" -> processBooleanDatatype _,
+    "http://www.w3.org/2001/XMLSchema#decimal" -> processDecimalDatatype _,
+    "http://www.w3.org/2001/XMLSchema#integer" -> processIntegerDatatype _,
+    "http://www.w3.org/2001/XMLSchema#long" -> processLongDatatype _,
+    "http://www.w3.org/2001/XMLSchema#int" -> processIntDatatype _,
+    "http://www.w3.org/2001/XMLSchema#short" -> processShortDatatype _,
+    "http://www.w3.org/2001/XMLSchema#byte" -> processByteDatatype _,
+    "http://www.w3.org/2001/XMLSchema#nonNegativeInteger" -> processNonNegativeInteger _,
+    "http://www.w3.org/2001/XMLSchema#positiveInteger" -> processPositiveInteger _,
+    "http://www.w3.org/2001/XMLSchema#unsignedLong" -> processUnsignedLong _,
+    "http://www.w3.org/2001/XMLSchema#unsignedInt" -> processUnsignedInt _,
+    "http://www.w3.org/2001/XMLSchema#unsignedShort" -> processUnsignedShort _,
+    "http://www.w3.org/2001/XMLSchema#unsignedByte" -> processUnsignedByte _,
+    "http://www.w3.org/2001/XMLSchema#nonPositiveInteger" -> processNonPositiveInteger _,
+    "http://www.w3.org/2001/XMLSchema#negativeInteger" -> processNegativeInteger _,
+    "http://www.w3.org/2001/XMLSchema#double" -> processDoubleDatatype _,
+    "http://www.w3.org/2001/XMLSchema#float" -> processFloatDatatype _,
     // Date Time related datatype
-    "http://www.w3.org/2001/XMLSchema#date" -> processDateDatatype(),
-    "http://www.w3.org/2001/XMLSchema#dateTime" -> processDateTimeDatatype(),
-    "http://www.w3.org/2001/XMLSchema#dateTimeStamp" -> processDateTimeStamp(),
-    "http://www.w3.org/2001/XMLSchema#gDay" -> processGDay(),
-    "http://www.w3.org/2001/XMLSchema#gMonth" -> processGMonth(),
-    "http://www.w3.org/2001/XMLSchema#gMonthDay" -> processGMonthDay(),
-    "http://www.w3.org/2001/XMLSchema#gYear" -> processGYear(),
-    "http://www.w3.org/2001/XMLSchema#gYearMonth" -> processGYearMonth(),
-    "http://www.w3.org/2001/XMLSchema#time" -> processTime()
+    "http://www.w3.org/2001/XMLSchema#date" -> processDateDatatype _,
+    "http://www.w3.org/2001/XMLSchema#dateTime" -> processDateTimeDatatype _,
+    "http://www.w3.org/2001/XMLSchema#dateTimeStamp" -> processDateTimeStamp _,
+    "http://www.w3.org/2001/XMLSchema#gDay" -> processGDay _,
+    "http://www.w3.org/2001/XMLSchema#gMonth" -> processGMonth _,
+    "http://www.w3.org/2001/XMLSchema#gMonthDay" -> processGMonthDay _,
+    "http://www.w3.org/2001/XMLSchema#gYear" -> processGYear _,
+    "http://www.w3.org/2001/XMLSchema#gYearMonth" -> processGYearMonth _,
+    "http://www.w3.org/2001/XMLSchema#time" -> processTime _
   )
 
-  def trimValue(): (String, Option[String]) => Either[String, String] =
-    (v, _) => Right(v.strip())
+  def trimValue(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, String] = Right(value.strip())
 
-  def allValueValid(): (String, Option[String]) => Either[String, String] =
-    (v, _) => Right(v)
+  def allValueValid(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, String] = {
+    Right(value)
+  }
 
-  def processBooleanDatatype()
-      : (String, Option[String]) => Either[String, Boolean] = { (v, format) =>
-    {
-      var formatValues = Array[String]()
-      format match {
-        case Some(f) => {
-          formatValues = f.split("""\|""")
-          if (formatValues(0) == v) {
-            Right(true)
-          } else if (formatValues(1) == v) {
-            Right(false)
-          } else Left("invalid_boolean")
-        }
-        case None => {
-          if (Array[String]("true", "1").contains(v)) {
-            Right(true)
-          } else if (Array[String]("false", "0").contains(v)) {
-            Right(false)
-          } else Left("invalid_boolean")
-        }
+  def processBooleanDatatype(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, Boolean] = {
+    maybeFormat match {
+      case Some(f) => {
+        var formatValues = Array[String]()
+        formatValues = f.split("""\|""")
+        if (formatValues(0) == value) {
+          Right(true)
+        } else if (formatValues(1) == value) {
+          Right(false)
+        } else Left("invalid_boolean")
+      }
+      case None => {
+        if (Array[String]("true", "1").contains(value)) {
+          Right(true)
+        } else if (Array[String]("false", "0").contains(value)) {
+          Right(false)
+        } else Left("invalid_boolean")
       }
     }
   }
 
-  def processDecimalDatatype()
-      : (String, Option[String]) => Either[String, Double] = {
-    (value, format) =>
-      {
-        val validDecimalDatatypeRegex =
-          "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)".r
-        if (!validDecimalDatatypeRegex.pattern.matcher(value).matches()) {
-          Left("invalid_decimal")
-        } else {
-          numericParser(value, format) match {
-            case Left(_)         => Left("invalid_decimal")
-            case Right(newValue) => Right(newValue.doubleValue())
-          }
-        }
-      }
-  }
-
-  def processDoubleDatatype()
-      : (String, Option[String]) => Either[String, Double] = {
-    (value, format) =>
-      {
-        val validDoubleDatatypeRegex =
-          "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([Ee](\\+|-)?[0-9]+)?|(\\+|-)?INF|NaN".r
-        if (!validDoubleDatatypeRegex.pattern.matcher(value).matches()) {
-          Left("invalid_double")
-        } else {
-          numericParser(value, format) match {
-            case Left(_)         => Left("invalid_double")
-            case Right(newValue) => Right(newValue.doubleValue())
-          }
-        }
-      }
-  }
-
-  def processFloatDatatype()
-      : (String, Option[String]) => Either[String, Float] = { (value, format) =>
-    {
-      val validFloatDatatypeRegex =
-        "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([Ee](\\+|-)?[0-9]+)?|(\\+|-)?INF|NaN".r
-      if (!validFloatDatatypeRegex.pattern.matcher(value).matches()) {
-        Left("invalid_float")
-      } else {
-        numericParser(value, format) match {
-          case Left(_)         => Left("invalid_float")
-          case Right(newValue) => Right(newValue.floatValue())
-        }
+  def processDecimalDatatype(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, Double] = {
+    val validDecimalDatatypeRegex =
+      "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)".r
+    if (!validDecimalDatatypeRegex.pattern.matcher(value).matches()) {
+      Left("invalid_decimal")
+    } else {
+      numericParser(value, maybeFormat) match {
+        case Left(_)         => Left("invalid_decimal")
+        case Right(newValue) => Right(newValue.doubleValue())
       }
     }
   }
 
-  def processIntegerDatatype()
-      : (String, Option[String]) => Either[String, BigInteger] = {
-    (value, format) =>
-      {
-        val validIntegerRegex = "[\\-+]?[0-9]+".r
-        if (!validIntegerRegex.pattern.matcher(value).matches()) {
-          Left("invalid_integer")
-        } else {
-          numericParser(value, format) match {
-            case Right(newValue) => {
-              try {
-                val bigIntValue = newValue match {
-                  case _: java.lang.Long | _: Integer | _: java.lang.Short =>
-                    BigInteger.valueOf(newValue.longValue())
-                  case bigDecimalValue: com.ibm.icu.math.BigDecimal =>
-                    bigDecimalValue.toBigIntegerExact
-                  case _ =>
-                    throw new IllegalArgumentException(
-                      s"Unexpected type ${newValue.getClass}"
-                    )
-                }
-                Right(bigIntValue)
-              } catch {
-                case e => Left(s"invalid_integer - '$value' - ${e.getMessage}")
-              }
+  def processDoubleDatatype(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, Double] = {
+    val validDoubleDatatypeRegex =
+      "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([Ee](\\+|-)?[0-9]+)?|(\\+|-)?INF|NaN".r
+    if (!validDoubleDatatypeRegex.pattern.matcher(value).matches()) {
+      Left("invalid_double")
+    } else {
+      numericParser(value, maybeFormat) match {
+        case Left(_)         => Left("invalid_double")
+        case Right(newValue) => Right(newValue.doubleValue())
+      }
+    }
+  }
+
+  def processFloatDatatype(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, Float] = {
+    val validFloatDatatypeRegex =
+      "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([Ee](\\+|-)?[0-9]+)?|(\\+|-)?INF|NaN".r
+    if (!validFloatDatatypeRegex.pattern.matcher(value).matches()) {
+      Left("invalid_float")
+    } else {
+      numericParser(value, maybeFormat) match {
+        case Left(_)         => Left("invalid_float")
+        case Right(newValue) => Right(newValue.floatValue())
+      }
+    }
+  }
+
+  def processIntegerDatatype(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, BigInteger] = {
+    val validIntegerRegex = "[\\-+]?[0-9]+".r
+    if (!validIntegerRegex.pattern.matcher(value).matches()) {
+      Left("invalid_integer")
+    } else {
+      numericParser(value, maybeFormat) match {
+        case Right(newValue) => {
+          try {
+            val bigIntValue = newValue match {
+              case _: java.lang.Long | _: Integer | _: java.lang.Short =>
+                BigInteger.valueOf(newValue.longValue())
+              case bigDecimalValue: com.ibm.icu.math.BigDecimal =>
+                bigDecimalValue.toBigIntegerExact
+              case _ =>
+                throw new IllegalArgumentException(
+                  s"Unexpected type ${newValue.getClass}"
+                )
             }
-            case Left(warning) =>
-              Left(s"invalid_integer - '${value}' ${warning}")
+            Right(bigIntValue)
+          } catch {
+            case e => Left(s"invalid_integer - '$value' - ${e.getMessage}")
           }
         }
+        case Left(warning) =>
+          Left(s"invalid_integer - '${value}' ${warning}")
       }
+    }
   }
 
-  def processLongDatatype()
-      : (String, Option[String]) => Either[String, Long] = { (value, format) =>
-    {
-      val validLongDatatypeRegex = "[\\-+]?[0-9]+".r
-      if (!validLongDatatypeRegex.pattern.matcher(value).matches()) {
-        Left("invalid_long")
-      } else {
-        processIntegerDatatype()(value, format) match {
-          case Left(warning) => Left(s"invalid_long - ${warning}")
-          case Right(newValue) => {
-            val doubleValue = newValue.doubleValue()
-            if (newValue > Long.MaxValue || newValue < Long.MinValue) {
-              Left(s"invalid_long - '$value' Outside Long Range")
-            } else Right(newValue.longValue())
-          }
+  def processLongDatatype(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, Long] = {
+    val validLongDatatypeRegex = "[\\-+]?[0-9]+".r
+    if (!validLongDatatypeRegex.pattern.matcher(value).matches()) {
+      Left("invalid_long")
+    } else {
+      processIntegerDatatype(value, maybeFormat) match {
+        case Left(warning) => Left(s"invalid_long - ${warning}")
+        case Right(newValue) => {
+          val doubleValue = newValue.doubleValue()
+          if (newValue > Long.MaxValue || newValue < Long.MinValue) {
+            Left(s"invalid_long - '$value' Outside Long Range")
+          } else Right(newValue.longValue())
         }
       }
     }
   }
 
-  def processIntDatatype(): (String, Option[String]) => Either[String, Int] = {
-    (value, format) =>
-      {
-        val result = processIntegerDatatype()(value, format)
-        result match {
-          case Left(_) => Left("invalid_int")
-          case Right(newValue) => {
-            if (newValue > Int.MaxValue || newValue < Int.MinValue)
-              Left(s"invalid_int - '$value' Outside Int Range")
-            else Right(newValue.intValue())
-          }
-        }
-      }
-  }
-
-  def processShortDatatype()
-      : (String, Option[String]) => Either[String, Short] = { (value, format) =>
-    {
-      val result = processIntegerDatatype()(value, format)
-      result match {
-        case Left(_) => Left("invalid_short")
-        case Right(newValue) => {
-          if (newValue > Short.MaxValue || newValue < Short.MinValue) {
-            Left("invalid_short")
-          } else Right(newValue.shortValue())
-        }
+  def processIntDatatype(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, Int] = {
+    val result = processIntegerDatatype(value, maybeFormat)
+    result match {
+      case Left(_) => Left("invalid_int")
+      case Right(newValue) => {
+        if (newValue > Int.MaxValue || newValue < Int.MinValue)
+          Left(s"invalid_int - '$value' Outside Int Range")
+        else Right(newValue.intValue())
       }
     }
   }
 
-  def processByteDatatype()
-      : (String, Option[String]) => Either[String, Byte] = { (value, format) =>
-    {
-      val result = processIntegerDatatype()(value, format)
-      result match {
-        case Left(_) => Left("invalid_byte")
-        case Right(newValue) => {
-          if (newValue > Byte.MaxValue || newValue < Byte.MinValue) {
-            Left("invalid_byte")
-          } else Right(newValue.byteValue())
-        }
+  def processShortDatatype(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, Short] = {
+    val result = processIntegerDatatype(value, maybeFormat)
+    result match {
+      case Left(_) => Left("invalid_short")
+      case Right(newValue) => {
+        if (newValue > Short.MaxValue || newValue < Short.MinValue) {
+          Left("invalid_short")
+        } else Right(newValue.shortValue())
       }
     }
   }
 
-  def processNonNegativeInteger()
-      : (String, Option[String]) => Either[String, BigInteger] = {
-    (value, format) =>
-      val result = processIntegerDatatype()(value, format)
-      result match {
-        case Left(_) => Left("invalid_nonNegativeInteger")
-        case Right(newValue) => {
-          if (newValue < 0) {
-            Left("invalid_nonNegativeInteger")
-          } else Right(newValue)
-        }
-      }
-  }
-
-  def processPositiveInteger()
-      : (String, Option[String]) => Either[String, BigInteger] = {
-    (value, format) =>
-      {
-        val result = processIntegerDatatype()(value, format)
-        result match {
-          case Left(_) => Left("invalid_positiveInteger")
-          case Right(newValue) => {
-            if (newValue <= 0) {
-              Left("invalid_positiveInteger")
-            } else Right(newValue)
-          }
-        }
-      }
-  }
-
-  def processUnsignedLong()
-      : (String, Option[String]) => Either[String, BigInteger] = {
-    (value, format) =>
-      {
-        val result = processNonNegativeInteger()(value, format)
-        result match {
-          case Left(_) => Left("invalid_unsignedLong")
-          case Right(newValue) => {
-            if (newValue > Long.MaxValue) { // This is not quite right X2 this value is what I need. FIX ME
-              Left("invalid_unsignedLong")
-            } else Right(newValue)
-          }
-        }
-      }
-  }
-
-  def processUnsignedInt(): (String, Option[String]) => Either[String, Long] = {
-    (value, format) =>
-      {
-        val result = processNonNegativeInteger()(value, format)
-        result match {
-          case Left(_) => Left("invalid_unsignedInt")
-          case Right(newValue) => {
-            if (newValue > 4294967295L) {
-              Left("invalid_unsignedInt")
-            } else Right(newValue.longValue())
-          }
-        }
-      }
-  }
-
-  def processUnsignedShort()
-      : (String, Option[String]) => Either[String, Long] = { (value, format) =>
-    {
-      val result = processNonNegativeInteger()(value, format)
-      result match {
-        case Left(_) => Left("invalid_unsignedShort")
-        case Right(newValue) => {
-          if (newValue > 65535) {
-            Left("invalid_unsignedShort")
-          } else Right(newValue.intValue())
-        }
+  def processByteDatatype(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, Byte] = {
+    val result = processIntegerDatatype(value, maybeFormat)
+    result match {
+      case Left(_) => Left("invalid_byte")
+      case Right(newValue) => {
+        if (newValue > Byte.MaxValue || newValue < Byte.MinValue) {
+          Left("invalid_byte")
+        } else Right(newValue.byteValue())
       }
     }
   }
 
-  def processUnsignedByte()
-      : (String, Option[String]) => Either[String, Short] = { (value, format) =>
-    {
-      val result = processNonNegativeInteger()(value, format)
-      result match {
-        case Left(_) => Left("invalid_unsignedByte")
-        case Right(newValue) => {
-          if (newValue > 255) {
-            Left("invalid_unsignedByte")
-          } else Right(newValue.shortValue())
-        }
+  def processNonNegativeInteger(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, BigInteger] = {
+    val result = processIntegerDatatype(value, maybeFormat)
+    result match {
+      case Left(_) => Left("invalid_nonNegativeInteger")
+      case Right(newValue) => {
+        if (newValue < 0) {
+          Left("invalid_nonNegativeInteger")
+        } else Right(newValue)
       }
     }
   }
 
-  def processNonPositiveInteger()
-      : (String, Option[String]) => Either[String, BigInteger] = {
-    (value, format) =>
-      {
-        val result = processIntegerDatatype()(value, format)
-        result match {
-          case Left(_) => Left("invalid_nonPositiveInteger")
-          case Right(newValue) => {
-            if (newValue > 0) {
-              Left("invalid_nonPositiveInteger")
-            } else Right(newValue)
-          }
-        }
+  def processPositiveInteger(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, BigInteger] = {
+    val result = processIntegerDatatype(value, maybeFormat)
+    result match {
+      case Left(_) => Left("invalid_positiveInteger")
+      case Right(newValue) => {
+        if (newValue <= 0) {
+          Left("invalid_positiveInteger")
+        } else Right(newValue)
       }
+    }
   }
 
-  def processNegativeInteger()
-      : (String, Option[String]) => Either[String, BigInteger] = {
-    (value, format) =>
-      {
-        val result = processIntegerDatatype()(value, format)
-        result match {
-          case Left(_) =>
-            Left(
-              "invalid_negativeInteger"
-            ) // Add the original value in warnings
-          case Right(newValue) => {
-            if (newValue >= 0) {
-              Left("invalid_negativeInteger")
-            } else Right(newValue)
-          }
-        }
+  def processUnsignedLong(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, BigInteger] = {
+    val result = processNonNegativeInteger(value, maybeFormat)
+    result match {
+      case Left(_) => Left("invalid_unsignedLong")
+      case Right(newValue) => {
+        if (newValue > Long.MaxValue) { // This is not quite right X2 this value is what I need. FIX ME
+          Left("invalid_unsignedLong")
+        } else Right(newValue)
       }
+    }
+  }
+
+  def processUnsignedInt(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, Long] = {
+    val result = processNonNegativeInteger(value, maybeFormat)
+    result match {
+      case Left(_) => Left("invalid_unsignedInt")
+      case Right(newValue) => {
+        if (newValue > 4294967295L) {
+          Left("invalid_unsignedInt")
+        } else Right(newValue.longValue())
+      }
+    }
+  }
+
+  def processUnsignedShort(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, Long] = {
+    val result = processNonNegativeInteger(value, maybeFormat)
+    result match {
+      case Left(_) => Left("invalid_unsignedShort")
+      case Right(newValue) => {
+        if (newValue > 65535) {
+          Left("invalid_unsignedShort")
+        } else Right(newValue.intValue())
+      }
+    }
+  }
+
+  def processUnsignedByte(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, Short] = {
+    val result = processNonNegativeInteger(value, maybeFormat)
+    result match {
+      case Left(_) => Left("invalid_unsignedByte")
+      case Right(newValue) => {
+        if (newValue > 255) {
+          Left("invalid_unsignedByte")
+        } else Right(newValue.shortValue())
+      }
+    }
+  }
+
+  def processNonPositiveInteger(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, BigInteger] = {
+    val result = processIntegerDatatype(value, maybeFormat)
+    result match {
+      case Left(_) => Left("invalid_nonPositiveInteger")
+      case Right(newValue) => {
+        if (newValue > 0) {
+          Left("invalid_nonPositiveInteger")
+        } else Right(newValue)
+      }
+    }
+  }
+
+  def processNegativeInteger(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, BigInteger] = {
+    val result = processIntegerDatatype(value, maybeFormat)
+    result match {
+      case Left(_) =>
+        Left(
+          "invalid_negativeInteger"
+        ) // Add the original value in warnings
+      case Right(newValue) => {
+        if (newValue >= 0) {
+          Left("invalid_negativeInteger")
+        } else Right(newValue)
+      }
+    }
   }
 
   def numericParser(
@@ -381,121 +381,111 @@ object Column {
     }
   }
 
-  def processDateDatatype()
-      : (String, Option[String]) => Either[String, ZonedDateTime] = {
-    (value, format) =>
-      {
-        dateTimeParser(
-          "http://www.w3.org/2001/XMLSchema#date",
-          "invalid_date",
-          value,
-          format
-        )
-      }
+  def processDateDatatype(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, ZonedDateTime] = {
+    dateTimeParser(
+      "http://www.w3.org/2001/XMLSchema#date",
+      "invalid_date",
+      value,
+      maybeFormat
+    )
   }
 
-  def processDateTimeDatatype()
-      : (String, Option[String]) => Either[String, ZonedDateTime] = {
-    (value, format) =>
-      {
-        dateTimeParser(
-          "http://www.w3.org/2001/XMLSchema#dateTime",
-          "invalid_datetime",
-          value,
-          format
-        )
-      }
+  def processDateTimeDatatype(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, ZonedDateTime] = {
+    dateTimeParser(
+      "http://www.w3.org/2001/XMLSchema#dateTime",
+      "invalid_datetime",
+      value,
+      maybeFormat
+    )
   }
 
-  def processDateTimeStamp()
-      : (String, Option[String]) => Either[String, ZonedDateTime] = {
-    (value, format) =>
-      {
-        dateTimeParser(
-          "http://www.w3.org/2001/XMLSchema#dateTimeStamp",
-          "invalid_dateTimeStamp",
-          value,
-          format
-        )
-      }
+  def processDateTimeStamp(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, ZonedDateTime] = {
+    dateTimeParser(
+      "http://www.w3.org/2001/XMLSchema#dateTimeStamp",
+      "invalid_dateTimeStamp",
+      value,
+      maybeFormat
+    )
   }
 
-  def processGDay()
-      : (String, Option[String]) => Either[String, ZonedDateTime] = {
-    (value, format) =>
-      {
-        dateTimeParser(
-          "http://www.w3.org/2001/XMLSchema#gDay",
-          "invalid_gDay",
-          value,
-          format
-        )
-      }
+  def processGDay(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, ZonedDateTime] = {
+    dateTimeParser(
+      "http://www.w3.org/2001/XMLSchema#gDay",
+      "invalid_gDay",
+      value,
+      maybeFormat
+    )
   }
 
-  def processGMonth()
-      : (String, Option[String]) => Either[String, ZonedDateTime] = {
-    (value, format) =>
-      {
-        dateTimeParser(
-          "http://www.w3.org/2001/XMLSchema#gMonth",
-          "invalid_gMonth",
-          value,
-          format
-        )
-      }
+  def processGMonth(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, ZonedDateTime] = {
+    dateTimeParser(
+      "http://www.w3.org/2001/XMLSchema#gMonth",
+      "invalid_gMonth",
+      value,
+      maybeFormat
+    )
   }
 
-  def processGMonthDay()
-      : (String, Option[String]) => Either[String, ZonedDateTime] = {
-    (value, format) =>
-      {
-        dateTimeParser(
-          "http://www.w3.org/2001/XMLSchema#gMonthDay",
-          "invalid_gMonthDat",
-          value,
-          format
-        )
-      }
+  def processGMonthDay(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, ZonedDateTime] = {
+    dateTimeParser(
+      "http://www.w3.org/2001/XMLSchema#gMonthDay",
+      "invalid_gMonthDat",
+      value,
+      maybeFormat
+    )
   }
 
-  def processGYear()
-      : (String, Option[String]) => Either[String, ZonedDateTime] = {
-    (value, format) =>
-      {
-        dateTimeParser(
-          "http://www.w3.org/2001/XMLSchema#gYear",
-          "invalid_gYear",
-          value,
-          format
-        )
-      }
+  def processGYear(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, ZonedDateTime] = {
+    dateTimeParser(
+      "http://www.w3.org/2001/XMLSchema#gYear",
+      "invalid_gYear",
+      value,
+      maybeFormat
+    )
+  }
+  def processGYearMonth(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, ZonedDateTime] = {
+    dateTimeParser(
+      "http://www.w3.org/2001/XMLSchema#gYearMonth",
+      "invalid_gYearMonth",
+      value,
+      maybeFormat
+    )
   }
 
-  def processGYearMonth()
-      : (String, Option[String]) => Either[String, ZonedDateTime] = {
-    (value, format) =>
-      {
-        dateTimeParser(
-          "http://www.w3.org/2001/XMLSchema#gYearMonth",
-          "invalid_gYearMonth",
-          value,
-          format
-        )
-      }
-  }
-
-  def processTime()
-      : (String, Option[String]) => Either[String, ZonedDateTime] = {
-    (value, format) =>
-      {
-        dateTimeParser(
-          "http://www.w3.org/2001/XMLSchema#time",
-          "invalid_time",
-          value,
-          format
-        )
-      }
+  def processTime(
+      value: String,
+      maybeFormat: Option[String]
+  ): Either[String, ZonedDateTime] = {
+    dateTimeParser(
+      "http://www.w3.org/2001/XMLSchema#time",
+      "invalid_time",
+      value,
+      maybeFormat
+    )
   }
 
   def dateTimeParser(
@@ -817,7 +807,10 @@ case class Column private (
     }
   }
 
-  def validate(value: String, rowNumber: Long) = {
+  def validate(
+      value: String,
+      rowNumber: Long
+  ) = {
     if (nullParam.contains(value)) {
       addErrorIfRequiredValueAndValueEmpty(value, rowNumber)
     } else {
@@ -825,8 +818,32 @@ case class Column private (
         case Some(separator) => value.split(separator)
         case None            => Array[String](value)
       }
+      val datatypeBaseField = datatype.path("base")
+      val datatypeOfColumn = if (datatypeBaseField.isMissingNode) {
+        datatype.get("@id").asText()
+      } else {
+        datatypeBaseField.asText()
+      }
+      val datatypeFormatField = datatype.path("format")
+      val datatypeFormat: Option[String] =
+        if (datatypeFormatField.isMissingNode) {
+          None
+        } else {
+          Some(datatypeFormatField.asText())
+        }
       for (s <- newValue) {
-
+        val result =
+          datatypeParser(datatypeOfColumn)(s, datatypeFormat)
+        if (result.isLeft) {
+          errors = errors :+ ErrorMessage(
+            result.swap.getOrElse("datatype_validation_failed"),
+            "schema",
+            rowNumber.toString,
+            columnOrdinal.toString,
+            s,
+            datatype.toPrettyString
+          )
+        }
 //        val (value, warning) = //CREATE DATATYPE PARSERS
 //        val format = ""
 //        val (value, warning) = Column.DatatypeParser(s)(value, format)

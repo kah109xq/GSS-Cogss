@@ -192,7 +192,7 @@ class ColumnTest extends FunSuite {
 
   // Tests for processFloatDatatype method
   test("should process valid float datatype value without errors") {
-    val result = Column.processFloatDatatype()("4268.22752E11", None)
+    val result = Column.processFloatDatatype("4268.22752E11", None)
     assert(result.isRight)
     result match {
       case Right(floatValue) => {
@@ -203,7 +203,7 @@ class ColumnTest extends FunSuite {
 
   test("should return error when invalid float value is processed") {
     val result =
-      Column.processFloatDatatype()(
+      Column.processFloatDatatype(
         "-3E2.4",
         None
       ) //the exponent must be an integer
@@ -217,7 +217,7 @@ class ColumnTest extends FunSuite {
 
   // Tests for processDoubleDatatype method
   test("should process valid double datatype value without errors") {
-    val result = Column.processDoubleDatatype()("4268.22752E11", None)
+    val result = Column.processDoubleDatatype("4268.22752E11", None)
     assert(result.isRight)
     result match {
       case Right(doubleDatatype) => {
@@ -229,7 +229,7 @@ class ColumnTest extends FunSuite {
   test(
     "should process valid double (negative infinity) datatype value without errors"
   ) {
-    val result = Column.processDoubleDatatype()("-INF", None)
+    val result = Column.processDoubleDatatype("-INF", None)
     assert(result.isRight)
     result match {
       case Right(doubleValue) => {
@@ -239,7 +239,7 @@ class ColumnTest extends FunSuite {
   }
 
   test("should return error when invalid double value is processed") {
-    val result = Column.processDoubleDatatype()("NAN", None)
+    val result = Column.processDoubleDatatype("NAN", None)
     assert(
       result.isLeft
     ) //values are case-sensitive, must be capitalized correctly
@@ -252,7 +252,7 @@ class ColumnTest extends FunSuite {
 
   // Tests for processNegativeInteger
   test("should return error when invalid negative integer is processed") {
-    val result = Column.processNegativeInteger()("0", None)
+    val result = Column.processNegativeInteger("0", None)
     assert(
       result.isLeft
     ) // zero is not considered negative
@@ -268,7 +268,7 @@ class ColumnTest extends FunSuite {
   ) {
     val result =
       Column
-        .processNegativeInteger()("-00122", None) // leading zeros are permitted
+        .processNegativeInteger("-00122", None) // leading zeros are permitted
     assert(result.isRight)
     result match {
       case Right(negativeInteger) => {
@@ -281,7 +281,7 @@ class ColumnTest extends FunSuite {
 
   test("should return error when invalid NonPositiveInteger is processed") {
     val result =
-      Column.processNonPositiveInteger()(
+      Column.processNonPositiveInteger(
         "3.0",
         None
       ) //value must not contain a decimal point
@@ -295,7 +295,7 @@ class ColumnTest extends FunSuite {
 
   test("should process valid non positive Integer value without errors") {
     val result = Column
-      .processNonPositiveInteger()("0", None) //
+      .processNonPositiveInteger("0", None) //
     assert(result.isRight)
     result match {
       case Right(nonPositiveInteger) => {
@@ -308,7 +308,7 @@ class ColumnTest extends FunSuite {
 
   test("should process valid unsigned byte value without errors") {
     val result = Column
-      .processUnsignedByte()("+3", None) //
+      .processUnsignedByte("+3", None) //
     assert(result.isRight)
     result match {
       case Right(unsignedByte) => {
@@ -319,7 +319,7 @@ class ColumnTest extends FunSuite {
 
   test("should return errors when invalid unsigned byte value is processed") {
     val result =
-      Column.processUnsignedByte()(
+      Column.processUnsignedByte(
         "256",
         None
       ) // Number is too large to be a unsigned byte
@@ -334,7 +334,7 @@ class ColumnTest extends FunSuite {
   // Tests for processUnsignedShort
   test("should return error when invalid unsigned short value is processed") {
     val result =
-      Column.processUnsignedShort()(
+      Column.processUnsignedShort(
         "-123", //negative values are not allowed
         None
       )
@@ -348,7 +348,7 @@ class ColumnTest extends FunSuite {
 
   test("should process valid unsigned short datatype value without errors") {
     val result = Column
-      .processUnsignedShort()("0", None)
+      .processUnsignedShort("0", None)
     assert(result.isRight)
     result match {
       case Right(unsignedShort) => {
@@ -360,7 +360,7 @@ class ColumnTest extends FunSuite {
   // Tests for processUnsignedInt
 
   test("should process valid unsigned Int datatype value without errors") {
-    val result = Column.processUnsignedInt()("4545454", None)
+    val result = Column.processUnsignedInt("4545454", None)
     assert(result.isRight)
     result match {
       case Right(unsignedInt) => {
@@ -371,7 +371,7 @@ class ColumnTest extends FunSuite {
 
   test("should return error when invalid unsigned int value is processed") {
     val result =
-      Column.processUnsignedInt()(
+      Column.processUnsignedInt(
         "4294967299", // number is too large
         None
       )
@@ -386,7 +386,7 @@ class ColumnTest extends FunSuite {
   //Tests for processUnsignedLong
   test("should return error when invalid unsigned Long value is processed") {
     val result =
-      Column.processUnsignedLong()(
+      Column.processUnsignedLong(
         "18446744073709551620", // number is too large
         None
       )
@@ -399,7 +399,7 @@ class ColumnTest extends FunSuite {
   }
 
   test("should process valid unsigned Long datatype value without errors") {
-    val result = Column.processUnsignedLong()("+3", None)
+    val result = Column.processUnsignedLong("+3", None)
     assert(result.isRight)
     result match {
       case Right(unsignedLong) => {
@@ -410,7 +410,7 @@ class ColumnTest extends FunSuite {
 
   // Tests for processPositiveInteger
   test("should process valid positive integer datatype value without errors") {
-    val result = Column.processPositiveInteger()("00122", None)
+    val result = Column.processPositiveInteger("00122", None)
     assert(result.isRight)
     result match {
       case Right(positiveInteger) => {
@@ -421,7 +421,7 @@ class ColumnTest extends FunSuite {
 
   test("should return error when invalid positive integer value is processed") {
     val result =
-      Column.processPositiveInteger()(
+      Column.processPositiveInteger(
         "3.0",
         None
       )
@@ -438,7 +438,7 @@ class ColumnTest extends FunSuite {
     "should return error when invalid non negative integer value is processed"
   ) {
     val result =
-      Column.processNonNegativeInteger()(
+      Column.processNonNegativeInteger(
         "-3",
         None
       )
@@ -453,7 +453,7 @@ class ColumnTest extends FunSuite {
   test(
     "should process valid non negative integer datatype value without errors"
   ) {
-    val result = Column.processNonNegativeInteger()("0", None)
+    val result = Column.processNonNegativeInteger("0", None)
     assert(result.isRight)
     result match {
       case Right(nonNegativeInteger) => {
@@ -466,7 +466,7 @@ class ColumnTest extends FunSuite {
   test(
     "should process valid byte datatype value without errors"
   ) {
-    val result = Column.processByteDatatype()("-123", None)
+    val result = Column.processByteDatatype("-123", None)
     assert(result.isRight)
     result match {
       case Right(byteValue) => {
@@ -479,7 +479,7 @@ class ColumnTest extends FunSuite {
     "should return error when invalid byte value is processed"
   ) {
     val result =
-      Column.processByteDatatype()(
+      Column.processByteDatatype(
         "2.23",
         None
       )
@@ -496,7 +496,7 @@ class ColumnTest extends FunSuite {
     "should return error when invalid short value is processed"
   ) {
     val result =
-      Column.processShortDatatype()(
+      Column.processShortDatatype(
         "32770",
         None
       )
@@ -509,7 +509,7 @@ class ColumnTest extends FunSuite {
   }
 
   test("should process valid short datatype value without errors") {
-    val result = Column.processShortDatatype()("-1231", None)
+    val result = Column.processShortDatatype("-1231", None)
     assert(result.isRight)
     result match {
       case Right(value) => {
@@ -520,7 +520,7 @@ class ColumnTest extends FunSuite {
 
   // Tests for processIntDatatype
   test("should process valid int datatype value without errors") {
-    val result = Column.processIntDatatype()("-12312", None)
+    val result = Column.processIntDatatype("-12312", None)
     assert(result.isRight)
     result match {
       case Right(value) => {
@@ -533,7 +533,7 @@ class ColumnTest extends FunSuite {
     "should return error when invalid int value is processed"
   ) {
     val result =
-      Column.processIntDatatype()(
+      Column.processIntDatatype(
         "2147483650", //number too large
         None
       )
@@ -550,7 +550,7 @@ class ColumnTest extends FunSuite {
     "should return error when invalid Long value is processed"
   ) {
     val result =
-      Column.processLongDatatype()(
+      Column.processLongDatatype(
         "9223372036854775810", //number too large
         None
       )
@@ -565,7 +565,7 @@ class ColumnTest extends FunSuite {
   }
 
   test("should process valid Long datatype value without errors") {
-    val result = Column.processLongDatatype()("-1231235555", None)
+    val result = Column.processLongDatatype("-1231235555", None)
     assert(result.isRight)
     result match {
       case Right(value) => {
@@ -576,7 +576,7 @@ class ColumnTest extends FunSuite {
 
   // Tests for processIntegerDatatype
   test("should process valid Integer datatype value without errors") {
-    val result = Column.processIntegerDatatype()("-00122", None)
+    val result = Column.processIntegerDatatype("-00122", None)
     assert(result.isRight)
     result match {
       case Right(value) => {
@@ -589,7 +589,7 @@ class ColumnTest extends FunSuite {
     "should return error when invalid Integer value is processed"
   ) {
     val result =
-      Column.processIntegerDatatype()(
+      Column.processIntegerDatatype(
         "3.0", // an integer must not contain a decimal point
         None
       )
@@ -608,7 +608,7 @@ class ColumnTest extends FunSuite {
     "should return error when invalid Decimal value is processed"
   ) {
     val result =
-      Column.processDecimalDatatype()(
+      Column.processDecimalDatatype(
         "3,5", // commas are not permitted; the decimal separator must be a period
         None
       )
@@ -625,7 +625,7 @@ class ColumnTest extends FunSuite {
   test(
     "should process valid decimal datatype value beginning with decimal point without errors - "
   ) {
-    val result = Column.processDecimalDatatype()(".3", None)
+    val result = Column.processDecimalDatatype(".3", None)
     assert(result.isRight)
     result match {
       case Right(value) => {
@@ -637,7 +637,7 @@ class ColumnTest extends FunSuite {
   test(
     "should process valid decimal datatype value ending with decimal point without errors - "
   ) {
-    val result = Column.processDecimalDatatype()("3.", None)
+    val result = Column.processDecimalDatatype("3.", None)
     assert(result.isRight)
     result match {
       case Right(value) => {
@@ -650,7 +650,7 @@ class ColumnTest extends FunSuite {
   test(
     "should process 1 as true for boolean datatype"
   ) {
-    val result = Column.processBooleanDatatype()("1", None)
+    val result = Column.processBooleanDatatype("1", None)
     assert(result.isRight)
     result match {
       case Right(value) => {
@@ -662,7 +662,7 @@ class ColumnTest extends FunSuite {
   test(
     "should process 0 as false for boolean datatype"
   ) {
-    val result = Column.processBooleanDatatype()("0", None)
+    val result = Column.processBooleanDatatype("0", None)
     assert(result.isRight)
     result match {
       case Right(value) => {
@@ -674,7 +674,7 @@ class ColumnTest extends FunSuite {
   test(
     "should process true as true for boolean datatype"
   ) {
-    val result = Column.processBooleanDatatype()("true", None)
+    val result = Column.processBooleanDatatype("true", None)
     assert(result.isRight)
     result match {
       case Right(value) => {
@@ -686,7 +686,7 @@ class ColumnTest extends FunSuite {
   test(
     "should process Y as true for boolean datatype when appropriate format is provided"
   ) {
-    val result = Column.processBooleanDatatype()("Y", Some("Y|N"))
+    val result = Column.processBooleanDatatype("Y", Some("Y|N"))
     assert(result.isRight)
     result match {
       case Right(value) => {
@@ -699,7 +699,7 @@ class ColumnTest extends FunSuite {
     "should NOT process TRUE as true for boolean datatype"
   ) {
     val result =
-      Column.processBooleanDatatype()("TRUE", None) // values are case sensitive
+      Column.processBooleanDatatype("TRUE", None) // values are case sensitive
     assert(result.isLeft)
     result match {
       case Left(error) => {
