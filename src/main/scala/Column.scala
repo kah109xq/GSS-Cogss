@@ -65,6 +65,19 @@ object Column {
     "http://www.w3.org/2001/XMLSchema#time" -> processTime _
   )
 
+  val validDecimalDatatypeRegex =
+    "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)".r
+
+  val validDoubleDatatypeRegex =
+    "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([Ee](\\+|-)?[0-9]+)?|(\\+|-)?INF|NaN".r
+
+  val validFloatDatatypeRegex =
+    "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([Ee](\\+|-)?[0-9]+)?|(\\+|-)?INF|NaN".r
+
+  val validIntegerRegex = "[\\-+]?[0-9]+".r
+
+  val validLongDatatypeRegex = "[\\-+]?[0-9]+".r
+
   def trimValue(
       value: String,
       maybeFormat: Option[String]
@@ -105,8 +118,6 @@ object Column {
       value: String,
       maybeFormat: Option[String]
   ): Either[String, Double] = {
-    val validDecimalDatatypeRegex =
-      "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)".r
     if (!validDecimalDatatypeRegex.pattern.matcher(value).matches()) {
       Left("invalid_decimal")
     } else {
@@ -121,8 +132,6 @@ object Column {
       value: String,
       maybeFormat: Option[String]
   ): Either[String, Double] = {
-    val validDoubleDatatypeRegex =
-      "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([Ee](\\+|-)?[0-9]+)?|(\\+|-)?INF|NaN".r
     if (!validDoubleDatatypeRegex.pattern.matcher(value).matches()) {
       Left("invalid_double")
     } else {
@@ -137,8 +146,6 @@ object Column {
       value: String,
       maybeFormat: Option[String]
   ): Either[String, Float] = {
-    val validFloatDatatypeRegex =
-      "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([Ee](\\+|-)?[0-9]+)?|(\\+|-)?INF|NaN".r
     if (!validFloatDatatypeRegex.pattern.matcher(value).matches()) {
       Left("invalid_float")
     } else {
@@ -153,7 +160,6 @@ object Column {
       value: String,
       maybeFormat: Option[String]
   ): Either[String, BigInteger] = {
-    val validIntegerRegex = "[\\-+]?[0-9]+".r
     if (!validIntegerRegex.pattern.matcher(value).matches()) {
       Left("invalid_integer")
     } else {
@@ -185,7 +191,6 @@ object Column {
       value: String,
       maybeFormat: Option[String]
   ): Either[String, Long] = {
-    val validLongDatatypeRegex = "[\\-+]?[0-9]+".r
     if (!validLongDatatypeRegex.pattern.matcher(value).matches()) {
       Left("invalid_long")
     } else {
