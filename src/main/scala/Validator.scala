@@ -77,11 +77,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
             ""
           )
         }
-        schema match {
-          case Some(tableGroup) => {
-            tableGroup.validateRow(row, tableUri.toString)
-          }
-        }
+        schema.get.validateRow(row, tableUri.toString)
       }
     }
   }
