@@ -35,24 +35,22 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
   def fetchSchemaTables(schema: TableGroup) = {
     for (tableUrl <- schema.tables.keys) {
       val tableUri = new URI(tableUrl)
-      if (tableUri.getScheme == "file") { // tableUrl is a filename in this case, so check if it exists
-        val tableCsvFile = new File(tableUri)
-        if (!tableCsvFile.exists) {
-          throw new MetadataError(
-            "CSV NOT FOUND"
-          ) // Change this to an error returned to the CLI
-        }
-        readCSV(tableUri)
-      } else readCSV(tableUri)
+      readCSV(tableUri)
       // Call validate csv function
     }
   }
 
   def readCSV(tableUri: URI) = {
     val parser = if (tableUri.getScheme == "file") {
+      val tableCsvFile = new File(tableUri)
+      if (!tableCsvFile.exists) {
+        throw new MetadataError(
+          "CSV NOT FOUND"
+        ) // Change this to an error returned to the CLI
+      }
       CSVParser
         .parse(
-          new File(tableUri),
+          tableCsvFile,
           StandardCharsets.UTF_8,
           CSVFormat.DEFAULT
         )
