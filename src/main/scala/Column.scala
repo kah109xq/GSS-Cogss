@@ -9,7 +9,9 @@ import com.fasterxml.jackson.databind.node.{
   ObjectNode,
   TextNode
 }
+import com.ibm.icu
 
+import java.lang
 import java.math.BigInteger
 import java.time.ZonedDateTime
 import scala.collection.mutable.Map
@@ -164,26 +166,31 @@ object Column {
       Left("invalid_integer")
     } else {
       numericParser(value, maybeFormat) match {
-        case Right(newValue) => {
-          try {
-            val bigIntValue = newValue match {
-              case _: java.lang.Long | _: Integer | _: java.lang.Short =>
-                BigInteger.valueOf(newValue.longValue())
-              case bigDecimalValue: com.ibm.icu.math.BigDecimal =>
-                bigDecimalValue.toBigIntegerExact
-              case _ =>
-                throw new IllegalArgumentException(
-                  s"Unexpected type ${newValue.getClass}"
-                )
-            }
-            Right(bigIntValue)
-          } catch {
-            case e => Left(s"invalid_integer - '$value' - ${e.getMessage}")
-          }
-        }
+        case Right(parsedValue) => convertToBigIntegerValue(value, parsedValue)
         case Left(warning) =>
           Left(s"invalid_integer - '${value}' ${warning}")
       }
+    }
+  }
+
+  private def convertToBigIntegerValue(
+      value: String,
+      parsedValue: Number
+  ): Either[String, BigInteger] = {
+    try {
+      val bigIntValue = parsedValue match {
+        case _: lang.Long | _: Integer | _: lang.Short =>
+          BigInteger.valueOf(parsedValue.longValue())
+        case bigDecimalValue: icu.math.BigDecimal =>
+          bigDecimalValue.toBigIntegerExact
+        case _ =>
+          throw new IllegalArgumentException(
+            s"Unexpected type ${parsedValue.getClass}"
+          )
+      }
+      Right(bigIntValue)
+    } catch {
+      case e => Left(s"invalid_integer - '$value' - ${e.getMessage}")
     }
   }
 
