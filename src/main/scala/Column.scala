@@ -124,8 +124,8 @@ object Column {
       Left("invalid_decimal")
     } else {
       numericParser(value, maybeFormat) match {
-        case Left(_)         => Left("invalid_decimal")
-        case Right(newValue) => Right(newValue.doubleValue())
+        case Left(_)            => Left("invalid_decimal")
+        case Right(parsedValue) => Right(parsedValue.doubleValue())
       }
     }
   }
@@ -138,8 +138,8 @@ object Column {
       Left("invalid_double")
     } else {
       numericParser(value, maybeFormat) match {
-        case Left(_)         => Left("invalid_double")
-        case Right(newValue) => Right(newValue.doubleValue())
+        case Left(_)            => Left("invalid_double")
+        case Right(parsedValue) => Right(parsedValue.doubleValue())
       }
     }
   }
@@ -152,8 +152,8 @@ object Column {
       Left("invalid_float")
     } else {
       numericParser(value, maybeFormat) match {
-        case Left(_)         => Left("invalid_float")
-        case Right(newValue) => Right(newValue.floatValue())
+        case Left(_)            => Left("invalid_float")
+        case Right(parsedValue) => Right(parsedValue.floatValue())
       }
     }
   }
@@ -203,11 +203,11 @@ object Column {
     } else {
       processIntegerDatatype(value, maybeFormat) match {
         case Left(warning) => Left(s"invalid_long - ${warning}")
-        case Right(newValue) => {
-          val doubleValue = newValue.doubleValue()
-          if (newValue > Long.MaxValue || newValue < Long.MinValue) {
+        case Right(parsedValue) => {
+          val doubleValue = parsedValue.doubleValue()
+          if (parsedValue > Long.MaxValue || parsedValue < Long.MinValue) {
             Left(s"invalid_long - '$value' Outside Long Range")
-          } else Right(newValue.longValue())
+          } else Right(parsedValue.longValue())
         }
       }
     }
@@ -220,10 +220,10 @@ object Column {
     val result = processIntegerDatatype(value, maybeFormat)
     result match {
       case Left(_) => Left("invalid_int")
-      case Right(newValue) => {
-        if (newValue > Int.MaxValue || newValue < Int.MinValue)
+      case Right(parsedValue) => {
+        if (parsedValue > Int.MaxValue || parsedValue < Int.MinValue)
           Left(s"invalid_int - '$value' Outside Int Range")
-        else Right(newValue.intValue())
+        else Right(parsedValue.intValue())
       }
     }
   }
@@ -235,10 +235,10 @@ object Column {
     val result = processIntegerDatatype(value, maybeFormat)
     result match {
       case Left(_) => Left("invalid_short")
-      case Right(newValue) => {
-        if (newValue > Short.MaxValue || newValue < Short.MinValue) {
+      case Right(parsedValue) => {
+        if (parsedValue > Short.MaxValue || parsedValue < Short.MinValue) {
           Left("invalid_short")
-        } else Right(newValue.shortValue())
+        } else Right(parsedValue.shortValue())
       }
     }
   }
@@ -250,10 +250,10 @@ object Column {
     val result = processIntegerDatatype(value, maybeFormat)
     result match {
       case Left(_) => Left("invalid_byte")
-      case Right(newValue) => {
-        if (newValue > Byte.MaxValue || newValue < Byte.MinValue) {
+      case Right(parsedValue) => {
+        if (parsedValue > Byte.MaxValue || parsedValue < Byte.MinValue) {
           Left("invalid_byte")
-        } else Right(newValue.byteValue())
+        } else Right(parsedValue.byteValue())
       }
     }
   }
@@ -265,10 +265,10 @@ object Column {
     val result = processIntegerDatatype(value, maybeFormat)
     result match {
       case Left(_) => Left("invalid_nonNegativeInteger")
-      case Right(newValue) => {
-        if (newValue < 0) {
+      case Right(parsedValue) => {
+        if (parsedValue < 0) {
           Left("invalid_nonNegativeInteger")
-        } else Right(newValue)
+        } else Right(parsedValue)
       }
     }
   }
@@ -280,10 +280,10 @@ object Column {
     val result = processIntegerDatatype(value, maybeFormat)
     result match {
       case Left(_) => Left("invalid_positiveInteger")
-      case Right(newValue) => {
-        if (newValue <= 0) {
+      case Right(parsedValue) => {
+        if (parsedValue <= 0) {
           Left("invalid_positiveInteger")
-        } else Right(newValue)
+        } else Right(parsedValue)
       }
     }
   }
@@ -295,10 +295,10 @@ object Column {
     val result = processNonNegativeInteger(value, maybeFormat)
     result match {
       case Left(_) => Left("invalid_unsignedLong")
-      case Right(newValue) => {
-        if (newValue > Long.MaxValue) { // This is not quite right X2 this value is what I need. FIX ME
+      case Right(parsedValue) => {
+        if (parsedValue > Long.MaxValue) { // This is not quite right X2 this value is what I need. FIX ME
           Left("invalid_unsignedLong")
-        } else Right(newValue)
+        } else Right(parsedValue)
       }
     }
   }
@@ -310,10 +310,10 @@ object Column {
     val result = processNonNegativeInteger(value, maybeFormat)
     result match {
       case Left(_) => Left("invalid_unsignedInt")
-      case Right(newValue) => {
-        if (newValue > 4294967295L) {
+      case Right(parsedValue) => {
+        if (parsedValue > 4294967295L) {
           Left("invalid_unsignedInt")
-        } else Right(newValue.longValue())
+        } else Right(parsedValue.longValue())
       }
     }
   }
@@ -325,10 +325,10 @@ object Column {
     val result = processNonNegativeInteger(value, maybeFormat)
     result match {
       case Left(_) => Left("invalid_unsignedShort")
-      case Right(newValue) => {
-        if (newValue > 65535) {
+      case Right(parsedValue) => {
+        if (parsedValue > 65535) {
           Left("invalid_unsignedShort")
-        } else Right(newValue.intValue())
+        } else Right(parsedValue.intValue())
       }
     }
   }
@@ -340,10 +340,10 @@ object Column {
     val result = processNonNegativeInteger(value, maybeFormat)
     result match {
       case Left(_) => Left("invalid_unsignedByte")
-      case Right(newValue) => {
-        if (newValue > 255) {
+      case Right(parsedValue) => {
+        if (parsedValue > 255) {
           Left("invalid_unsignedByte")
-        } else Right(newValue.shortValue())
+        } else Right(parsedValue.shortValue())
       }
     }
   }
@@ -355,10 +355,10 @@ object Column {
     val result = processIntegerDatatype(value, maybeFormat)
     result match {
       case Left(_) => Left("invalid_nonPositiveInteger")
-      case Right(newValue) => {
-        if (newValue > 0) {
+      case Right(parsedValue) => {
+        if (parsedValue > 0) {
           Left("invalid_nonPositiveInteger")
-        } else Right(newValue)
+        } else Right(parsedValue)
       }
     }
   }
@@ -373,10 +373,10 @@ object Column {
         Left(
           "invalid_negativeInteger"
         ) // Add the original value in warnings
-      case Right(newValue) => {
-        if (newValue >= 0) {
+      case Right(parsedValue) => {
+        if (parsedValue >= 0) {
           Left("invalid_negativeInteger")
-        } else Right(newValue)
+        } else Right(parsedValue)
       }
     }
   }
@@ -512,8 +512,8 @@ object Column {
       DateFormat(format, datatype)
     }
     dateFormatObject.parse(value) match {
-      case Some(newValue) => Right(newValue)
-      case None           => Left(warning)
+      case Some(parsedValue) => Right(parsedValue)
+      case None              => Left(warning)
     }
   }
 

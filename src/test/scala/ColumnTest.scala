@@ -580,7 +580,7 @@ class ColumnTest extends FunSuite {
     assert(result.isRight)
     result match {
       case Right(value) => {
-        assert(value.toString == "-122")
+        assert(value.toString() == "-122")
       }
     }
   }
@@ -623,19 +623,19 @@ class ColumnTest extends FunSuite {
   }
 
   test(
-    "should process valid decimal datatype value beginning with decimal point without errors - "
+    "should process valid decimal datatype value beginning with decimal point without errors"
   ) {
     val result = Column.processDecimalDatatype(".3", None)
     assert(result.isRight)
     result match {
       case Right(value) => {
-        assert(value.toString == "0.3")
+        assert(value == 0.3)
       }
     }
   }
 
   test(
-    "should process valid decimal datatype value ending with decimal point without errors - "
+    "should process valid decimal datatype value ending with decimal point without errors"
   ) {
     val result = Column.processDecimalDatatype("3.", None)
     assert(result.isRight)
