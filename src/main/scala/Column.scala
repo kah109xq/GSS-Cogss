@@ -22,49 +22,51 @@ object Column {
   val datatypeDefaultValue: ObjectNode = JsonNodeFactory.instance
     .objectNode()
     .set("@id", new TextNode("http://www.w3.org/2001/XMLSchema#string"))
+  val rdfSyntaxNs = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+  val xmlSchema = "http://www.w3.org/2001/XMLSchema#"
 
   val datatypeParser = Map(
-    "http://www.w3.org/1999/02/22-rdf-syntax-ns#XMLLiteral" -> trimValue _,
-    "http://www.w3.org/1999/02/22-rdf-syntax-ns#HTML" -> trimValue _,
+    s"${rdfSyntaxNs}XMLLiteral" -> trimValue _,
+    s"${rdfSyntaxNs}HTML" -> trimValue _,
     "http://www.w3.org/ns/csvw#JSON" -> trimValue _,
-    "http://www.w3.org/2001/XMLSchema#anyAtomicType" -> allValueValid _,
-    "http://www.w3.org/2001/XMLSchema#anyURI" -> trimValue _,
-    "http://www.w3.org/2001/XMLSchema#base64Binary" -> trimValue _,
-    "http://www.w3.org/2001/XMLSchema#hexBinary" -> trimValue _,
-    "http://www.w3.org/2001/XMLSchema#QName" -> trimValue _,
-    "http://www.w3.org/2001/XMLSchema#string" -> allValueValid _,
-    "http://www.w3.org/2001/XMLSchema#normalizedString" -> trimValue _,
-    "http://www.w3.org/2001/XMLSchema#token" -> trimValue _,
-    "http://www.w3.org/2001/XMLSchema#language" -> trimValue _,
-    "http://www.w3.org/2001/XMLSchema#Name" -> trimValue _,
-    "http://www.w3.org/2001/XMLSchema#NMTOKEN" -> trimValue _,
-    "http://www.w3.org/2001/XMLSchema#boolean" -> processBooleanDatatype _,
-    "http://www.w3.org/2001/XMLSchema#decimal" -> processDecimalDatatype _,
-    "http://www.w3.org/2001/XMLSchema#integer" -> processIntegerDatatype _,
-    "http://www.w3.org/2001/XMLSchema#long" -> processLongDatatype _,
-    "http://www.w3.org/2001/XMLSchema#int" -> processIntDatatype _,
-    "http://www.w3.org/2001/XMLSchema#short" -> processShortDatatype _,
-    "http://www.w3.org/2001/XMLSchema#byte" -> processByteDatatype _,
-    "http://www.w3.org/2001/XMLSchema#nonNegativeInteger" -> processNonNegativeInteger _,
-    "http://www.w3.org/2001/XMLSchema#positiveInteger" -> processPositiveInteger _,
-    "http://www.w3.org/2001/XMLSchema#unsignedLong" -> processUnsignedLong _,
-    "http://www.w3.org/2001/XMLSchema#unsignedInt" -> processUnsignedInt _,
-    "http://www.w3.org/2001/XMLSchema#unsignedShort" -> processUnsignedShort _,
-    "http://www.w3.org/2001/XMLSchema#unsignedByte" -> processUnsignedByte _,
-    "http://www.w3.org/2001/XMLSchema#nonPositiveInteger" -> processNonPositiveInteger _,
-    "http://www.w3.org/2001/XMLSchema#negativeInteger" -> processNegativeInteger _,
-    "http://www.w3.org/2001/XMLSchema#double" -> processDoubleDatatype _,
-    "http://www.w3.org/2001/XMLSchema#float" -> processFloatDatatype _,
+    s"${xmlSchema}anyAtomicType" -> allValueValid _,
+    s"${xmlSchema}anyURI" -> trimValue _,
+    s"${xmlSchema}base64Binary" -> trimValue _,
+    s"${xmlSchema}hexBinary" -> trimValue _,
+    s"${xmlSchema}QName" -> trimValue _,
+    s"${xmlSchema}string" -> allValueValid _,
+    s"${xmlSchema}normalizedString" -> trimValue _,
+    s"${xmlSchema}token" -> trimValue _,
+    s"${xmlSchema}language" -> trimValue _,
+    s"${xmlSchema}Name" -> trimValue _,
+    s"${xmlSchema}NMTOKEN" -> trimValue _,
+    s"${xmlSchema}boolean" -> processBooleanDatatype _,
+    s"${xmlSchema}decimal" -> processDecimalDatatype _,
+    s"${xmlSchema}integer" -> processIntegerDatatype _,
+    s"${xmlSchema}long" -> processLongDatatype _,
+    s"${xmlSchema}int" -> processIntDatatype _,
+    s"${xmlSchema}short" -> processShortDatatype _,
+    s"${xmlSchema}byte" -> processByteDatatype _,
+    s"${xmlSchema}nonNegativeInteger" -> processNonNegativeInteger _,
+    s"${xmlSchema}positiveInteger" -> processPositiveInteger _,
+    s"${xmlSchema}unsignedLong" -> processUnsignedLong _,
+    s"${xmlSchema}unsignedInt" -> processUnsignedInt _,
+    s"${xmlSchema}unsignedShort" -> processUnsignedShort _,
+    s"${xmlSchema}unsignedByte" -> processUnsignedByte _,
+    s"${xmlSchema}nonPositiveInteger" -> processNonPositiveInteger _,
+    s"${xmlSchema}negativeInteger" -> processNegativeInteger _,
+    s"${xmlSchema}double" -> processDoubleDatatype _,
+    s"${xmlSchema}float" -> processFloatDatatype _,
     // Date Time related datatype
-    "http://www.w3.org/2001/XMLSchema#date" -> processDateDatatype _,
-    "http://www.w3.org/2001/XMLSchema#dateTime" -> processDateTimeDatatype _,
-    "http://www.w3.org/2001/XMLSchema#dateTimeStamp" -> processDateTimeStamp _,
-    "http://www.w3.org/2001/XMLSchema#gDay" -> processGDay _,
-    "http://www.w3.org/2001/XMLSchema#gMonth" -> processGMonth _,
-    "http://www.w3.org/2001/XMLSchema#gMonthDay" -> processGMonthDay _,
-    "http://www.w3.org/2001/XMLSchema#gYear" -> processGYear _,
-    "http://www.w3.org/2001/XMLSchema#gYearMonth" -> processGYearMonth _,
-    "http://www.w3.org/2001/XMLSchema#time" -> processTime _
+    s"${xmlSchema}date" -> processDateDatatype _,
+    s"${xmlSchema}dateTime" -> processDateTimeDatatype _,
+    s"${xmlSchema}dateTimeStamp" -> processDateTimeStamp _,
+    s"${xmlSchema}gDay" -> processGDay _,
+    s"${xmlSchema}gMonth" -> processGMonth _,
+    s"${xmlSchema}gMonthDay" -> processGMonthDay _,
+    s"${xmlSchema}gYear" -> processGYear _,
+    s"${xmlSchema}gYearMonth" -> processGYearMonth _,
+    s"${xmlSchema}time" -> processTime _
   )
 
   val validDecimalDatatypeRegex =
@@ -204,7 +206,6 @@ object Column {
       processIntegerDatatype(value, maybeFormat) match {
         case Left(warning) => Left(s"invalid_long - ${warning}")
         case Right(parsedValue) => {
-          val doubleValue = parsedValue.doubleValue()
           if (parsedValue > Long.MaxValue || parsedValue < Long.MinValue) {
             Left(s"invalid_long - '$value' Outside Long Range")
           } else Right(parsedValue.longValue())
@@ -296,7 +297,8 @@ object Column {
     result match {
       case Left(_) => Left("invalid_unsignedLong")
       case Right(parsedValue) => {
-        if (parsedValue > Long.MaxValue) { // This is not quite right X2 this value is what I need. FIX ME
+        val unsignedLongMaxValue: BigInt = BigInt("18446744073709551615")
+        if (parsedValue > unsignedLongMaxValue) {
           Left("invalid_unsignedLong")
         } else Right(parsedValue)
       }
@@ -398,7 +400,7 @@ object Column {
       maybeFormat: Option[String]
   ): Either[String, ZonedDateTime] = {
     dateTimeParser(
-      "http://www.w3.org/2001/XMLSchema#date",
+      s"${xmlSchema}date",
       "invalid_date",
       value,
       maybeFormat
@@ -410,7 +412,7 @@ object Column {
       maybeFormat: Option[String]
   ): Either[String, ZonedDateTime] = {
     dateTimeParser(
-      "http://www.w3.org/2001/XMLSchema#dateTime",
+      s"${xmlSchema}dateTime",
       "invalid_datetime",
       value,
       maybeFormat
@@ -422,7 +424,7 @@ object Column {
       maybeFormat: Option[String]
   ): Either[String, ZonedDateTime] = {
     dateTimeParser(
-      "http://www.w3.org/2001/XMLSchema#dateTimeStamp",
+      s"${xmlSchema}dateTimeStamp",
       "invalid_dateTimeStamp",
       value,
       maybeFormat
@@ -434,7 +436,7 @@ object Column {
       maybeFormat: Option[String]
   ): Either[String, ZonedDateTime] = {
     dateTimeParser(
-      "http://www.w3.org/2001/XMLSchema#gDay",
+      s"${xmlSchema}gDay",
       "invalid_gDay",
       value,
       maybeFormat
@@ -446,7 +448,7 @@ object Column {
       maybeFormat: Option[String]
   ): Either[String, ZonedDateTime] = {
     dateTimeParser(
-      "http://www.w3.org/2001/XMLSchema#gMonth",
+      s"${xmlSchema}gMonth",
       "invalid_gMonth",
       value,
       maybeFormat
@@ -458,7 +460,7 @@ object Column {
       maybeFormat: Option[String]
   ): Either[String, ZonedDateTime] = {
     dateTimeParser(
-      "http://www.w3.org/2001/XMLSchema#gMonthDay",
+      s"${xmlSchema}gMonthDay",
       "invalid_gMonthDat",
       value,
       maybeFormat
@@ -470,7 +472,7 @@ object Column {
       maybeFormat: Option[String]
   ): Either[String, ZonedDateTime] = {
     dateTimeParser(
-      "http://www.w3.org/2001/XMLSchema#gYear",
+      s"${xmlSchema}gYear",
       "invalid_gYear",
       value,
       maybeFormat
@@ -481,7 +483,7 @@ object Column {
       maybeFormat: Option[String]
   ): Either[String, ZonedDateTime] = {
     dateTimeParser(
-      "http://www.w3.org/2001/XMLSchema#gYearMonth",
+      s"${xmlSchema}gYearMonth",
       "invalid_gYearMonth",
       value,
       maybeFormat
@@ -493,7 +495,7 @@ object Column {
       maybeFormat: Option[String]
   ): Either[String, ZonedDateTime] = {
     dateTimeParser(
-      "http://www.w3.org/2001/XMLSchema#time",
+      s"${xmlSchema}time",
       "invalid_time",
       value,
       maybeFormat
@@ -506,11 +508,7 @@ object Column {
       value: String,
       format: Option[String]
   ): Either[String, ZonedDateTime] = {
-    val dateFormatObject = if (format.isEmpty) {
-      DateFormat(None, datatype)
-    } else {
-      DateFormat(format, datatype)
-    }
+    val dateFormatObject = DateFormat(format, datatype)
     dateFormatObject.parse(value) match {
       case Some(parsedValue) => Right(parsedValue)
       case None              => Left(warning)

@@ -221,7 +221,7 @@ class ColumnTest extends FunSuite {
     assert(result.isRight)
     result match {
       case Right(doubleDatatype) => {
-        assert(doubleDatatype.toString == "4.26822752E14")
+        assert(doubleDatatype == 4.26822752e14)
       }
     }
   }
@@ -609,7 +609,7 @@ class ColumnTest extends FunSuite {
   ) {
     val result =
       Column.processDecimalDatatype(
-        "3,5", // commas are not permitted; the decimal separator must be a period
+        "3,5", // commas are not permitted unless specified in format
         None
       )
     assert(result.isLeft)
