@@ -558,7 +558,7 @@ class ColumnTest extends FunSuite {
     result match {
       case Left(error) => {
         assert(
-          error == "invalid_long - '9223372036854775810' Outside Long Range"
+          error == "invalid_long - '9223372036854775810' outside long range"
         )
       }
     }

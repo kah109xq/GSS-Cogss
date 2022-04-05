@@ -93,8 +93,11 @@ object DateFormat {
       RegExGroups.fractionalSeconds,
       RegExGroups.endOfDay
     ).union(RegExGroups.timeZoneRegExNamedGroups),
-    s"${xmlSchemaBaseUrl}date" -> Set(RegExGroups.years, RegExGroups.months, RegExGroups.days)
-      .union(RegExGroups.timeZoneRegExNamedGroups),
+    s"${xmlSchemaBaseUrl}date" -> Set(
+      RegExGroups.years,
+      RegExGroups.months,
+      RegExGroups.days
+    ).union(RegExGroups.timeZoneRegExNamedGroups),
     s"${xmlSchemaBaseUrl}dateTimeStamp" -> Set(
       RegExGroups.years,
       RegExGroups.months,
@@ -113,8 +116,10 @@ object DateFormat {
       .union(RegExGroups.timeZoneRegExNamedGroups),
     s"${xmlSchemaBaseUrl}gYear" -> Set(RegExGroups.years)
       .union(RegExGroups.timeZoneRegExNamedGroups),
-    s"${xmlSchemaBaseUrl}gYearMonth" -> Set(RegExGroups.years, RegExGroups.months)
-      .union(RegExGroups.timeZoneRegExNamedGroups),
+    s"${xmlSchemaBaseUrl}gYearMonth" -> Set(
+      RegExGroups.years,
+      RegExGroups.months
+    ).union(RegExGroups.timeZoneRegExNamedGroups),
     s"${xmlSchemaBaseUrl}time" -> Set(
       RegExGroups.hours,
       RegExGroups.minutes,
@@ -179,33 +184,34 @@ case class DateFormat(format: Option[String], dataType: String) {
     }
   }
 
-  def parse(inputDate: String): Option[ZonedDateTime] = {
+  def parse(inputDate: String): Either[String, ZonedDateTime] = {
     simpleDateFormatter match {
       case Some(formatter) => parseWithUts35FormatString(formatter, inputDate)
-      case None    => parseWithDefaultFormatForDataType(inputDate)
+      case None            => parseWithDefaultFormatForDataType(inputDate)
     }
   }
 
   private def parseWithUts35FormatString(
-    formatter: SimpleDateFormat,
-    inputDate: String
-  ): Option[ZonedDateTime] = {
-    val parsedDateTime = parseInputDateTimeRetainTimeZoneInfo(formatter, inputDate)
+      formatter: SimpleDateFormat,
+      inputDate: String
+  ): Either[String, ZonedDateTime] = {
+    val parsedDateTime =
+      parseInputDateTimeRetainTimeZoneInfo(formatter, inputDate)
     formatter.setTimeZone(parsedDateTime.getTimeZone)
 
     val formattedDate = formatter.format(parsedDateTime.getTime)
     val formatPreservesAllInformation = formattedDate == inputDate
 
     if (formatPreservesAllInformation) {
-      Some(getZonedDateTimeForIcuCalendar(parsedDateTime))
+      Right(getZonedDateTimeForIcuCalendar(parsedDateTime))
     } else {
-      None
+      Left("Value does not match expected UTS-35 format")
     }
   }
 
   private def parseWithDefaultFormatForDataType(
       inputDate: String
-  ): Option[ZonedDateTime] = {
+  ): Either[String, ZonedDateTime] = {
     /*
      * We expect the datatype to be known, why wouldn't it be?
      * We cannot generate a UTS-35 format string which defines the default format for xsd date/time datatypes.
@@ -217,7 +223,8 @@ case class DateFormat(format: Option[String], dataType: String) {
       mapDataTypeToDefaultValueRegExGroups.get(dataType)
     ) match {
       case (Some(defaultValueRegex), Some(namedGroupsExpected)) => {
-        val defaultFormatRegExMatcher = defaultValueRegex.pattern.matcher(inputDate)
+        val defaultFormatRegExMatcher =
+          defaultValueRegex.pattern.matcher(inputDate)
         if (defaultFormatRegExMatcher.matches()) {
           try {
             val (localDate, localTime) = parseDateAndTimeForDefaultFormat(
@@ -228,16 +235,14 @@ case class DateFormat(format: Option[String], dataType: String) {
               defaultFormatRegExMatcher,
               namedGroupsExpected
             )
-
-            Some(ZonedDateTime.of(localDate, localTime, timeZoneId))
-          } catch { // If there are some errors, don't break program execution - return None
+            Right(ZonedDateTime.of(localDate, localTime, timeZoneId))
+          } catch {
             // For example 04-31 is not a valid date since april has only 30 days. Invalid range exception will be
-            // thrown here, but if the date is non parsable return None as the return type for this method is Option
-            case e => None
-            // todo: Ajay, might be a good idea to provide some logging here so we can debug when this happens.
+            // thrown here, but if the date is non parsable return Left
+            case e => Left(e.getMessage)
           }
         } else {
-          None
+          Left("Does not match expected format")
         }
       }
       case (None, _) =>
@@ -267,31 +272,56 @@ case class DateFormat(format: Option[String], dataType: String) {
       defaultFormatRegExMatcher: Matcher,
       namedGroupsExpected: Set[String]
   ): (LocalDate, LocalTime) = {
-    val years = getMaybeNamedGroup(defaultFormatRegExMatcher, namedGroupsExpected, RegExGroups.years)
-      .map(_.toInt)
+    val years = getMaybeNamedGroup(
+      defaultFormatRegExMatcher,
+      namedGroupsExpected,
+      RegExGroups.years
+    ).map(_.toInt)
       .getOrElse(0)
-    val months = getMaybeNamedGroup(defaultFormatRegExMatcher, namedGroupsExpected, RegExGroups.months)
-      .map(_.toInt)
+    val months = getMaybeNamedGroup(
+      defaultFormatRegExMatcher,
+      namedGroupsExpected,
+      RegExGroups.months
+    ).map(_.toInt)
       .getOrElse(1)
-    val days = getMaybeNamedGroup(defaultFormatRegExMatcher, namedGroupsExpected, RegExGroups.days)
-      .map(_.toInt)
+    val days = getMaybeNamedGroup(
+      defaultFormatRegExMatcher,
+      namedGroupsExpected,
+      RegExGroups.days
+    ).map(_.toInt)
       .getOrElse(1)
-    val endOfDay = getMaybeNamedGroup(defaultFormatRegExMatcher, namedGroupsExpected,RegExGroups.endOfDay)
+    val endOfDay = getMaybeNamedGroup(
+      defaultFormatRegExMatcher,
+      namedGroupsExpected,
+      RegExGroups.endOfDay
+    )
     val (hours, minutes, seconds, nanoSeconds) =
       if (endOfDay.isDefined) {
         (24, 0, 0, 0)
       } else {
-        val h = getMaybeNamedGroup(defaultFormatRegExMatcher, namedGroupsExpected, RegExGroups.hours)
-          .map(_.toInt)
+        val h = getMaybeNamedGroup(
+          defaultFormatRegExMatcher,
+          namedGroupsExpected,
+          RegExGroups.hours
+        ).map(_.toInt)
           .getOrElse(0)
-        val m = getMaybeNamedGroup(defaultFormatRegExMatcher, namedGroupsExpected, RegExGroups.minutes)
-          .map(_.toInt)
+        val m = getMaybeNamedGroup(
+          defaultFormatRegExMatcher,
+          namedGroupsExpected,
+          RegExGroups.minutes
+        ).map(_.toInt)
           .getOrElse(0)
-        val s = getMaybeNamedGroup(defaultFormatRegExMatcher, namedGroupsExpected, RegExGroups.seconds)
-          .map(_.toInt)
+        val s = getMaybeNamedGroup(
+          defaultFormatRegExMatcher,
+          namedGroupsExpected,
+          RegExGroups.seconds
+        ).map(_.toInt)
           .getOrElse(0)
-        val fs = getMaybeNamedGroup(defaultFormatRegExMatcher, namedGroupsExpected, RegExGroups.fractionalSeconds)
-          .map(f => s"0.$f".toDouble)
+        val fs = getMaybeNamedGroup(
+          defaultFormatRegExMatcher,
+          namedGroupsExpected,
+          RegExGroups.fractionalSeconds
+        ).map(f => s"0.$f".toDouble)
           .getOrElse(0.0)
 
         /*
@@ -315,24 +345,50 @@ case class DateFormat(format: Option[String], dataType: String) {
       defaultFormatRegExMatcher: Matcher,
       namedGroupsExpected: Set[String]
   ): ZoneId = {
-    if (getMaybeNamedGroup(defaultFormatRegExMatcher, namedGroupsExpected, RegExGroups.timeZone).isEmpty) {
+    if (
+      getMaybeNamedGroup(
+        defaultFormatRegExMatcher,
+        namedGroupsExpected,
+        RegExGroups.timeZone
+      ).isEmpty
+    ) {
       utcZoneId
-    } else if (getMaybeNamedGroup(defaultFormatRegExMatcher, namedGroupsExpected, RegExGroups.tzZulu).isDefined) {
+    } else if (
+      getMaybeNamedGroup(
+        defaultFormatRegExMatcher,
+        namedGroupsExpected,
+        RegExGroups.tzZulu
+      ).isDefined
+    ) {
       utcZoneId
     } else {
-      val sign = getMaybeNamedGroup(defaultFormatRegExMatcher, namedGroupsExpected, RegExGroups.tzSign)
-        .map(s => if (s == "+") 1 else -1)
-        .get
+      val sign = getMaybeNamedGroup(
+        defaultFormatRegExMatcher,
+        namedGroupsExpected,
+        RegExGroups.tzSign
+      ).map(s => if (s == "+") 1 else -1).get
 
       val (tzHours, tzMinutes) =
-        if (getMaybeNamedGroup(defaultFormatRegExMatcher, namedGroupsExpected, RegExGroups.tz14).isDefined) {
+        if (
+          getMaybeNamedGroup(
+            defaultFormatRegExMatcher,
+            namedGroupsExpected,
+            RegExGroups.tz14
+          ).isDefined
+        ) {
           (14, 0)
         } else {
-          val tzHours = getMaybeNamedGroup(defaultFormatRegExMatcher, namedGroupsExpected, RegExGroups.tzHours)
-            .map(_.toInt)
+          val tzHours = getMaybeNamedGroup(
+            defaultFormatRegExMatcher,
+            namedGroupsExpected,
+            RegExGroups.tzHours
+          ).map(_.toInt)
             .getOrElse(0)
-          val tzMinutes = getMaybeNamedGroup(defaultFormatRegExMatcher, namedGroupsExpected, RegExGroups.tzMinutes)
-            .map(_.toInt)
+          val tzMinutes = getMaybeNamedGroup(
+            defaultFormatRegExMatcher,
+            namedGroupsExpected,
+            RegExGroups.tzMinutes
+          ).map(_.toInt)
             .getOrElse(0)
 
           (tzHours, tzMinutes)
@@ -362,7 +418,10 @@ case class DateFormat(format: Option[String], dataType: String) {
     )
   }
 
-  private def parseInputDateTimeRetainTimeZoneInfo(formatter: SimpleDateFormat, inputDate: String) = {
+  private def parseInputDateTimeRetainTimeZoneInfo(
+      formatter: SimpleDateFormat,
+      inputDate: String
+  ) = {
     val calendar = new GregorianCalendar(
       // Default timezone where the user's string does not specify one.
       com.ibm.icu.util.TimeZone.getTimeZone("UTC")

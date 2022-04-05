@@ -72,15 +72,14 @@ object Column {
   val validDecimalDatatypeRegex =
     "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)".r
 
-  val validDoubleDatatypeRegex =
-    "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([Ee](\\+|-)?[0-9]+)?|(\\+|-)?INF|NaN".r
-
-  val validFloatDatatypeRegex =
+  val validDoubleDatatypeRegex, validFloatDatatypeRegex =
     "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([Ee](\\+|-)?[0-9]+)?|(\\+|-)?INF|NaN".r
 
   val validIntegerRegex = "[\\-+]?[0-9]+".r
 
   val validLongDatatypeRegex = "[\\-+]?[0-9]+".r
+
+  val unsignedLongMaxValue: BigInt = BigInt("18446744073709551615")
 
   def trimValue(
       value: String,
@@ -100,8 +99,7 @@ object Column {
   ): Either[String, Boolean] = {
     maybeFormat match {
       case Some(f) => {
-        var formatValues = Array[String]()
-        formatValues = f.split("""\|""")
+        var formatValues = f.split("""\|""")
         if (formatValues(0) == value) {
           Right(true)
         } else if (formatValues(1) == value) {
@@ -203,12 +201,14 @@ object Column {
     if (!validLongDatatypeRegex.pattern.matcher(value).matches()) {
       Left("invalid_long")
     } else {
-      processIntegerDatatype(value, maybeFormat) match {
-        case Left(warning) => Left(s"invalid_long - ${warning}")
+      numericParser(value, maybeFormat) match {
+        case Left(_) => Left("invalid_long")
         case Right(parsedValue) => {
-          if (parsedValue > Long.MaxValue || parsedValue < Long.MinValue) {
-            Left(s"invalid_long - '$value' Outside Long Range")
-          } else Right(parsedValue.longValue())
+          parsedValue match {
+            case _: lang.Long | _: lang.Integer | _: lang.Short =>
+              Right(parsedValue.longValue())
+            case _ => Left(s"invalid_long - '$value' outside long range")
+          }
         }
       }
     }
@@ -297,7 +297,6 @@ object Column {
     result match {
       case Left(_) => Left("invalid_unsignedLong")
       case Right(parsedValue) => {
-        val unsignedLongMaxValue: BigInt = BigInt("18446744073709551615")
         if (parsedValue > unsignedLongMaxValue) {
           Left("invalid_unsignedLong")
         } else Right(parsedValue)
@@ -510,8 +509,8 @@ object Column {
   ): Either[String, ZonedDateTime] = {
     val dateFormatObject = DateFormat(format, datatype)
     dateFormatObject.parse(value) match {
-      case Some(parsedValue) => Right(parsedValue)
-      case None              => Left(warning)
+      case successValue @ Right(_) => successValue
+      case Left(error)             => Left(s"$warning - $error")
     }
   }
 

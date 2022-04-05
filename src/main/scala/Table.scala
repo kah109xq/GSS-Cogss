@@ -518,7 +518,7 @@ case class Table private (
     var columnIndex = 0
     var columnNames: Array[String] = Array()
     while (columnIndex < header.size()) {
-      val columnName = header.get(columnIndex)
+      val columnName = header.get(columnIndex).trim
       if (columnName == "") {
         warnings :+= ErrorMessage(
           "Empty column name",
@@ -545,7 +545,14 @@ case class Table private (
         warnings = warnings.concat(w)
         errors = errors.concat(e)
       } else {
-        errors :+= ErrorMessage("Malformed header", "Schema", "1", "", "", "")
+        errors :+= ErrorMessage(
+          "Malformed header",
+          "Schema",
+          "1",
+          "",
+          "Unexpected column not defined in metadata",
+          ""
+        )
       }
       columnIndex += 1
     }

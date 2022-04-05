@@ -1,6 +1,8 @@
 package CSVValidation
 import org.scalatest.FunSuite
 
+import java.time.Month
+
 class DateFormatTest extends FunSuite {
   test(
     "it throws an exception for unrecognized date field symbols in date format"
@@ -28,8 +30,8 @@ class DateFormatTest extends FunSuite {
       "2002-10-10T12:00:00.1-05:00RandomTextHere"
     )
 
-    assert(maybeParsedDateTime.isDefined)
-    val parsedDateTime = maybeParsedDateTime.get
+    assert(maybeParsedDateTime.isRight)
+    val Right(parsedDateTime) = maybeParsedDateTime
     assert(parsedDateTime.getYear == 2002)
     assert(parsedDateTime.getMonthValue == 10)
     assert(parsedDateTime.getDayOfMonth == 10)
@@ -49,8 +51,8 @@ class DateFormatTest extends FunSuite {
       "2002-10-10T12:00:00.0123456-05:00"
     )
 
-    assert(maybeParsedDateTime.isDefined)
-    val parsedDateTime = maybeParsedDateTime.get
+    assert(maybeParsedDateTime.isRight)
+    val Right(parsedDateTime) = maybeParsedDateTime
     assert(parsedDateTime.getYear == 2002)
     assert(parsedDateTime.getMonthValue == 10)
     assert(parsedDateTime.getDayOfMonth == 10)
@@ -68,8 +70,8 @@ class DateFormatTest extends FunSuite {
       "2002-10-10T12:00:00.0123456"
     )
 
-    assert(maybeParsedDateTime.isDefined)
-    val parsedDateTime = maybeParsedDateTime.get
+    assert(maybeParsedDateTime.isRight)
+    val Right(parsedDateTime) = maybeParsedDateTime
     assert(parsedDateTime.getYear == 2002)
     assert(parsedDateTime.getMonthValue == 10)
     assert(parsedDateTime.getDayOfMonth == 10)
@@ -77,6 +79,7 @@ class DateFormatTest extends FunSuite {
     assert(parsedDateTime.getMinute == 0)
     assert(parsedDateTime.getSecond == 0)
     assert(parsedDateTime.getNano == 0.0123456 * 1e9)
+    assert(parsedDateTime.getOffset.getTotalSeconds == 0)
   }
 
   test("it should parse gDay") {
@@ -85,10 +88,13 @@ class DateFormatTest extends FunSuite {
     val maybeParsedDateTime = dateFormatObj.parse(
       "---01-04:00"
     )
-    assert(maybeParsedDateTime.isDefined)
-    val parsedDateTime = maybeParsedDateTime.get
+    assert(maybeParsedDateTime.isRight)
+    val Right(parsedDateTime) = maybeParsedDateTime
     assert(parsedDateTime.getDayOfMonth == 1)
     assert(parsedDateTime.getOffset.getTotalSeconds == -4 * 60 * 60)
+
+    assert(parsedDateTime.getYear == 0)
+    assert(parsedDateTime.getMonth == Month.JANUARY)
   }
 
   test("it should parse gMonth") {
@@ -97,8 +103,8 @@ class DateFormatTest extends FunSuite {
     val maybeParsedDateTime = dateFormatObj.parse(
       "--04-05:00"
     )
-    assert(maybeParsedDateTime.isDefined)
-    val parsedDateTime = maybeParsedDateTime.get
+    assert(maybeParsedDateTime.isRight)
+    val Right(parsedDateTime) = maybeParsedDateTime
     assert(parsedDateTime.getMonthValue == 4)
     assert(parsedDateTime.getOffset.getTotalSeconds == -5 * 60 * 60)
   }
@@ -109,7 +115,7 @@ class DateFormatTest extends FunSuite {
     val maybeParsedDateTime = dateFormatObj.parse(
       "2004-04" //the year must not be specified
     )
-    assert(maybeParsedDateTime.isEmpty)
+    assert(maybeParsedDateTime.isLeft)
   }
 
   test("it should parse gMonthDay") {
@@ -118,8 +124,8 @@ class DateFormatTest extends FunSuite {
     val maybeParsedDateTime = dateFormatObj.parse(
       "--04-12Z"
     )
-    assert(maybeParsedDateTime.isDefined)
-    val parsedDateTime = maybeParsedDateTime.get
+    assert(maybeParsedDateTime.isRight)
+    val Right(parsedDateTime) = maybeParsedDateTime
     assert(parsedDateTime.getMonthValue == 4)
     assert(parsedDateTime.getOffset.getTotalSeconds == 0)
   }
@@ -130,7 +136,7 @@ class DateFormatTest extends FunSuite {
     val maybeParsedDateTime = dateFormatObj.parse(
       "--04-31" //it must be a valid day of the year (April has 30 days)
     )
-    assert(maybeParsedDateTime.isEmpty)
+    assert(maybeParsedDateTime.isLeft)
   }
 
   test("it should parse gYear") {
@@ -139,8 +145,8 @@ class DateFormatTest extends FunSuite {
     val maybeParsedDateTime = dateFormatObj.parse(
       "2004-05:00"
     )
-    assert(maybeParsedDateTime.isDefined)
-    val parsedDateTime = maybeParsedDateTime.get
+    assert(maybeParsedDateTime.isRight)
+    val Right(parsedDateTime) = maybeParsedDateTime
     assert(parsedDateTime.getYear == 2004)
     assert(parsedDateTime.getOffset.getTotalSeconds == -5 * 60 * 60)
   }
@@ -151,7 +157,7 @@ class DateFormatTest extends FunSuite {
     val maybeParsedDateTime = dateFormatObj.parse(
       "99" // the century must not be truncated
     )
-    assert(maybeParsedDateTime.isEmpty)
+    assert(maybeParsedDateTime.isLeft)
   }
 
   test("it should parse gYearMonth") {
@@ -160,8 +166,8 @@ class DateFormatTest extends FunSuite {
     val maybeParsedDateTime = dateFormatObj.parse(
       "2004-04-05:00"
     )
-    assert(maybeParsedDateTime.isDefined)
-    val parsedDateTime = maybeParsedDateTime.get
+    assert(maybeParsedDateTime.isRight)
+    val Right(parsedDateTime) = maybeParsedDateTime
     assert(parsedDateTime.getYear == 2004)
     assert(parsedDateTime.getMonthValue == 4)
     assert(parsedDateTime.getOffset.getTotalSeconds == -5 * 60 * 60)
@@ -173,7 +179,7 @@ class DateFormatTest extends FunSuite {
     val maybeParsedDateTime = dateFormatObj.parse(
       "2004-4" //the month must be two digits
     )
-    assert(maybeParsedDateTime.isEmpty)
+    assert(maybeParsedDateTime.isLeft)
   }
 
   test("it should parse time") {
@@ -182,8 +188,8 @@ class DateFormatTest extends FunSuite {
     val maybeParsedDateTime = dateFormatObj.parse(
       "13:20:30.5555-05:00"
     )
-    assert(maybeParsedDateTime.isDefined)
-    val parsedDateTime = maybeParsedDateTime.get
+    assert(maybeParsedDateTime.isRight)
+    val Right(parsedDateTime) = maybeParsedDateTime
     assert(parsedDateTime.getOffset.getTotalSeconds == -5 * 60 * 60)
     assert(parsedDateTime.getNano == 0.5555 * 1e9)
     assert(parsedDateTime.getHour == 13)
@@ -197,7 +203,7 @@ class DateFormatTest extends FunSuite {
     val maybeParsedDateTime = dateFormatObj.parse(
       "5:20:00" // hours, minutes, and seconds must be two digits each
     )
-    assert(maybeParsedDateTime.isEmpty)
+    assert(maybeParsedDateTime.isLeft)
   }
 
   test("it should not return dateTimeStamp for invalid values") {
@@ -206,7 +212,7 @@ class DateFormatTest extends FunSuite {
     val maybeParsedDateTime = dateFormatObj.parse(
       "2004-04-12T13:20:00"
     )
-    assert(maybeParsedDateTime.isEmpty)
+    assert(maybeParsedDateTime.isLeft)
   }
 
   test("it should parse dateTimeStamp") {
@@ -215,8 +221,8 @@ class DateFormatTest extends FunSuite {
     val maybeParsedDateTime = dateFormatObj.parse(
       "2004-04-12T13:20:00-05:00"
     )
-    assert(maybeParsedDateTime.isDefined)
-    val parsedDateTime = maybeParsedDateTime.get
+    assert(maybeParsedDateTime.isRight)
+    val Right(parsedDateTime) = maybeParsedDateTime
     assert(parsedDateTime.getOffset.getTotalSeconds == -5 * 60 * 60)
 
   }
@@ -227,8 +233,8 @@ class DateFormatTest extends FunSuite {
     val maybeParsedDateTime = dateFormatObj.parse(
       "-0045-01-01"
     )
-    assert(maybeParsedDateTime.isDefined)
-    val parsedDateTime = maybeParsedDateTime.get
+    assert(maybeParsedDateTime.isRight)
+    val Right(parsedDateTime) = maybeParsedDateTime
     assert(parsedDateTime.getDayOfMonth == 1)
     assert(parsedDateTime.getMonthValue == 1)
     assert(parsedDateTime.getYear == -45)
@@ -240,6 +246,6 @@ class DateFormatTest extends FunSuite {
     val maybeParsedDateTime = dateFormatObj.parse(
       "04-12-2004" //the value must be in CCYY-MM-DD order
     )
-    assert(maybeParsedDateTime.isEmpty)
+    assert(maybeParsedDateTime.isLeft)
   }
 }

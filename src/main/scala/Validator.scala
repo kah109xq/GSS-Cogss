@@ -14,7 +14,6 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
   val isCsvHeader = true
   var warnings: Array[ErrorMessage] = Array()
   var errors: Array[ErrorMessage] = Array()
-  var schema: Option[TableGroup] = None
   var source: String = "" // Define how this is set, will it always be string?
   val csvHeaderExpected = true
 
@@ -22,7 +21,6 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
     val mayBeTableGroupObject = Schema.loadMetadataAndValidate(tableCsvFile)
     mayBeTableGroupObject match {
       case Right(tableGroup) => {
-        schema = Some(tableGroup)
         if (sourceUri.isEmpty) {
           fetchSchemaTables(tableGroup)
         }
@@ -35,12 +33,12 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
   def fetchSchemaTables(schema: TableGroup) = {
     for (tableUrl <- schema.tables.keys) {
       val tableUri = new URI(tableUrl)
-      readCSV(tableUri)
+      readCSV(schema, tableUri)
       // Call validate csv function
     }
   }
 
-  def readCSV(tableUri: URI) = {
+  def readCSV(schema: TableGroup, tableUri: URI) = {
     val parser = if (tableUri.getScheme == "file") {
       val tableCsvFile = new File(tableUri)
       if (!tableCsvFile.exists) {
@@ -61,9 +59,10 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
         CSVFormat.DEFAULT
       )
     }
+
     for (row <- parser.asScala) {
       if (row.getRecordNumber == 1 && csvHeaderExpected) {
-        validateHeader(row, tableUri)
+        validateHeader(schema, row, tableUri)
       } else {
         if (row.size == 0) {
           warnings :+= ErrorMessage(
@@ -75,21 +74,21 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
             ""
           )
         }
-        schema.get.validateRow(row, tableUri.toString)
+        schema.validateRow(row, tableUri.toString)
       }
     }
   }
 
-  private def validateHeader(header: CSVRecord, tableUri: URI): Unit = {
+  private def validateHeader(
+      schema: TableGroup,
+      header: CSVRecord,
+      tableUri: URI
+  ): Unit = {
     // If the dialect trim is set to true, do header.map{|h| h.strip! } if @dialect["trim"] == :true
-    schema match {
-      case Some(tableGroup) => {
-        val WarningsAndErrors(w, e) =
-          tableGroup.validateHeader(header, tableUri.toString)
-        warnings = warnings.concat(w)
-        errors = errors.concat(e)
-      }
-    }
+    val WarningsAndErrors(w, e) =
+      schema.validateHeader(header, tableUri.toString)
+    warnings = warnings.concat(w)
+    errors = errors.concat(e)
   }
 
   private def processWarnings(errorMessage: ErrorMessage): String = {
