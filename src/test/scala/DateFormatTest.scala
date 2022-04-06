@@ -95,6 +95,9 @@ class DateFormatTest extends FunSuite {
 
     assert(parsedDateTime.getYear == 0)
     assert(parsedDateTime.getMonth == Month.JANUARY)
+    assert(parsedDateTime.getHour == 0)
+    assert(parsedDateTime.getMinute == 0)
+    assert(parsedDateTime.getSecond == 0)
   }
 
   test("it should parse gMonth") {
@@ -107,6 +110,12 @@ class DateFormatTest extends FunSuite {
     val Right(parsedDateTime) = maybeParsedDateTime
     assert(parsedDateTime.getMonthValue == 4)
     assert(parsedDateTime.getOffset.getTotalSeconds == -5 * 60 * 60)
+
+    assert(parsedDateTime.getYear == 0)
+    assert(parsedDateTime.getDayOfMonth == 1)
+    assert(parsedDateTime.getHour == 0)
+    assert(parsedDateTime.getMinute == 0)
+    assert(parsedDateTime.getSecond == 0)
   }
 
   test("it should not return gMonth for invalid values") {
@@ -127,6 +136,13 @@ class DateFormatTest extends FunSuite {
     assert(maybeParsedDateTime.isRight)
     val Right(parsedDateTime) = maybeParsedDateTime
     assert(parsedDateTime.getMonthValue == 4)
+    assert(parsedDateTime.getOffset.getTotalSeconds == 0)
+    assert(parsedDateTime.getDayOfMonth == 12)
+
+    assert(parsedDateTime.getYear == 0)
+    assert(parsedDateTime.getHour == 0)
+    assert(parsedDateTime.getMinute == 0)
+    assert(parsedDateTime.getSecond == 0)
     assert(parsedDateTime.getOffset.getTotalSeconds == 0)
   }
 
@@ -149,6 +165,12 @@ class DateFormatTest extends FunSuite {
     val Right(parsedDateTime) = maybeParsedDateTime
     assert(parsedDateTime.getYear == 2004)
     assert(parsedDateTime.getOffset.getTotalSeconds == -5 * 60 * 60)
+
+    assert(parsedDateTime.getHour == 0)
+    assert(parsedDateTime.getMinute == 0)
+    assert(parsedDateTime.getSecond == 0)
+    assert(parsedDateTime.getDayOfMonth == 1)
+    assert(parsedDateTime.getMonth == Month.JANUARY)
   }
 
   test("it should not return gYear for invalid values") {
@@ -171,6 +193,11 @@ class DateFormatTest extends FunSuite {
     assert(parsedDateTime.getYear == 2004)
     assert(parsedDateTime.getMonthValue == 4)
     assert(parsedDateTime.getOffset.getTotalSeconds == -5 * 60 * 60)
+
+    assert(parsedDateTime.getHour == 0)
+    assert(parsedDateTime.getMinute == 0)
+    assert(parsedDateTime.getSecond == 0)
+    assert(parsedDateTime.getDayOfMonth == 1)
   }
 
   test("it should not return gYearMonth for invalid values") {
@@ -195,6 +222,10 @@ class DateFormatTest extends FunSuite {
     assert(parsedDateTime.getHour == 13)
     assert(parsedDateTime.getMinute == 20)
     assert(parsedDateTime.getSecond == 30)
+
+    assert(parsedDateTime.getYear == 0)
+    assert(parsedDateTime.getDayOfMonth == 1)
+    assert(parsedDateTime.getMonth == Month.JANUARY)
   }
 
   test("it should not return time for invalid values") {
@@ -225,6 +256,11 @@ class DateFormatTest extends FunSuite {
     val Right(parsedDateTime) = maybeParsedDateTime
     assert(parsedDateTime.getOffset.getTotalSeconds == -5 * 60 * 60)
 
+    assert(parsedDateTime.getYear == 2004)
+    assert(parsedDateTime.getHour == 13)
+    assert(parsedDateTime.getMinute == 20)
+    assert(parsedDateTime.getSecond == 0)
+
   }
 
   test("it should parse date") {
@@ -238,6 +274,11 @@ class DateFormatTest extends FunSuite {
     assert(parsedDateTime.getDayOfMonth == 1)
     assert(parsedDateTime.getMonthValue == 1)
     assert(parsedDateTime.getYear == -45)
+
+    assert(parsedDateTime.getHour == 0)
+    assert(parsedDateTime.getMinute == 0)
+    assert(parsedDateTime.getSecond == 0)
+    assert(parsedDateTime.getOffset.getTotalSeconds == 0)
   }
 
   test("it should not retrieve date for invalid value") {
