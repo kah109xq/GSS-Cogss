@@ -1078,4 +1078,22 @@ class PropertyCheckerTest extends FunSuite {
       )
     )
   }
+
+  test(
+    "should populate warnings for invalid format for regex format datatypes"
+  ) {
+    val json =
+      """
+        |{
+        | "base": "yearMonthDuration",
+        | "format": "[("
+        |}
+        |""".stripMargin
+
+    val jsonNode = objectMapper.readTree(json)
+    val (values, warnings, _) =
+      PropertyChecker.checkProperty("datatype", jsonNode, "", "und")
+
+    assert(warnings.contains("invalid_regex"))
+  }
 }

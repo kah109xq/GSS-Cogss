@@ -795,7 +795,7 @@ object PropertyChecker {
             objectNode
               .get("format")
               .asText
-              .r //Add a unit test for invalid format warning
+              .r
           } catch {
             case e: Exception => {
               objectNode.remove("format")
