@@ -501,14 +501,19 @@ case class Table private (
   warnings = warnings.concat(warningsFromColumns)
 
   def validateRow(row: CSVRecord): WarningsAndErrors = {
+    var errors = Array[ErrorMessage]()
     if (columns.nonEmpty) {
       for ((value, i) <- row.iterator.asScalaArray.zipWithIndex) {
         //catch any exception here, possibly outOfBounds  and set warning too many values
         val column = columns(i)
-        column.validate(value, row.getRecordNumber)
+        val result = column.validate(value, row.getRecordNumber)
+        errors = errors.concat(result.errors)
+        warnings = warnings.concat(result.warnings)
       }
+      WarningsAndErrors(warnings, errors)
+    } else {
+      WarningsAndErrors(Array(), Array())
     }
-    WarningsAndErrors(Array(), Array())
   }
   def validateHeader(
       header: CSVRecord
