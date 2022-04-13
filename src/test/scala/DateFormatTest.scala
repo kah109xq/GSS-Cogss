@@ -260,6 +260,8 @@ class DateFormatTest extends FunSuite {
     assert(parsedDateTime.getHour == 13)
     assert(parsedDateTime.getMinute == 20)
     assert(parsedDateTime.getSecond == 0)
+    assert(parsedDateTime.getMonth == Month.APRIL)
+    assert(parsedDateTime.getDayOfMonth == 12)
 
   }
 

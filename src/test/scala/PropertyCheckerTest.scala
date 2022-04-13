@@ -1094,6 +1094,6 @@ class PropertyCheckerTest extends FunSuite {
     val (values, warnings, _) =
       PropertyChecker.checkProperty("datatype", jsonNode, "", "und")
 
-    assert(warnings.contains("invalid_regex"))
+    assert(warnings(0).contains("invalid_regex"))
   }
 }

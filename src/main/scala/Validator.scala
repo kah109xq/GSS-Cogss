@@ -12,8 +12,8 @@ import scala.jdk.CollectionConverters.IterableHasAsScala
 // made in the due course or as per requirements
 class Validator(var tableCsvFile: URI, sourceUri: String = "") {
   val isCsvHeader = true
-  var warnings: Array[ErrorMessage] = Array()
-  var errors: Array[ErrorMessage] = Array()
+  var warnings: Array[ErrorWithCsvContext] = Array()
+  var errors: Array[ErrorWithCsvContext] = Array()
   var source: String = "" // Define how this is set, will it always be string?
   val csvHeaderExpected = true
 
@@ -51,7 +51,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
           tableCsvFile,
           StandardCharsets.UTF_8,
           CSVFormat.DEFAULT
-        )
+        ) // todo: extract delimiter and other from dialect property - https://www.w3.org/TR/2015/REC-tabular-data-model-20151217/#h-parsing
     } else {
       CSVParser.parse(
         tableUri.toURL,
@@ -59,13 +59,14 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
         CSVFormat.DEFAULT
       )
     }
+    val table = schema.tables(tableUri.toString)
 
     for (row <- parser.asScala) {
       if (row.getRecordNumber == 1 && csvHeaderExpected) {
         validateHeader(schema, row, tableUri)
       } else {
         if (row.size == 0) {
-          warnings :+= ErrorMessage(
+          warnings :+= ErrorWithCsvContext(
             "Blank rows",
             "structure",
             row.getRecordNumber.toString,
@@ -74,7 +75,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
             ""
           )
         }
-        schema.validateRow(row, tableUri.toString)
+        val warningsAndErrors = table.validateRow(row)
       }
     }
   }
@@ -91,7 +92,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
     errors = errors.concat(e)
   }
 
-  private def processWarnings(errorMessage: ErrorMessage): String = {
+  private def processWarnings(errorMessage: ErrorWithCsvContext): String = {
     s"Type: ${errorMessage.`type`}, Category: ${errorMessage.category}, " +
       s"Row: ${errorMessage.row}, Column: ${errorMessage.column}, " +
       s"Content: ${errorMessage.content}, Constraints: ${errorMessage.constraints} \n"

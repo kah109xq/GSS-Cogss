@@ -1,5 +1,6 @@
 package CSVValidation
-case class ErrorMessage(
+
+case class ErrorWithCsvContext(
     `type`: String,
     category: String,
     row: String,

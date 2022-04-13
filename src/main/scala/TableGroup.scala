@@ -23,7 +23,7 @@ object TableGroup {
 
   def fromJson(tableGroupNode: ObjectNode, baseUri: String): TableGroup = {
     var baseUrl = baseUri.trim
-    var warnings = Array[ErrorMessage]()
+    var warnings = Array[ErrorWithCsvContext]()
     val matcher = containsWhitespaces.pattern.matcher(baseUrl)
     if (matcher.matches()) {
       println(
@@ -94,10 +94,10 @@ object TableGroup {
       contextBaseAndLangObject: ObjectNode,
       baseUrl: String,
       lang: String
-  ): (String, String, Array[ErrorMessage]) = {
+  ): (String, String, Array[ErrorWithCsvContext]) = {
     var baseUrlNew = baseUrl
     var langNew: String = lang
-    var warnings = Array[ErrorMessage]()
+    var warnings = Array[ErrorWithCsvContext]()
 
     for ((property, value) <- contextBaseAndLangObject.getKeysAndValues) {
       val (newValue, w, csvwPropertyType) = PropertyChecker
@@ -120,7 +120,14 @@ object TableGroup {
           )
         }
         warnings = warnings.concat(w.map { w =>
-          ErrorMessage(w, "metadata", "", "", s"${property}: ${value}", "")
+          ErrorWithCsvContext(
+            w,
+            "metadata",
+            "",
+            "",
+            s"${property}: ${value}",
+            ""
+          )
         })
       }
     }
@@ -132,7 +139,7 @@ object TableGroup {
       context: ArrayNode,
       baseUrl: String,
       lang: String
-  ): (String, String, Array[ErrorMessage]) = {
+  ): (String, String, Array[ErrorWithCsvContext]) = {
     def validateFirstItemInContext(): Unit = {
       context.get(0) match {
         case s: TextNode if s.asText == csvwContextUri => {}
@@ -165,7 +172,7 @@ object TableGroup {
         // If @context contains just one element, the namespace for csvw should always be http://www.w3.org/ns/csvw
         // "@context": "http://www.w3.org/ns/csvw"
         validateFirstItemInContext()
-        (baseUrl, lang, Array[ErrorMessage]())
+        (baseUrl, lang, Array[ErrorWithCsvContext]())
       }
       case l =>
         throw new MetadataError(s"Unexpected @context array length $l")
@@ -176,13 +183,13 @@ object TableGroup {
       rootNode: ObjectNode,
       baseUrl: String,
       lang: String
-  ): (String, String, Array[ErrorMessage]) = {
+  ): (String, String, Array[ErrorWithCsvContext]) = {
     val context = rootNode.get("@context")
 
     val (baseUrlNew, langNew, warnings) = context match {
       case a: ArrayNode => validateContextArrayNode(a, baseUrl, lang)
       case s: TextNode if s.asText == csvwContextUri =>
-        (baseUrl, lang, Array[ErrorMessage]())
+        (baseUrl, lang, Array[ErrorWithCsvContext]())
       case _ => throw new MetadataError("Invalid Context")
     }
     rootNode.remove("@context")
@@ -295,18 +302,18 @@ object TableGroup {
       Map[String, JsonNode],
       Map[String, JsonNode],
       Map[String, JsonNode],
-      Array[ErrorMessage]
+      Array[ErrorWithCsvContext]
   ) = {
     val annotations = Map[String, JsonNode]()
     val commonProperties = Map[String, JsonNode]()
     val inheritedProperties = Map[String, JsonNode]()
-    var warnings = Array[ErrorMessage]()
+    var warnings = Array[ErrorWithCsvContext]()
     for ((property, value) <- tableGroupNode.getKeysAndValues) {
       if (!validProperties.contains(property)) {
         val (newValue, w, csvwPropertyType) =
           PropertyChecker.checkProperty(property, value, baseUrl, lang)
-        warnings = w.map[ErrorMessage](x =>
-          ErrorMessage(x, "metadata", "", "", s"$property : $value", "")
+        warnings = w.map[ErrorWithCsvContext](x =>
+          ErrorWithCsvContext(x, "metadata", "", "", s"$property : $value", "")
         )
         csvwPropertyType match {
           case PropertyType.Annotation => annotations += (property -> newValue)
@@ -314,7 +321,7 @@ object TableGroup {
           case PropertyType.Inherited =>
             inheritedProperties += (property -> newValue)
           case _ => {
-            warnings :+= ErrorMessage(
+            warnings :+= ErrorWithCsvContext(
               "invalid_property",
               "metadata",
               "",
@@ -336,7 +343,7 @@ object TableGroup {
       lang: String,
       commonProperties: mutable.Map[String, JsonNode],
       inheritedProperties: mutable.Map[String, JsonNode]
-  ): (mutable.Map[String, Table], Array[ErrorMessage]) = {
+  ): (mutable.Map[String, Table], Array[ErrorWithCsvContext]) = {
     tableGroupNode.path("tables") match {
       case t: ArrayNode if t.isEmpty() =>
         throw new MetadataError("Empty tables property")
@@ -359,15 +366,15 @@ object TableGroup {
       lang: String,
       commonProperties: Map[String, JsonNode],
       inheritedProperties: Map[String, JsonNode]
-  ): (mutable.Map[String, Table], Array[ErrorMessage]) = {
-    var warnings = Array[ErrorMessage]()
+  ): (mutable.Map[String, Table], Array[ErrorWithCsvContext]) = {
+    var warnings = Array[ErrorWithCsvContext]()
     val tables = Map[String, Table]()
     for (tableElement <- tablesArrayNode.elements().asScalaArray) {
       tableElement match {
         case tableElementObject: ObjectNode => {
           var tableUrl = tableElement.get("url")
           if (!tableUrl.isTextual) {
-            warnings = warnings :+ ErrorMessage(
+            warnings = warnings :+ ErrorWithCsvContext(
               "invalid_url",
               "metadata",
               "",
@@ -391,7 +398,7 @@ object TableGroup {
           tables += (tableUrl.asText -> table)
         }
         case _ => {
-          warnings = warnings :+ ErrorMessage(
+          warnings = warnings :+ ErrorWithCsvContext(
             "invalid_table_description",
             "metadata",
             "",
@@ -418,18 +425,14 @@ case class TableGroup private (
     tables: Map[String, Table],
     notes: Option[JsonNode],
     annotations: Map[String, JsonNode],
-    var warnings: Array[ErrorMessage]
+    var warnings: Array[ErrorWithCsvContext]
 ) {
-  val warningsFromTables: Array[ErrorMessage] =
+  val warningsFromTables: Array[ErrorWithCsvContext] =
     Array.from(tables.flatMap {
       case (_, table) => table.warnings
     })
   warnings = warnings.concat(warningsFromTables)
 
-  def validateRow(row: CSVRecord, tableUrl: String) = {
-    // revisit if we need a variable validatedTables (hash) as in csvlint
-    tables(tableUrl).validateRow(row)
-  }
   def validateHeader(
       header: CSVRecord,
       tableUrl: String
