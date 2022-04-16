@@ -290,25 +290,32 @@ object Column {
     if (formatNode.isMissingNode || formatNode.isNull) {
       None
     } else {
-      val formatObjectNode = formatNode.asInstanceOf[ObjectNode]
-      def getMaybeValueFromNode(
-          node: ObjectNode,
-          propertyName: String
-      ): Option[String] = {
-        if (node.isMissingNode) {
-          None
-        } else {
-          Some(node.get(propertyName).asText())
+      formatNode match {
+        case s: TextNode => Some(Format(Some(s.asText()), None, None, None))
+        case _ => {
+          val formatObjectNode = formatNode.asInstanceOf[ObjectNode]
+
+          def getMaybeValueFromNode(
+              node: ObjectNode,
+              propertyName: String
+          ): Option[String] = {
+            if (node.isMissingNode) {
+              None
+            } else {
+              Some(node.get(propertyName).asText())
+            }
+          }
+
+          val pattern = getMaybeValueFromNode(formatObjectNode, "pattern")
+          val decimalChar =
+            getMaybeValueFromNode(formatObjectNode, "decimalChar")
+              .map(d => d(0))
+          val groupChar = getMaybeValueFromNode(formatObjectNode, "groupChar")
+            .map(d => d(0))
+
+          Some(Format(None, pattern, decimalChar, groupChar))
         }
       }
-
-      val pattern = getMaybeValueFromNode(formatObjectNode, "pattern")
-      val decimalChar = getMaybeValueFromNode(formatObjectNode, "decimalChar")
-        .map(d => d(0))
-      val groupChar = getMaybeValueFromNode(formatObjectNode, "groupChar")
-        .map(d => d(0))
-
-      Some(Format(pattern, decimalChar, groupChar))
     }
   }
 
@@ -425,7 +432,7 @@ case class Column private (
   def processBooleanDatatype(
       value: String
   ): Either[ErrorWithoutContext, Boolean] = {
-    format.flatMap(f => f.pattern) match {
+    format.flatMap(f => f.maybeBooleanFormatOrRegExFormat) match {
       case Some(pattern) => {
         var patternValues = pattern.split("""\|""")
         if (patternValues(0) == value) {
@@ -988,8 +995,8 @@ case class Column private (
               datatype.toPrettyString
             )
           }
+          case Right(s) => {}
         }
-
 //        val (value, warning) = //CREATE DATATYPE PARSERS
 //        val format = ""
 //        val (value, warning) = Column.DatatypeParser(s)(value, format)
