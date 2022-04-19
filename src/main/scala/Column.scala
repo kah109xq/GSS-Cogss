@@ -596,64 +596,79 @@ case class Column private (
   def processIntDatatype(
       value: String
   ): Either[ErrorWithoutContext, Int] = {
-    numericParser(value) match {
-      case Left(w) => Left(ErrorWithoutContext("invalid_int", w))
-      case Right(parsedNumber) => {
-        parsedNumber match {
-          case _: java.lang.Long | _: java.lang.Integer | _: java.lang.Short |
-              _: java.lang.Byte => {
-            val parsedValue = parsedNumber.longValue()
-            if (parsedValue > Int.MaxValue || parsedValue < Int.MinValue)
+    if (!Column.validIntegerRegex.pattern.matcher(value).matches()) {
+      Left(
+        ErrorWithoutContext(
+          "invalid_int",
+          "Does not match expected integer format"
+        )
+      )
+    } else {
+      numericParser(value) match {
+        case Left(w) => Left(ErrorWithoutContext("invalid_int", w))
+        case Right(parsedNumber) => {
+          parsedNumber match {
+            case _: java.lang.Long | _: java.lang.Integer | _: java.lang.Short |
+                _: java.lang.Byte => {
+              val parsedValue = parsedNumber.longValue()
+              if (parsedValue > Int.MaxValue || parsedValue < Int.MinValue)
+                Left(
+                  ErrorWithoutContext(
+                    "invalid_int",
+                    s"Outside Int Range ${Int.MinValue} - ${Int.MaxValue} (inclusive)"
+                  )
+                )
+              else Right(parsedValue.intValue())
+            }
+            case _ =>
               Left(
                 ErrorWithoutContext(
                   "invalid_int",
                   s"Outside Int Range ${Int.MinValue} - ${Int.MaxValue} (inclusive)"
                 )
               )
-            else Right(parsedValue.intValue())
           }
-          case _ =>
-            Left(
-              ErrorWithoutContext(
-                "invalid_int",
-                s"Outside Int Range ${Int.MinValue} - ${Int.MaxValue} (inclusive)"
-              )
-            )
         }
       }
     }
-
-    //    val result = processIntegerDatatype(value)
-//    result match {
-//      case Left(w) => Left(ErrorWithoutContext("invalid_int", w.content))
-//      case Right(parsedValue) => {
-//        if (parsedValue > Int.MaxValue || parsedValue < Int.MinValue)
-//          Left(
-//            ErrorWithoutContext(
-//              "invalid_int",
-//              s"Outside Int Range ${Int.MinValue} - ${Int.MaxValue} (inclusive)"
-//            )
-//          )
-//        else Right(parsedValue.intValue())
-//      }
-//    }
   }
 
   def processShortDatatype(
       value: String
   ): Either[ErrorWithoutContext, Short] = {
-    val result = processIntegerDatatype(value)
-    result match {
-      case Left(w) => Left(ErrorWithoutContext("invalid_short", w.content))
-      case Right(parsedValue) => {
-        if (parsedValue > Short.MaxValue || parsedValue < Short.MinValue) {
-          Left(
-            ErrorWithoutContext(
-              "invalid_short",
-              s"Outside short range ${Short.MinValue} - ${Short.MaxValue} (inclusive)"
-            )
-          )
-        } else Right(parsedValue.shortValue())
+    if (!Column.validIntegerRegex.pattern.matcher(value).matches()) {
+      Left(
+        ErrorWithoutContext(
+          "invalid_short",
+          "Does not match expected short format"
+        )
+      )
+    } else {
+      numericParser(value) match {
+        case Left(w) => Left(ErrorWithoutContext("invalid_short", w))
+        case Right(parsedNumber) => {
+          parsedNumber match {
+            case _: java.lang.Long | _: java.lang.Integer | _: java.lang.Short |
+                _: java.lang.Byte => {
+              val parsedValue = parsedNumber.longValue()
+              if (parsedValue > Short.MaxValue || parsedValue < Short.MinValue)
+                Left(
+                  ErrorWithoutContext(
+                    "invalid_short",
+                    s"Outside Short Range ${Short.MinValue} - ${Short.MaxValue} (inclusive)"
+                  )
+                )
+              else Right(parsedValue.shortValue())
+            }
+            case _ =>
+              Left(
+                ErrorWithoutContext(
+                  "invalid_short",
+                  s"Outside Short Range ${Short.MinValue} - ${Short.MaxValue} (inclusive)"
+                )
+              )
+          }
+        }
       }
     }
   }
@@ -661,18 +676,39 @@ case class Column private (
   def processByteDatatype(
       value: String
   ): Either[ErrorWithoutContext, Byte] = {
-    val result = processIntegerDatatype(value)
-    result match {
-      case Left(w) => Left(ErrorWithoutContext("invalid_byte", w.content))
-      case Right(parsedValue) => {
-        if (parsedValue > Byte.MaxValue || parsedValue < Byte.MinValue) {
-          Left(
-            ErrorWithoutContext(
-              "invalid_byte",
-              s"Outside byte range ${Byte.MinValue} - ${Byte.MaxValue} (inclusive)"
-            )
-          )
-        } else Right(parsedValue.byteValue())
+    if (!Column.validIntegerRegex.pattern.matcher(value).matches()) {
+      Left(
+        ErrorWithoutContext(
+          "invalid_byte",
+          "Does not match expected byte format"
+        )
+      )
+    } else {
+      numericParser(value) match {
+        case Left(w) => Left(ErrorWithoutContext("invalid_byte", w))
+        case Right(parsedNumber) => {
+          parsedNumber match {
+            case _: java.lang.Long | _: java.lang.Integer | _: java.lang.Short |
+                _: java.lang.Byte => {
+              val parsedValue = parsedNumber.byteValue()
+              if (parsedValue > Byte.MaxValue || parsedValue < Byte.MinValue)
+                Left(
+                  ErrorWithoutContext(
+                    "invalid_byte",
+                    s"Outside Byte Range ${Byte.MinValue} - ${Byte.MaxValue} (inclusive)"
+                  )
+                )
+              else Right(parsedValue.byteValue())
+            }
+            case _ =>
+              Left(
+                ErrorWithoutContext(
+                  "invalid_byte",
+                  s"Outside Byte Range ${Byte.MinValue} - ${Byte.MaxValue} (inclusive)"
+                )
+              )
+          }
+        }
       }
     }
   }
