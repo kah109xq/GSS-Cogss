@@ -194,6 +194,15 @@ object Column {
     }
   }
 
+  def getBaseDataType(datatype: JsonNode): String = {
+    val datatypeBaseField = datatype.path("base")
+    if (datatypeBaseField.isMissingNode) {
+      datatype.get("@id").asText()
+    } else {
+      datatypeBaseField.asText()
+    }
+  }
+
   def partitionAndValidateColumnPropertiesByType(
       columnDesc: ObjectNode,
       columnOrdinal: Int,
@@ -286,6 +295,7 @@ object Column {
       name = getName(columnProperties, lang),
       id = getId(columnProperties),
       datatype = datatype,
+      baseDataType = getBaseDataType(datatype),
       lang = newLang,
       nullParam = getNullParam(inheritedPropertiesCopy),
       default = getDefault(inheritedPropertiesCopy),
@@ -375,6 +385,7 @@ case class Column private (
     id: Option[String],
     aboutUrl: Option[String],
     datatype: JsonNode,
+    baseDataType: String,
     default: String,
     lang: String,
     nullParam: Array[String],
@@ -1034,13 +1045,7 @@ case class Column private (
         case Some(separator) => value.split(separator)
         case None            => Array[String](value)
       }
-      val datatypeBaseField = datatype.path("base")
-      val datatypeOfColumn = if (datatypeBaseField.isMissingNode) {
-        datatype.get("@id").asText()
-      } else {
-        datatypeBaseField.asText()
-      }
-      val parserForDataType = datatypeParser(datatypeOfColumn)
+      val parserForDataType = datatypeParser(baseDataType)
       for (v <- values) {
         parserForDataType(v) match {
           case Left(errorMessageContent) => {
