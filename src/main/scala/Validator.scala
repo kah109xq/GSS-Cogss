@@ -11,7 +11,6 @@ import scala.jdk.CollectionConverters.IterableHasAsScala
 // schema and return errors and warnings collection when validate method is invoked. Changes to this signature can be
 // made in the due course or as per requirements
 class Validator(var tableCsvFile: URI, sourceUri: String = "") {
-  val isCsvHeader = true
   var warnings: Array[ErrorWithCsvContext] = Array()
   var errors: Array[ErrorWithCsvContext] = Array()
   var source: String = "" // Define how this is set, will it always be string?

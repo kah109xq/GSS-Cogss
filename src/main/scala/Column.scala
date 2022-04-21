@@ -176,6 +176,24 @@ object Column {
     }
   }
 
+  def getTitleValues(
+      titles: Option[JsonNode]
+  ): Array[String] = {
+    var validHeaders = Array[String]()
+    titles match {
+      case Some(titles) => {
+        for ((_, v) <- titles.asInstanceOf[ObjectNode].getKeysAndValues) {
+          val titlesArray = Array.from(v.elements().asScala)
+          for (title <- titlesArray) {
+            validHeaders :+= title.asText()
+          }
+        }
+        validHeaders
+      }
+      case _ => validHeaders
+    }
+  }
+
   def partitionAndValidateColumnPropertiesByType(
       columnDesc: ObjectNode,
       columnOrdinal: Int,
@@ -261,6 +279,8 @@ object Column {
 
     val formatNode = columnDesc.path("format")
 
+    val titles = columnProperties.get("titles")
+
     new Column(
       columnOrdinal = columnOrdinal,
       name = getName(columnProperties, lang),
@@ -275,7 +295,8 @@ object Column {
       valueUrl = getValueUrl(inheritedPropertiesCopy),
       separator = getSeparator(inheritedPropertiesCopy),
       ordered = getOrdered(inheritedPropertiesCopy),
-      titles = columnProperties.get("titles"),
+      titles = titles,
+      titleValues = getTitleValues(titles),
       suppressOutput = getSuppressOutput(columnProperties),
       virtual = getVirtual(columnProperties),
       format = getMaybeFormatForColumn(formatNode),
@@ -286,12 +307,12 @@ object Column {
     )
   }
 
-  private def getMaybeFormatForColumn(formatNode: JsonNode) = {
+  private def getMaybeFormatForColumn(formatNode: JsonNode): Option[Format] = {
     if (formatNode.isMissingNode || formatNode.isNull) {
       None
     } else {
       formatNode match {
-        case s: TextNode => Some(Format(Some(s.asText()), None, None, None))
+        case s: TextNode => Some(Format(Some(s.asText()), None, None))
         case _ => {
           val formatObjectNode = formatNode.asInstanceOf[ObjectNode]
 
@@ -313,7 +334,7 @@ object Column {
           val groupChar = getMaybeValueFromNode(formatObjectNode, "groupChar")
             .map(d => d(0))
 
-          Some(Format(None, pattern, decimalChar, groupChar))
+          Some(Format(pattern, decimalChar, groupChar))
         }
       }
     }
@@ -364,6 +385,7 @@ case class Column private (
     suppressOutput: Boolean,
     textDirection: String,
     titles: Option[JsonNode],
+    titleValues: Array[String],
     valueUrl: Option[String],
     virtual: Boolean,
     format: Option[Format],
@@ -432,7 +454,7 @@ case class Column private (
   def processBooleanDatatype(
       value: String
   ): Either[ErrorWithoutContext, Boolean] = {
-    format.flatMap(f => f.maybeBooleanFormatOrRegExFormat) match {
+    format.flatMap(f => f.pattern) match {
       case Some(pattern) => {
         var patternValues = pattern.split("""\|""")
         if (patternValues(0) == value) {
@@ -1033,12 +1055,9 @@ case class Column private (
           }
           case Right(s) => {}
         }
-//        val (value, warning) = //CREATE DATATYPE PARSERS
-//        val format = ""
-//        val (value, warning) = Column.DatatypeParser(s)(value, format)
       }
     }
-    WarningsAndErrors(Array(), Array())
+    WarningsAndErrors(errors, warnings)
   }
 
   def validateHeader(columnName: String): WarningsAndErrors = {
@@ -1046,13 +1065,9 @@ case class Column private (
     titles match {
       case Some(titles) => {
         var validHeaders = Array[String]()
-        for ((_, v) <- titles.asInstanceOf[ObjectNode].getKeysAndValues) {
-          val titlesArray = Array.from(v.elements().asScala)
-          for (title <- titlesArray) {
-            val titleString = title.asText()
-            if (Column.languagesMatch(titleString, lang)) {
-              validHeaders :+= titleString
-            }
+        for (title <- titleValues) {
+          if (Column.languagesMatch(title, lang)) {
+            validHeaders :+= title
           }
         }
         if (!validHeaders.contains(columnName)) {
