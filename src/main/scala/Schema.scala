@@ -2,23 +2,26 @@ package CSVValidation
 
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.fasterxml.jackson.databind.node.ObjectNode
-import java.io.PrintWriter
-import java.io.StringWriter
-import traits.JavaIteratorExtensions.IteratorHasAsScalaArray
 
-import java.net.URL
+import java.io.{File, PrintWriter, StringWriter}
+import java.net.URI
 import java.nio.file.Paths
 object Schema {
   val objectMapper = new ObjectMapper()
 
   def loadMetadataAndValidate(
-      filePath: String
+      schemaUri: URI
   ): Either[String, TableGroup] = {
     try {
-      val jsonNode = objectMapper.readTree(Paths.get(filePath).toFile)
+      val jsonNode = if (schemaUri.getScheme == "file") {
+        val f = new File(schemaUri)
+        objectMapper.readTree(f)
+      } else {
+        objectMapper.readTree(schemaUri.toURL)
+      }
       Right(
         Schema.fromCsvwMetadata(
-          s"file:$filePath",
+          schemaUri.toString,
           jsonNode.asInstanceOf[ObjectNode]
         )
       )

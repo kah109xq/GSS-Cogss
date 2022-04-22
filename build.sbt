@@ -28,7 +28,7 @@ libraryDependencies += "com.fasterxml.jackson.core" % "jackson-annotations" % "2
 libraryDependencies += "com.fasterxml.jackson.core" % "jackson-core" % "2.12.1"
 libraryDependencies += "com.softwaremill.sttp.client3" %% "core" % "3.0.0"
 libraryDependencies += "com.ibm.icu" % "icu4j" % "68.2"
-
+libraryDependencies += "org.apache.commons" % "commons-csv" % "1.8"
 // Here, `libraryDependencies` is a set of dependencies, and by using `+=`,
 // we're adding the scala-parser-combinators dependency to the set of dependencies
 // that sbt will go and fetch when it starts up.

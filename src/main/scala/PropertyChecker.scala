@@ -564,36 +564,36 @@ object PropertyChecker {
         .asInstanceOf[JsonNode]
       valueCopy match {
         case v: ObjectNode => {
-          val objectNode = v.asInstanceOf[ObjectNode]
-          if (!objectNode.path("@id").isMissingNode) {
-            val idValue = objectNode.get("@id").asText()
+          val datatypeNode = v.asInstanceOf[ObjectNode]
+          if (!datatypeNode.path("@id").isMissingNode) {
+            val idValue = datatypeNode.get("@id").asText()
             if (BuiltInDataTypes.types.contains(idValue)) {
               throw new MetadataError(
                 s"datatype @id must not be the id of a built-in datatype ($idValue)"
               )
             } else {
               val (_, w, _) = linkProperty(PropertyType.Common)(
-                objectNode.get("@id"),
+                datatypeNode.get("@id"),
                 baseUrl,
                 lang
               )
               if (!w.isEmpty) {
                 warnings = Array.concat(warnings, w)
-                objectNode.remove("@id")
+                datatypeNode.remove("@id")
               }
             }
           }
 
-          if (!objectNode.path("base").isMissingNode) {
-            val baseValue = objectNode.get("base").asText()
+          if (!datatypeNode.path("base").isMissingNode) {
+            val baseValue = datatypeNode.get("base").asText()
             if (BuiltInDataTypes.types.contains(baseValue)) {
-              objectNode.put("base", BuiltInDataTypes.types(baseValue))
+              datatypeNode.put("base", BuiltInDataTypes.types(baseValue))
             } else {
-              objectNode.put("base", BuiltInDataTypes.types("string"))
+              datatypeNode.put("base", BuiltInDataTypes.types("string"))
               warnings = warnings :+ "invalid_datatype_base"
             }
           } else {
-            objectNode.put("base", BuiltInDataTypes.types("string"))
+            datatypeNode.put("base", BuiltInDataTypes.types("string"))
           }
         }
         case x: TextNode if (BuiltInDataTypes.types.contains(x.asText())) => {
@@ -608,25 +608,25 @@ object PropertyChecker {
           warnings = warnings :+ PropertyChecker.invalidValueWarning
         }
       }
-      val objectNode = valueCopy.asInstanceOf[ObjectNode]
-      if (!objectNode.path("base").isMissingNode) {
-        val baseValue = objectNode.get("base").asText()
+      val datatypeNode = valueCopy.asInstanceOf[ObjectNode]
+      if (!datatypeNode.path("base").isMissingNode) {
+        val baseValue = datatypeNode.get("base").asText()
         if (
           !PropertyCheckerConstants.StringDataTypes.contains(
             baseValue
           ) && !PropertyCheckerConstants.BinaryDataTypes.contains(baseValue)
         ) {
-          if (!objectNode.path("length").isMissingNode) {
+          if (!datatypeNode.path("length").isMissingNode) {
             throw new MetadataError(
               s"datatypes based on $baseValue cannot have a length facet"
             )
           }
-          if (!objectNode.path("minLength").isMissingNode) {
+          if (!datatypeNode.path("minLength").isMissingNode) {
             throw new MetadataError(
               s"datatypes based on $baseValue cannot have a minLength facet"
             )
           }
-          if (!objectNode.path("maxLength").isMissingNode) {
+          if (!datatypeNode.path("maxLength").isMissingNode) {
             throw new MetadataError(
               s"datatypes based on $baseValue cannot have a maxLength facet"
             )
@@ -634,84 +634,98 @@ object PropertyChecker {
         }
       }
 
-      if (!objectNode.path("minimum").isMissingNode) {
-        objectNode.put("minInclusive", valueCopy.get("minimum").asText())
-        objectNode.remove("minimum")
+      if (!datatypeNode.path("minimum").isMissingNode) {
+        datatypeNode.put("minInclusive", valueCopy.get("minimum").asText())
+        datatypeNode.remove("minimum")
       }
 
-      if (!objectNode.path("maximum").isMissingNode) {
-        objectNode.put("maxInclusive", valueCopy.get("maximum").asText())
-        objectNode.remove("maximum")
+      if (!datatypeNode.path("maximum").isMissingNode) {
+        datatypeNode.put("maxInclusive", valueCopy.get("maximum").asText())
+        datatypeNode.remove("maximum")
       }
 
-      val baseValue = if (objectNode.path("base").isMissingNode) {
+      val baseValue = if (datatypeNode.path("base").isMissingNode) {
         ""
       } else {
-        objectNode.get("base").asText
+        datatypeNode.get("base").asText
       }
 
-      warnings :+ convertValueFacet(objectNode, "minInclusive", baseValue)
-      warnings :+ convertValueFacet(objectNode, "minExclusive", baseValue)
-      warnings :+ convertValueFacet(objectNode, "maxInclusive", baseValue)
-      warnings :+ convertValueFacet(objectNode, "maxExclusive", baseValue)
+      warnings :+ convertValueFacet(datatypeNode, "minInclusive", baseValue)
+      warnings :+ convertValueFacet(datatypeNode, "minExclusive", baseValue)
+      warnings :+ convertValueFacet(datatypeNode, "maxInclusive", baseValue)
+      warnings :+ convertValueFacet(datatypeNode, "maxExclusive", baseValue)
 
       val minInclusive: Option[Either[Int, String]] =
         if (valueCopy.path("minInclusive").path("dateTime").isMissingNode) {
-          if (objectNode.path("minInclusive").isMissingNode) {
+          if (datatypeNode.path("minInclusive").isMissingNode) {
             None
           } else {
-            Some(Left(objectNode.get("minInclusive").asInt()))
+            Some(Left(datatypeNode.get("minInclusive").asInt()))
           }
         } else {
-          if (objectNode.path("minInclusive").path("dateTime").isMissingNode) {
+          if (
+            datatypeNode.path("minInclusive").path("dateTime").isMissingNode
+          ) {
             None
           } else {
-            Some(Right(objectNode.get("minInclusive").get("dateTime").asText()))
+            Some(
+              Right(datatypeNode.get("minInclusive").get("dateTime").asText())
+            )
           }
         }
 
       val maxInclusive: Option[Either[Int, String]] =
-        if (objectNode.path("maxInclusive").path("dateTime").isMissingNode) {
-          if (objectNode.path("maxInclusive").isMissingNode) {
+        if (datatypeNode.path("maxInclusive").path("dateTime").isMissingNode) {
+          if (datatypeNode.path("maxInclusive").isMissingNode) {
             None
           } else {
-            Some(Left(objectNode.get("maxInclusive").asInt()))
+            Some(Left(datatypeNode.get("maxInclusive").asInt()))
           }
         } else {
-          if (objectNode.path("maxInclusive").path("dateTime").isMissingNode) {
+          if (
+            datatypeNode.path("maxInclusive").path("dateTime").isMissingNode
+          ) {
             None
           } else {
-            Some(Right(objectNode.get("maxInclusive").get("dateTime").asText()))
+            Some(
+              Right(datatypeNode.get("maxInclusive").get("dateTime").asText())
+            )
           }
         }
 
       val minExclusive: Option[Either[Int, String]] =
-        if (objectNode.path("minExclusive").path("dateTime").isMissingNode) {
-          if (objectNode.path("minExclusive").isMissingNode) {
+        if (datatypeNode.path("minExclusive").path("dateTime").isMissingNode) {
+          if (datatypeNode.path("minExclusive").isMissingNode) {
             None
           } else {
-            Some(Left(objectNode.get("minExclusive").asInt()))
+            Some(Left(datatypeNode.get("minExclusive").asInt()))
           }
         } else {
-          if (objectNode.get("minExclusive").path("dateTime").isMissingNode) {
+          if (datatypeNode.get("minExclusive").path("dateTime").isMissingNode) {
             None
           } else {
-            Some(Right(objectNode.get("minExclusive").get("dateTime").asText()))
+            Some(
+              Right(datatypeNode.get("minExclusive").get("dateTime").asText())
+            )
           }
         }
 
       val maxExclusive: Option[Either[Int, String]] =
-        if (objectNode.path("maxExclusive").path("dateTime").isMissingNode) {
-          if (objectNode.path("maxExclusive").isMissingNode) {
+        if (datatypeNode.path("maxExclusive").path("dateTime").isMissingNode) {
+          if (datatypeNode.path("maxExclusive").isMissingNode) {
             None
           } else {
-            Some(Left(objectNode.get("maxExclusive").asInt()))
+            Some(Left(datatypeNode.get("maxExclusive").asInt()))
           }
         } else {
-          if (objectNode.path("maxExclusive").path("dateTime").isMissingNode) {
+          if (
+            datatypeNode.path("maxExclusive").path("dateTime").isMissingNode
+          ) {
             None
           } else {
-            Some(Right(objectNode.get("maxExclusive").get("dateTime").asText()))
+            Some(
+              Right(datatypeNode.get("maxExclusive").get("dateTime").asText())
+            )
           }
         }
 
@@ -759,9 +773,9 @@ object PropertyChecker {
         case _ => {}
       }
 
-      val minLength = objectNode.path("minLength")
-      val maxLength = objectNode.path("maxLength")
-      val length = objectNode.path("length")
+      val minLength = datatypeNode.path("minLength")
+      val maxLength = datatypeNode.path("maxLength")
+      val length = datatypeNode.path("length")
       if (
         !length.isMissingNode && !minLength.isMissingNode && length.asInt < minLength.asInt
       ) {
@@ -784,63 +798,62 @@ object PropertyChecker {
         )
       }
 
-      if (!objectNode.path("format").isMissingNode) {
-        val baseValue = objectNode.get("base").asText()
+      if (!datatypeNode.path("format").isMissingNode) {
+        val baseValue = datatypeNode.get("base").asText()
         if (
           PropertyCheckerConstants.RegExpFormatDataTypes.contains(baseValue)
         ) {
           try {
             // In ruby regexp is stored in format key. Also regexp validated. Determine how to handle this in scala
             // value["format"] = Regexp.new(value["format"])
-            objectNode.set(
-              "format",
-              new TextNode(objectNode.get("format").asText)
-            )
+            datatypeNode
+              .get("format")
+              .asText
+              .r
           } catch {
             case e: Exception => {
-              objectNode.remove("format")
-              warnings = warnings :+ "invalid_regex"
+              datatypeNode.remove("format")
+              warnings = warnings :+ s"invalid_regex - ${e.getMessage}"
             }
           }
         } else if (
           PropertyCheckerConstants.NumericFormatDataTypes.contains(baseValue)
         ) {
-          warnings =
-            warnings.concat(processNumericDatatypeAndReturnWarnings(objectNode))
+          warnings = warnings.concat(
+            processNumericDatatypeAndReturnWarnings(datatypeNode)
+          )
         } else if (baseValue == "http://www.w3.org/2001/XMLSchema#boolean") {
-          if (objectNode.get("format").isTextual) {
-            val formatValues = objectNode.get("format").asText.split("""\|""")
+          if (datatypeNode.get("format").isTextual) {
+            val formatValues = datatypeNode.get("format").asText.split("""\|""")
             if (formatValues.length != 2) {
-              objectNode.remove("format")
+              datatypeNode.remove("format")
               warnings = warnings :+ "invalid_boolean_format"
-            } else {
-              val arrayNodeObject = JsonNodeFactory.instance.arrayNode()
-              arrayNodeObject.add(formatValues(0))
-              arrayNodeObject.add(formatValues(1))
-              objectNode.replace("format", arrayNodeObject)
             }
-          }
+          } // Do we want to cope with an array node here? Do we not at least want a warning if it isn't textual or doesn't exist?
         } else if (
           PropertyCheckerConstants.DateFormatDataTypes.contains(baseValue)
         ) {
-          if (objectNode.get("format").isTextual) {
+          if (datatypeNode.get("format").isTextual) {
             try {
-              val dateFormatString = objectNode.get("format").asText()
-              val format = DateFormat(Some(dateFormatString), None).getFormat()
-              objectNode.set("format", new TextNode(format))
+              val dateFormatString = datatypeNode.get("format").asText()
+              val format =
+                DateFormat(Some(dateFormatString), baseValue).getFormat()
+              if (format.isDefined) {
+                datatypeNode.set("format", new TextNode(format.get))
+              }
             } catch {
               case e: DateFormatError => {
-                objectNode.remove("format")
+                datatypeNode.remove("format")
                 warnings = warnings :+ "invalid_date_format"
               }
             }
           } else {
-            objectNode.remove("format")
+            datatypeNode.remove("format")
             warnings = warnings :+ "invalid_date_format"
           }
         }
       }
-      (objectNode, warnings, csvwPropertyType)
+      (datatypeNode, warnings, csvwPropertyType)
     }
   }
 
