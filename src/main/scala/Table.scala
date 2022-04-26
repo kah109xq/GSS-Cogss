@@ -492,13 +492,22 @@ case class Table private (
     annotations: Map[String, JsonNode],
     var warnings: Array[ErrorWithCsvContext]
 ) {
-  var foreignKeyValues: Map[String, JsonNode] = Map()
+  var foreignKeyReferenceValues =
+    Map[ForeignKeyWithTable, Array[
+      String
+    ]]() // to store the validated referenced Table Columns values in each row
+  var primaryKeyValues =
+    Array[String]() // To store the validated primary key string in each row
+  var foreignKeyValues =
+    Map[ForeignKeyWrapper, Array[
+      String
+    ]]() // to store the validated foreign key values in each row
 
   /**
     * This array contains the foreign keys defined in other tables' schemas which reference data inside this table.
     */
   var foreignKeyReferences: Array[ForeignKeyWithTable] = Array()
-  var foreignKeyReferenceValues: Map[String, JsonNode] = Map()
+
   var warningsFromColumns: Array[ErrorWithCsvContext] =
     Array[ErrorWithCsvContext]()
   for (c <- columns) {
@@ -510,13 +519,63 @@ case class Table private (
 
   def validateRow(row: CSVRecord): WarningsAndErrors = {
     var errors = Array[ErrorWithCsvContext]()
+    var primaryKeyString = ""
+    var abc = Array[String]()
+    var xyz = Array[String]()
+
     if (columns.nonEmpty) {
       for ((value, column) <- row.iterator.asScalaArray.zip(columns)) {
         //catch any exception here, possibly outOfBounds  and set warning too many values
-        val result = column.validate(value, row.getRecordNumber)
-        errors = errors.concat(result._1.errors)
-        warnings = warnings.concat(result._1.warnings)
+        val (errorsAndWarnings, newValue) = column.validate(
+          value,
+          row.getRecordNumber
+        ) // newValue will be Array of single element if separator is not specified
+        errors = errors.concat(errorsAndWarnings.errors)
+        warnings = warnings.concat(errorsAndWarnings.warnings)
+        // validate primary key foreign key
+
+        if (primaryKey.contains(column)) {
+          primaryKeyString = primaryKeyString + newValue.toString
+        }
+
+        for (foreignKeyReferenceObject <- foreignKeyReferences) {
+          if (
+            foreignKeyReferenceObject.referencedTableColumns.contains(column)
+          ) {
+            foreignKeyReferenceValues.get(foreignKeyReferenceObject) match {
+              case Some(foreignKeyReferenceValue) =>
+                foreignKeyReferenceValues(foreignKeyReferenceObject) =
+                  foreignKeyReferenceValue :+ newValue.toString
+              case None =>
+                foreignKeyReferenceValues(foreignKeyReferenceObject) =
+                  Array[String](newValue.toString)
+            }
+          }
+        }
+
+        for (fk <- foreignKeys) {
+          if (fk.localColumns.contains(column)) {
+            foreignKeyValues.get(fk) match {
+              case Some(fkv) => foreignKeyValues(fk) = fkv :+ newValue.toString
+              case None =>
+                foreignKeyValues(fk) = Array[String](newValue.toString)
+            }
+            xyz = xyz :+ newValue.toString
+          }
+        }
       }
+      if (primaryKeyValues.contains(primaryKeyString)) {
+        errors = errors :+ ErrorWithCsvContext(
+          "duplicate_key",
+          "schema",
+          row.toString,
+          "",
+          s"key already present - $primaryKeyString",
+          ""
+        )
+      }
+      primaryKeyValues = primaryKeyValues :+ primaryKeyString
+
       WarningsAndErrors(warnings, errors)
     } else {
       WarningsAndErrors(Array(), Array())
