@@ -1,6 +1,7 @@
 package CSVValidation
 
 import CSVValidation.Column.{
+  datatypeDefaultValue,
   rdfSyntaxNs,
   unsignedLongMaxValue,
   validDecimalDatatypeRegex,
@@ -404,6 +405,16 @@ case class Column private (
     warnings: Array[ErrorWithCsvContext],
     var errors: Array[ErrorWithCsvContext]
 ) {
+  val minLength: Option[Int] =
+    if (datatype.path("minLength").isMissingNode) None
+    else Some(datatype.get("minLength").asText().toInt)
+  val maxLength: Option[Int] =
+    if (datatype.path("maxLength").isMissingNode) None
+    else Some(datatype.get("maxLength").asText().toInt)
+  val lengthInMetadata: Option[Int] =
+    if (datatype.path("length").isMissingNode) None
+    else Some(datatype.get("length").asText().toInt)
+
   val datatypeParser: Map[String, String => Either[
     ErrorWithoutContext,
     Any
@@ -451,6 +462,57 @@ case class Column private (
       s"${xmlSchema}gYearMonth" -> processGYearMonth _,
       s"${xmlSchema}time" -> processTime _
     )
+
+  val datatypeFormatValidation = Map(
+    "http://www.w3.org/1999/02/22-rdf-syntax-ns#XMLLiteral" -> regexpValidation _,
+    "http://www.w3.org/1999/02/22-rdf-syntax-ns#HTML" -> regexpValidation _,
+    "http://www.w3.org/ns/csvw#JSON" -> regexpValidation _,
+    "http://www.w3.org/2001/XMLSchema#anyAtomicType" -> regexpValidation _,
+    "http://www.w3.org/2001/XMLSchema#anyURI" -> regexpValidation _,
+    "http://www.w3.org/2001/XMLSchema#base64Binary" -> regexpValidation _,
+    "http://www.w3.org/2001/XMLSchema#boolean" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#date" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#dateTime" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#dateTimeStamp" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#decimal" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#integer" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#long" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#int" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#short" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#byte" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#nonNegativeInteger" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#positiveInteger" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#unsignedLong" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#unsignedInt" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#unsignedShort" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#unsignedByte" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#nonPositiveInteger" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#negativeInteger" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#double" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#duration" -> regexpValidation _,
+    "http://www.w3.org/2001/XMLSchema#dayTimeDuration" -> regexpValidation _,
+    "http://www.w3.org/2001/XMLSchema#yearMonthDuration" -> regexpValidation _,
+    "http://www.w3.org/2001/XMLSchema#float" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#gDay" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#gMonth" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#gMonthDay" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#gYear" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#gYearMonth" -> noAdditionalValidation _,
+    "http://www.w3.org/2001/XMLSchema#hexBinary" -> regexpValidation _,
+    "http://www.w3.org/2001/XMLSchema#QName" -> regexpValidation _,
+    "http://www.w3.org/2001/XMLSchema#string" -> regexpValidation _,
+    "http://www.w3.org/2001/XMLSchema#normalizedString" -> regexpValidation _,
+    "http://www.w3.org/2001/XMLSchema#token" -> regexpValidation _,
+    "http://www.w3.org/2001/XMLSchema#language" -> regexpValidation _,
+    "http://www.w3.org/2001/XMLSchema#Name" -> regexpValidation _,
+    "http://www.w3.org/2001/XMLSchema#NMTOKEN" -> regexpValidation _,
+    "http://www.w3.org/2001/XMLSchema#time" -> noAdditionalValidation _
+  )
+
+  def regexpValidation(value: String): Boolean = {
+    format.get.pattern.get.r.pattern.matcher(value).matches()
+  }
+  def noAdditionalValidation(value: String) = true
 
   def trimValue(
       value: String
@@ -1034,13 +1096,88 @@ case class Column private (
     }
   }
 
+  def validateFormat(value: String, rowNumber: Long): Boolean = {
+    format match {
+      case Some(f) => {
+        val formatValidator = datatypeFormatValidation(baseDataType)
+        if (formatValidator(value)) true
+        else {
+          errors = errors :+ ErrorWithCsvContext(
+            "format",
+            "schema",
+            rowNumber.toString,
+            columnOrdinal.toString,
+            value,
+            s"Value in csv does not match the format specified in metadata, Value: ${value} Format: ${f.pattern.get}"
+          )
+          false
+        }
+      }
+      case None => true
+    }
+  }
+
+  def validateLength(value: String, rowNumber: Long): Boolean = {
+    var valid = true
+    if (
+      datatype.path("length").isMissingNode && datatype
+        .path("minLength")
+        .isMissingNode && datatype.path("maxLength").isMissingNode
+    ) {
+      valid = true
+    } else {
+      var length = value.length
+      if (baseDataType == "http://www.w3.org/2001/XMLSchema#base64Binary") {
+        length = value.replaceAll("==?$", "").length * (3 / 4)
+      } else if (baseDataType == "http://www.w3.org/2001/XMLSchema#hexBinary") {
+        length = value.length / 2
+      }
+      if (minLength.isDefined && length < minLength.get) {
+        errors = errors :+ ErrorWithCsvContext(
+          "minLength",
+          "schema",
+          rowNumber.toString,
+          columnOrdinal.toString,
+          value,
+          s"value length less than minLength specified - $minLength"
+        )
+        valid = false
+      }
+      if (maxLength.isDefined && length > maxLength.get) {
+        errors = errors :+ ErrorWithCsvContext(
+          "maxLength",
+          "schema",
+          rowNumber.toString,
+          columnOrdinal.toString,
+          value,
+          s"value length greater than maxLength specified - $maxLength"
+        )
+        valid = false
+      }
+      if (lengthInMetadata.isDefined && length < lengthInMetadata.get) {
+        errors = errors :+ ErrorWithCsvContext(
+          "length",
+          "schema",
+          rowNumber.toString,
+          columnOrdinal.toString,
+          value,
+          s"value length different from length specified - $lengthInMetadata"
+        )
+        valid = false
+      }
+    }
+    valid
+  }
+
   def validate(
       value: String,
       rowNumber: Long
-  ): WarningsAndErrors = {
+  ): (WarningsAndErrors, Array[Any]) = {
     if (nullParam.contains(value)) {
       addErrorIfRequiredValueAndValueEmpty(value, rowNumber)
+      (WarningsAndErrors(errors, warnings), Array())
     } else {
+      var valuesArrayToReturn = Array[Any]()
       val values = separator match {
         case Some(separator) => value.split(separator)
         case None            => Array[String](value)
@@ -1057,12 +1194,25 @@ case class Column private (
               s"'$v' - ${errorMessageContent.content}",
               datatype.toPrettyString
             )
+            val invalidNode = JsonNodeFactory.instance.objectNode()
+            invalidNode.set("invalid", new TextNode(v))
+            valuesArrayToReturn = valuesArrayToReturn :+ invalidNode
           }
-          case Right(s) => {}
+          case Right(s) => {
+            addErrorIfRequiredValueAndValueEmpty(s.toString, rowNumber)
+            if (
+              validateFormat(s.toString, rowNumber) && validateLength(
+                s.toString,
+                rowNumber
+              ) // validate_value is yet to be done
+            ) {
+              valuesArrayToReturn = valuesArrayToReturn :+ s
+            }
+          }
         }
       }
+      (WarningsAndErrors(errors, warnings), valuesArrayToReturn)
     }
-    WarningsAndErrors(errors, warnings)
   }
 
   def validateHeader(columnName: String): WarningsAndErrors = {

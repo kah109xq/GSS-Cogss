@@ -514,8 +514,8 @@ case class Table private (
       for ((value, column) <- row.iterator.asScalaArray.zip(columns)) {
         //catch any exception here, possibly outOfBounds  and set warning too many values
         val result = column.validate(value, row.getRecordNumber)
-        errors = errors.concat(result.errors)
-        warnings = warnings.concat(result.warnings)
+        errors = errors.concat(result._1.errors)
+        warnings = warnings.concat(result._1.warnings)
       }
       WarningsAndErrors(warnings, errors)
     } else {
