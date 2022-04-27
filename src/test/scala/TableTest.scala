@@ -300,4 +300,25 @@ class TableTest extends FunSuite {
       thrown.getMessage === "@type of table is not 'Table' - country_slice.csv.@type"
     )
   }
+
+  test(
+    "sets scala test for Array[Any]"
+  ) {
+    var exampleSet: Set[List[Any]] = Set()
+    exampleSet += List[Any](12, 1, 4, "Abcd")
+    exampleSet += List[Any](12, 1, 4, "Abcd")
+    exampleSet += List[Any](12, 1, 4, "Abcd")
+
+    assert(exampleSet.size == 1)
+
+    var exampleSet2: Set[Array[Any]] = Set()
+
+    exampleSet2 += Array[Any](12, 1, 4, "Abcd")
+    exampleSet2 += Array[Any](12, 1, 4, "Abcd")
+    exampleSet2 += Array[Any](12, 1, 4, "Abcd")
+    assert(
+      exampleSet2.size == 1
+    ) // @Rob This test will since we are using Array, but for list it will work. In our case we could use Lists and get the expected result
+
+  }
 }
