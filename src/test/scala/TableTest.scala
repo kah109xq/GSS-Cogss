@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.node.{
 }
 import org.scalatest.FunSuite
 
+import java.time.{ZoneId, ZonedDateTime}
 import scala.collection.mutable.Map
 
 class TableTest extends FunSuite {
@@ -302,7 +303,7 @@ class TableTest extends FunSuite {
   }
 
   test(
-    "sets scala test for Array[Any]"
+    "sets scala test for Array[Any] and List[Any]"
   ) {
     var exampleSet: Set[List[Any]] = Set()
     exampleSet += List[Any](12, 1, 4, "Abcd")
@@ -317,8 +318,34 @@ class TableTest extends FunSuite {
     exampleSet2 += Array[Any](12, 1, 4, "Abcd")
     exampleSet2 += Array[Any](12, 1, 4, "Abcd")
     assert(
-      exampleSet2.size == 1
-    ) // @Rob This test will since we are using Array, but for list it will work. In our case we could use Lists and get the expected result
+      exampleSet2.size == 3
+    )
 
+    var exampleSet3: Set[List[Any]] = Set()
+    val zone = ZoneId.of("UTC+1")
+    ZonedDateTime.of(1947, 8, 15, 12, 12, 12, 12, zone)
+    exampleSet3 += List[Any](
+      12,
+      1,
+      4,
+      "Abcd",
+      ZonedDateTime.of(1947, 8, 15, 12, 12, 12, 12, zone)
+    )
+    exampleSet3 += List[Any](
+      12,
+      1,
+      4,
+      "Abcd",
+      ZonedDateTime.of(1947, 8, 15, 12, 12, 12, 12, zone)
+    )
+    exampleSet3 += List[Any](
+      12,
+      1,
+      4,
+      "Abcd",
+      ZonedDateTime.of(1947, 8, 15, 12, 12, 12, 12, zone)
+    )
+
+    assert(exampleSet3.size == 1)
   }
 }

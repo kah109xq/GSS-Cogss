@@ -60,6 +60,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
     }
     val table = schema.tables(tableUri.toString)
 
+    var allPrimaryKeyValues: Set[List[Any]] = Set()
     for (row <- parser.asScala) {
       if (row.getRecordNumber == 1 && csvHeaderExpected) {
         validateHeader(schema, row, tableUri)
@@ -74,7 +75,24 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
             ""
           )
         }
-        val warningsAndErrors = table.validateRow(row)
+        val (
+          warningsAndErrors,
+          primaryKeyValues,
+          foreignKeyReferenceValues,
+          foreignKeyValues
+        ) = table.validateRow(row)
+        val initialAllPrimaryKeyValuesSize = allPrimaryKeyValues.size
+        allPrimaryKeyValues += primaryKeyValues
+        if (initialAllPrimaryKeyValuesSize < allPrimaryKeyValues.size) {
+          errors = errors :+ ErrorWithCsvContext(
+            "duplicate_key",
+            "schema",
+            row.toString,
+            "",
+            s"key already present - ${primaryKeyValues}",
+            ""
+          )
+        }
       }
     }
   }
@@ -96,4 +114,5 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
       s"Row: ${errorMessage.row}, Column: ${errorMessage.column}, " +
       s"Content: ${errorMessage.content}, Constraints: ${errorMessage.constraints} \n"
   }
+
 }

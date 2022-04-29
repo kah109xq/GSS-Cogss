@@ -761,4 +761,5 @@ class ColumnTest extends FunSuite {
       }
     }
   }
+
 }
