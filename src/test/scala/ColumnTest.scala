@@ -762,4 +762,77 @@ class ColumnTest extends FunSuite {
     }
   }
 
+  test("should set errors when length is less than min length specified") {
+    val json =
+      """
+      |{"name":"Measure",
+      |"datatype": {
+      |  "base": "string",
+      |  "minLength": 10,
+      |  "maxLength": 1000
+      |}
+      |}
+      |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val column = Column.fromJson(
+      1,
+      jsonNode.asInstanceOf[ObjectNode],
+      "https://www.w3.org/",
+      "und",
+      Map[String, JsonNode]()
+    )
+    assert(!column.validateLength("12", 1231))
+    assert(column.errors.nonEmpty)
+    assert(column.errors(0).`type` == "minLength")
+  }
+
+  test("should set errors when length is greater than max length specified") {
+    val json =
+      """
+        |{"name":"Measure",
+        |"datatype": {
+        |  "base": "string",
+        |  "minLength": 1,
+        |  "maxLength": 4
+        |}
+        |}
+        |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val column = Column.fromJson(
+      1,
+      jsonNode.asInstanceOf[ObjectNode],
+      "https://www.w3.org/",
+      "und",
+      Map[String, JsonNode]()
+    )
+    assert(!column.validateLength("ABCDEFG", 1231))
+    assert(column.errors.nonEmpty)
+    assert(column.errors(0).`type` == "maxLength")
+  }
+
+  test("should set errors when length is different from length specified") {
+    val json =
+      """
+        |{"name":"Measure",
+        |"datatype": {
+        |  "base": "string",
+        |  "length": 3,
+        |  "minLength": 1,
+        |  "maxLength": 4
+        |}
+        |}
+        |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val column = Column.fromJson(
+      1,
+      jsonNode.asInstanceOf[ObjectNode],
+      "https://www.w3.org/",
+      "und",
+      Map[String, JsonNode]()
+    )
+    assert(!column.validateLength("ABC4", 1231))
+    assert(column.errors.nonEmpty)
+    assert(column.errors(0).`type` == "length")
+  }
+
 }

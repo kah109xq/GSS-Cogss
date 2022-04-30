@@ -1154,7 +1154,7 @@ case class Column private (
         )
         valid = false
       }
-      if (lengthInMetadata.isDefined && length < lengthInMetadata.get) {
+      if (lengthInMetadata.isDefined && length != lengthInMetadata.get) {
         errors = errors :+ ErrorWithCsvContext(
           "length",
           "schema",
