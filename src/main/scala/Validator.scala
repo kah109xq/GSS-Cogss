@@ -82,14 +82,15 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
           foreignKeyValues
         ) = table.validateRow(row)
         val initialAllPrimaryKeyValuesSize = allPrimaryKeyValues.size
+        if (allPrimaryKeyValues.contains(primaryKeyValues)) {}
         allPrimaryKeyValues += primaryKeyValues
-        if (initialAllPrimaryKeyValuesSize < allPrimaryKeyValues.size) {
+        if (initialAllPrimaryKeyValuesSize == allPrimaryKeyValues.size) {
           errors = errors :+ ErrorWithCsvContext(
             "duplicate_key",
             "schema",
             row.toString,
             "",
-            s"key already present - ${primaryKeyValues}",
+            s"key already present - ${fetchPrimaryKeyString(primaryKeyValues)}",
             ""
           )
         }
@@ -107,6 +108,18 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
       schema.validateHeader(header, tableUri.toString)
     warnings = warnings.concat(w)
     errors = errors.concat(e)
+  }
+
+  private def fetchPrimaryKeyString(list: List[Any]): String = {
+    var primaryKeyString = ""
+    for (i <- list) {
+      i match {
+        case listOfAny: List[Any] =>
+          for (j <- listOfAny) primaryKeyString += (j.toString + ",")
+        case _ => primaryKeyString += (i.toString + ",")
+      }
+    }
+    primaryKeyString.dropRight(1)
   }
 
   private def processWarnings(errorMessage: ErrorWithCsvContext): String = {

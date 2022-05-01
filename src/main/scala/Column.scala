@@ -1204,7 +1204,7 @@ case class Column private (
               validateFormat(s.toString, rowNumber) && validateLength(
                 s.toString,
                 rowNumber
-              ) // validate_value is yet to be done
+              )
             ) {
               valuesArrayToReturn = valuesArrayToReturn :+ s
             }
