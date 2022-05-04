@@ -284,6 +284,15 @@ object Column {
         inheritedPropertiesCopy
       )
     val datatype = getDatatypeOrDefault(inheritedPropertiesCopy)
+    val minLength: Option[Int] =
+      if (datatype.path("minLength").isMissingNode) None
+      else Some(datatype.get("minLength").asText().toInt)
+    val maxLength: Option[Int] =
+      if (datatype.path("maxLength").isMissingNode) None
+      else Some(datatype.get("maxLength").asText().toInt)
+    val length: Option[Int] =
+      if (datatype.path("length").isMissingNode) None
+      else Some(datatype.get("length").asText().toInt)
 
     val newLang = getLangOrDefault(inheritedPropertiesCopy)
 
@@ -296,6 +305,9 @@ object Column {
       name = getName(columnProperties, lang),
       id = getId(columnProperties),
       datatype = datatype,
+      minLength = minLength,
+      maxLength = maxLength,
+      length = length,
       baseDataType = getBaseDataType(datatype),
       lang = newLang,
       nullParam = getNullParam(inheritedPropertiesCopy),
@@ -386,6 +398,9 @@ case class Column private (
     id: Option[String],
     aboutUrl: Option[String],
     datatype: JsonNode,
+    minLength: Option[Int],
+    maxLength: Option[Int],
+    length: Option[Int],
     baseDataType: String,
     default: String,
     lang: String,
@@ -405,16 +420,6 @@ case class Column private (
     warnings: Array[ErrorWithCsvContext],
     var errors: Array[ErrorWithCsvContext]
 ) {
-  val minLength: Option[Int] =
-    if (datatype.path("minLength").isMissingNode) None
-    else Some(datatype.get("minLength").asText().toInt)
-  val maxLength: Option[Int] =
-    if (datatype.path("maxLength").isMissingNode) None
-    else Some(datatype.get("maxLength").asText().toInt)
-  val lengthInMetadata: Option[Int] =
-    if (datatype.path("length").isMissingNode) None
-    else Some(datatype.get("length").asText().toInt)
-
   val datatypeParser: Map[String, String => Either[
     ErrorWithoutContext,
     Any
@@ -1119,20 +1124,16 @@ case class Column private (
 
   def validateLength(value: String, rowNumber: Long): Boolean = {
     var valid = true
-    if (
-      datatype.path("length").isMissingNode && datatype
-        .path("minLength")
-        .isMissingNode && datatype.path("maxLength").isMissingNode
-    ) {
+    if (length.isEmpty && minLength.isEmpty && maxLength.isEmpty) {
       valid = true
     } else {
-      var length = value.length
+      var lengthOfValue = value.length
       if (baseDataType == "http://www.w3.org/2001/XMLSchema#base64Binary") {
-        length = value.replaceAll("==?$", "").length * (3 / 4)
+        lengthOfValue = value.replaceAll("==?$", "").length * (3 / 4)
       } else if (baseDataType == "http://www.w3.org/2001/XMLSchema#hexBinary") {
-        length = value.length / 2
+        lengthOfValue = value.length / 2
       }
-      if (minLength.isDefined && length < minLength.get) {
+      if (minLength.isDefined && lengthOfValue < minLength.get) {
         errors = errors :+ ErrorWithCsvContext(
           "minLength",
           "schema",
@@ -1143,7 +1144,7 @@ case class Column private (
         )
         valid = false
       }
-      if (maxLength.isDefined && length > maxLength.get) {
+      if (maxLength.isDefined && lengthOfValue > maxLength.get) {
         errors = errors :+ ErrorWithCsvContext(
           "maxLength",
           "schema",
@@ -1154,14 +1155,14 @@ case class Column private (
         )
         valid = false
       }
-      if (lengthInMetadata.isDefined && length != lengthInMetadata.get) {
+      if (length.isDefined && lengthOfValue != length.get) {
         errors = errors :+ ErrorWithCsvContext(
           "length",
           "schema",
           rowNumber.toString,
           columnOrdinal.toString,
           value,
-          s"value length different from length specified - $lengthInMetadata"
+          s"value length different from length specified - ${length.get}"
         )
         valid = false
       }
