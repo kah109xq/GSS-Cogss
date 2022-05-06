@@ -27,11 +27,11 @@ import scala.jdk.CollectionConverters.IteratorHasAsScala
 import scala.math.BigInt.javaBigInteger2bigInt
 
 object Column {
+  val xmlSchema = "http://www.w3.org/2001/XMLSchema#"
   val datatypeDefaultValue: ObjectNode = JsonNodeFactory.instance
     .objectNode()
-    .set("@id", new TextNode("http://www.w3.org/2001/XMLSchema#string"))
+    .set("@id", new TextNode(s"${xmlSchema}string"))
   val rdfSyntaxNs = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-  val xmlSchema = "http://www.w3.org/2001/XMLSchema#"
 
   val validDecimalDatatypeRegex =
     "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)".r
@@ -469,49 +469,49 @@ case class Column private (
     )
 
   val datatypeFormatValidation = Map(
-    "http://www.w3.org/1999/02/22-rdf-syntax-ns#XMLLiteral" -> regexpValidation _,
-    "http://www.w3.org/1999/02/22-rdf-syntax-ns#HTML" -> regexpValidation _,
+    s"${rdfSyntaxNs}XMLLiteral" -> regexpValidation _,
+    s"${rdfSyntaxNs}HTML" -> regexpValidation _,
     "http://www.w3.org/ns/csvw#JSON" -> regexpValidation _,
-    "http://www.w3.org/2001/XMLSchema#anyAtomicType" -> regexpValidation _,
-    "http://www.w3.org/2001/XMLSchema#anyURI" -> regexpValidation _,
-    "http://www.w3.org/2001/XMLSchema#base64Binary" -> regexpValidation _,
-    "http://www.w3.org/2001/XMLSchema#boolean" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#date" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#dateTime" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#dateTimeStamp" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#decimal" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#integer" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#long" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#int" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#short" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#byte" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#nonNegativeInteger" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#positiveInteger" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#unsignedLong" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#unsignedInt" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#unsignedShort" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#unsignedByte" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#nonPositiveInteger" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#negativeInteger" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#double" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#duration" -> regexpValidation _,
-    "http://www.w3.org/2001/XMLSchema#dayTimeDuration" -> regexpValidation _,
-    "http://www.w3.org/2001/XMLSchema#yearMonthDuration" -> regexpValidation _,
-    "http://www.w3.org/2001/XMLSchema#float" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#gDay" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#gMonth" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#gMonthDay" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#gYear" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#gYearMonth" -> noAdditionalValidation _,
-    "http://www.w3.org/2001/XMLSchema#hexBinary" -> regexpValidation _,
-    "http://www.w3.org/2001/XMLSchema#QName" -> regexpValidation _,
-    "http://www.w3.org/2001/XMLSchema#string" -> regexpValidation _,
-    "http://www.w3.org/2001/XMLSchema#normalizedString" -> regexpValidation _,
-    "http://www.w3.org/2001/XMLSchema#token" -> regexpValidation _,
-    "http://www.w3.org/2001/XMLSchema#language" -> regexpValidation _,
-    "http://www.w3.org/2001/XMLSchema#Name" -> regexpValidation _,
-    "http://www.w3.org/2001/XMLSchema#NMTOKEN" -> regexpValidation _,
-    "http://www.w3.org/2001/XMLSchema#time" -> noAdditionalValidation _
+    s"${xmlSchema}anyAtomicType" -> regexpValidation _,
+    s"${xmlSchema}anyURI" -> regexpValidation _,
+    s"${xmlSchema}base64Binary" -> regexpValidation _,
+    s"${xmlSchema}boolean" -> noAdditionalValidation _,
+    s"${xmlSchema}date" -> noAdditionalValidation _,
+    s"${xmlSchema}dateTime" -> noAdditionalValidation _,
+    s"${xmlSchema}dateTimeStamp" -> noAdditionalValidation _,
+    s"${xmlSchema}decimal" -> noAdditionalValidation _,
+    s"${xmlSchema}integer" -> noAdditionalValidation _,
+    s"${xmlSchema}long" -> noAdditionalValidation _,
+    s"${xmlSchema}int" -> noAdditionalValidation _,
+    s"${xmlSchema}short" -> noAdditionalValidation _,
+    s"${xmlSchema}byte" -> noAdditionalValidation _,
+    s"${xmlSchema}nonNegativeInteger" -> noAdditionalValidation _,
+    s"${xmlSchema}positiveInteger" -> noAdditionalValidation _,
+    s"${xmlSchema}unsignedLong" -> noAdditionalValidation _,
+    s"${xmlSchema}unsignedInt" -> noAdditionalValidation _,
+    s"${xmlSchema}unsignedShort" -> noAdditionalValidation _,
+    s"${xmlSchema}unsignedByte" -> noAdditionalValidation _,
+    s"${xmlSchema}nonPositiveInteger" -> noAdditionalValidation _,
+    s"${xmlSchema}negativeInteger" -> noAdditionalValidation _,
+    s"${xmlSchema}double" -> noAdditionalValidation _,
+    s"${xmlSchema}duration" -> regexpValidation _,
+    s"${xmlSchema}dayTimeDuration" -> regexpValidation _,
+    s"${xmlSchema}yearMonthDuration" -> regexpValidation _,
+    s"${xmlSchema}float" -> noAdditionalValidation _,
+    s"${xmlSchema}gDay" -> noAdditionalValidation _,
+    s"${xmlSchema}gMonth" -> noAdditionalValidation _,
+    s"${xmlSchema}gMonthDay" -> noAdditionalValidation _,
+    s"${xmlSchema}gYear" -> noAdditionalValidation _,
+    s"${xmlSchema}gYearMonth" -> noAdditionalValidation _,
+    s"${xmlSchema}hexBinary" -> regexpValidation _,
+    s"${xmlSchema}QName" -> regexpValidation _,
+    s"${xmlSchema}string" -> regexpValidation _,
+    s"${xmlSchema}normalizedString" -> regexpValidation _,
+    s"${xmlSchema}token" -> regexpValidation _,
+    s"${xmlSchema}language" -> regexpValidation _,
+    s"${xmlSchema}Name" -> regexpValidation _,
+    s"${xmlSchema}NMTOKEN" -> regexpValidation _,
+    s"${xmlSchema}time" -> noAdditionalValidation _
   )
 
   def regexpValidation(value: String): Boolean = {
@@ -1128,9 +1128,9 @@ case class Column private (
       valid = true
     } else {
       var lengthOfValue = value.length
-      if (baseDataType == "http://www.w3.org/2001/XMLSchema#base64Binary") {
+      if (baseDataType == s"${xmlSchema}base64Binary") {
         lengthOfValue = value.replaceAll("==?$", "").length * (3 / 4)
-      } else if (baseDataType == "http://www.w3.org/2001/XMLSchema#hexBinary") {
+      } else if (baseDataType == s"${xmlSchema}hexBinary") {
         lengthOfValue = value.length / 2
       }
       if (minLength.isDefined && lengthOfValue < minLength.get) {
