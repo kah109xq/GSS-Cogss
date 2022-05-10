@@ -81,10 +81,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
           foreignKeyReferenceValues,
           foreignKeyValues
         ) = table.validateRow(row)
-        val initialAllPrimaryKeyValuesSize = allPrimaryKeyValues.size
-        if (allPrimaryKeyValues.contains(primaryKeyValues)) {}
-        allPrimaryKeyValues += primaryKeyValues
-        if (initialAllPrimaryKeyValuesSize == allPrimaryKeyValues.size) {
+        if (allPrimaryKeyValues.contains(primaryKeyValues)) {
           errors = errors :+ ErrorWithCsvContext(
             "duplicate_key",
             "schema",
@@ -93,7 +90,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
             s"key already present - ${fetchPrimaryKeyString(primaryKeyValues)}",
             ""
           )
-        }
+        } else allPrimaryKeyValues += primaryKeyValues
       }
     }
   }
