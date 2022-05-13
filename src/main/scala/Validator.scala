@@ -60,6 +60,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
     }
     val table = schema.tables(tableUri.toString)
 
+    // List of type Any with same values are not added again in a Set, whereas Array of Type any behaves differently.
     var allPrimaryKeyValues: Set[List[Any]] = Set()
     for (row <- parser.asScala) {
       if (row.getRecordNumber == 1 && csvHeaderExpected) {

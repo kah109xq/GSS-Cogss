@@ -3,6 +3,7 @@ import org.scalatest.FunSuite
 
 import java.io.File
 import java.net.URI
+import java.time.{ZoneId, ZonedDateTime}
 
 class ValidatorTest extends FunSuite {
   val csvwExamplesBaseDir = "src/test/resources/csvwExamples/"
@@ -74,13 +75,13 @@ class ValidatorTest extends FunSuite {
     val error = validator.errors(0)
     assert(error.`type` === "duplicate_key")
     assert(
-      error.content === "key already present - W00000001,owned-owned-with-a-mortgage-or-loan-or-shared-ownership,Y0T15,very-good-or-good-health"
+      error.content.contains("key already present")
     )
     assert(error.category === "schema")
   }
 
   test(
-    "it should NOT set primary key violation if datetime value is equal in UTC and the strings representing them differ"
+    "it should NOT set primary key violation if datetime value is equal in UTC and the timezones differ"
   ) {
     val uri = new URI(
       s"file://${new File(s"${csvwExamplesBaseDir}observations_primary_key_violation(datetime).csv-metadata.json").getAbsolutePath}"
@@ -102,8 +103,57 @@ class ValidatorTest extends FunSuite {
     val error = validator.errors(0)
     assert(error.`type` === "duplicate_key")
     assert(
-      error.content === "key already present - W00000001,6.45,Y16T49,very-good-or-good-health"
+      error.content.contains("key already present")
     )
     assert(error.category === "schema")
+  }
+
+  // Scala Sets are used to check for duplicates in PrimaryKeys. PrimaryKey columns received back in the Validator class will be a collection of Any type.
+  // This test ensures that a List of type Any with same values are not added again in a Set, whereas Array of Type any behaves differently.
+  test(
+    "sets scala test for Array[Any] and List[Any]"
+  ) {
+    var exampleSet: Set[List[Any]] = Set()
+    exampleSet += List[Any](12, 1, 4, "Abcd")
+    exampleSet += List[Any](12, 1, 4, "Abcd")
+    exampleSet += List[Any](12, 1, 4, "Abcd")
+
+    assert(exampleSet.size == 1)
+
+    var exampleSet2: Set[Array[Any]] = Set()
+
+    exampleSet2 += Array[Any](12, 1, 4, "Abcd")
+    exampleSet2 += Array[Any](12, 1, 4, "Abcd")
+    exampleSet2 += Array[Any](12, 1, 4, "Abcd")
+    assert(
+      exampleSet2.size == 3
+    )
+
+    var exampleSet3: Set[List[Any]] = Set()
+    val zone = ZoneId.of("UTC+1")
+    ZonedDateTime.of(1947, 8, 15, 12, 12, 12, 12, zone)
+    exampleSet3 += List[Any](
+      12,
+      1,
+      4,
+      "Abcd",
+      ZonedDateTime.of(1947, 8, 15, 12, 12, 12, 12, zone)
+    )
+    exampleSet3 += List[Any](
+      12,
+      1,
+      4,
+      "Abcd",
+      ZonedDateTime.of(1947, 8, 15, 12, 12, 12, 12, zone)
+    )
+    exampleSet3 += List[Any](
+      12,
+      1,
+      4,
+      "Abcd",
+      ZonedDateTime.of(1947, 8, 15, 12, 12, 12, 12, zone)
+    )
+
+    assert(exampleSet3.size == 1)
   }
 }

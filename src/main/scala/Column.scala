@@ -515,7 +515,9 @@ case class Column private (
   )
 
   def regexpValidation(value: String): Boolean = {
-    format.get.pattern.get.r.pattern.matcher(value).matches()
+    val regExPattern = format.flatMap(f => f.pattern).get
+    val regEx = regExPattern.r
+    regEx.pattern.matcher(value).matches()
   }
   def noAdditionalValidation(value: String) = true
 

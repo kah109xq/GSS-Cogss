@@ -7,7 +7,7 @@
   ],
   "tables": [
     {
-      "url": "observations_primary_key_violation(datetime).csv",
+      "url": "observations_primary_key_datetime.csv",
       "tableSchema": {
         "columns": [
           {
