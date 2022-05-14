@@ -109,15 +109,12 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
   }
 
   private def fetchPrimaryKeyString(list: List[Any]): String = {
-    var primaryKeyString = ""
-    for (i <- list) {
-      i match {
-        case listOfAny: List[Any] =>
-          for (j <- listOfAny) primaryKeyString += (j.toString + ",")
-        case _ => primaryKeyString += (i.toString + ",")
-      }
+    val stringList = list.map {
+      case listOfAny: List[Any] =>
+        listOfAny.map(s => s.toString).mkString(",")
+      case i => i.toString
     }
-    primaryKeyString.dropRight(1)
+    stringList.mkString(",")
   }
 
   private def processWarnings(errorMessage: ErrorWithCsvContext): String = {
