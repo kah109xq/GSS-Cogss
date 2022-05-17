@@ -507,12 +507,7 @@ case class Table private (
   }
   warnings = warnings.concat(warningsFromColumns)
 
-  def validateRow(row: CSVRecord): (
-      WarningsAndErrors,
-      List[Any],
-      List[(ForeignKeyWithTable, List[Any])],
-      List[(ForeignKeyWrapper, List[Any])]
-  ) = {
+  def validateRow(row: CSVRecord): Option[ValidateRowOutput] = {
     var errors = Array[ErrorWithCsvContext]()
     var primaryKeyValues = List[Any]()
     var foreignKeyReferenceValues =
@@ -558,20 +553,15 @@ case class Table private (
         }
       }
 
-      (
-        WarningsAndErrors(warnings, errors),
-        primaryKeyValues,
-        foreignKeyReferenceValues,
-        foreignKeyValues
+      Some(
+        ValidateRowOutput(
+          WarningsAndErrors(warnings, errors),
+          primaryKeyValues,
+          foreignKeyReferenceValues,
+          foreignKeyValues
+        )
       )
-    } else {
-      (
-        WarningsAndErrors(Array(), Array()),
-        List[Any](),
-        List[(ForeignKeyWithTable, List[Any])](),
-        List[(ForeignKeyWrapper, List[Any])]()
-      )
-    }
+    } else None
   }
   def validateHeader(
       header: CSVRecord

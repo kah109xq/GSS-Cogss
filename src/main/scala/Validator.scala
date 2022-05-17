@@ -76,22 +76,23 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
             ""
           )
         }
-        val (
-          warningsAndErrors,
-          primaryKeyValues,
-          foreignKeyReferenceValues,
-          foreignKeyValues
-        ) = table.validateRow(row)
-        if (allPrimaryKeyValues.contains(primaryKeyValues)) {
-          errors = errors :+ ErrorWithCsvContext(
-            "duplicate_key",
-            "schema",
-            row.toString,
-            "",
-            s"key already present - ${fetchPrimaryKeyString(primaryKeyValues)}",
-            ""
-          )
-        } else allPrimaryKeyValues += primaryKeyValues
+        val result = table.validateRow(row)
+        result match {
+          case Some(validateRowOutput) => {
+            val primaryKeyValues = validateRowOutput.primaryKeyValues
+            if (allPrimaryKeyValues.contains(primaryKeyValues)) {
+              errors = errors :+ ErrorWithCsvContext(
+                "duplicate_key",
+                "schema",
+                row.toString,
+                "",
+                s"key already present - ${fetchPrimaryKeyString(primaryKeyValues)}",
+                ""
+              )
+            } else allPrimaryKeyValues += primaryKeyValues
+          }
+          case None => {}
+        }
       }
     }
   }
