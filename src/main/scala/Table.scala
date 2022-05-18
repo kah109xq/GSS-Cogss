@@ -247,11 +247,27 @@ object Table {
       .flatMap {
         case (col, i) => {
           col match {
-            case colObj: ObjectNode =>
-              Some(
-                Column
-                  .fromJson(i + 1, colObj, baseUrl, lang, inheritedProperties)
+            case colObj: ObjectNode => {
+              val colNum = i + 1
+              val (colDef, w) = Column.fromJson(
+                colNum,
+                colObj,
+                baseUrl,
+                lang,
+                inheritedProperties
               )
+              warnings = warnings ++ w.map(e =>
+                ErrorWithCsvContext(
+                  e.`type`,
+                  "metadata",
+                  "",
+                  colNum.toString,
+                  e.content,
+                  ""
+                )
+              )
+              Some(colDef)
+            }
             case _ => {
               warnings = warnings :+ ErrorWithCsvContext(
                 "invalid_column_description",
@@ -498,15 +514,6 @@ case class Table private (
     */
   var foreignKeyReferences: Array[ForeignKeyWithTable] = Array()
 
-  var warningsFromColumns: Array[ErrorWithCsvContext] =
-    Array[ErrorWithCsvContext]()
-  for (c <- columns) {
-    for (w <- c.warnings) {
-      warningsFromColumns :+= w
-    }
-  }
-  warnings = warnings.concat(warningsFromColumns)
-
   def validateRow(row: CSVRecord): Option[ValidateRowOutput] = {
     var errors = Array[ErrorWithCsvContext]()
     var primaryKeyValues = List[Any]()
@@ -521,19 +528,23 @@ case class Table private (
     if (columns.nonEmpty) {
       for ((value, column) <- row.iterator.asScalaArray.zip(columns)) {
         //catch any exception here, possibly outOfBounds  and set warning too many values
-        val (errorsAndWarnings, v) = column.validate(
-          value,
-          row.getRecordNumber
-        )
+        val (es, v) = column.validate(value)
         val newValue: List[Any] = if (v.length == 1) {
           List(v(0))
         } else {
           v.toList
         } // newValue will be single element of type Any if separator is not specified. If separator is specified, newValue will be Array[Any]
 
-        errors = errors.concat(errorsAndWarnings.errors)
-        warnings = warnings.concat(errorsAndWarnings.warnings)
-
+        errors = errors ++ es.map(e =>
+          ErrorWithCsvContext(
+            e.`type`,
+            "schema",
+            row.getRecordNumber.toString,
+            column.columnOrdinal.toString,
+            e.content,
+            s"required => ${column.required}"
+          )
+        )
         if (primaryKey.contains(column)) {
           primaryKeyValues :+= newValue
         }

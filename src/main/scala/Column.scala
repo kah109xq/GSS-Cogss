@@ -213,9 +213,9 @@ object Column {
   ): (
       Map[String, JsonNode],
       Map[String, JsonNode],
-      Array[ErrorWithCsvContext]
+      Array[ErrorWithoutContext]
   ) = {
-    var warnings = Array[ErrorWithCsvContext]()
+    var warnings = Array[ErrorWithoutContext]()
     val annotations = Map[String, JsonNode]()
     val columnProperties = Map[String, JsonNode]()
     for ((property, value) <- columnDesc.getKeysAndValues) {
@@ -230,13 +230,9 @@ object Column {
             PropertyChecker.checkProperty(property, value, baseUrl, lang)
           warnings = warnings.concat(
             w.map(warningString =>
-              ErrorWithCsvContext(
+              ErrorWithoutContext(
                 warningString,
-                "metadata",
-                "",
-                s"$columnOrdinal",
-                s"$property: ${value.toPrettyString}",
-                ""
+                s"$property: ${value.toPrettyString}"
               )
             )
           )
@@ -249,13 +245,9 @@ object Column {
               annotations += (property -> v)
             }
             case _ =>
-              warnings :+= ErrorWithCsvContext(
+              warnings :+= ErrorWithoutContext(
                 s"invalid_property",
-                "metadata",
-                "",
-                "",
-                s"column: ${property}",
-                ""
+                s"column: ${property}"
               )
           }
         }
@@ -270,12 +262,12 @@ object Column {
       baseUrl: String,
       lang: String,
       inheritedProperties: Map[String, JsonNode]
-  ): Column = {
+  ): (Column, Array[ErrorWithoutContext]) = {
 
     val inheritedPropertiesCopy =
       MapHelpers.deepCloneJsonPropertiesMap(inheritedProperties)
 
-    var (annotations, columnProperties, warnings) =
+    val (annotations, columnProperties, warnings) =
       partitionAndValidateColumnPropertiesByType(
         columnDesc,
         columnOrdinal,
@@ -300,11 +292,10 @@ object Column {
 
     val titles = columnProperties.get("titles")
 
-    new Column(
+    val column = new Column(
       columnOrdinal = columnOrdinal,
       name = getName(columnProperties, lang),
       id = getId(columnProperties),
-      datatype = datatype,
       minLength = minLength,
       maxLength = maxLength,
       length = length,
@@ -324,10 +315,10 @@ object Column {
       virtual = getVirtual(columnProperties),
       format = getMaybeFormatForColumn(formatNode),
       textDirection = getTextDirection(inheritedPropertiesCopy),
-      annotations = annotations,
-      warnings = warnings,
-      errors = Array()
+      annotations = annotations
     )
+
+    (column, warnings)
   }
 
   private def getMaybeFormatForColumn(formatNode: JsonNode): Option[Format] = {
@@ -397,7 +388,6 @@ case class Column private (
     name: Option[String],
     id: Option[String],
     aboutUrl: Option[String],
-    datatype: JsonNode,
     minLength: Option[Int],
     maxLength: Option[Int],
     length: Option[Int],
@@ -416,9 +406,7 @@ case class Column private (
     valueUrl: Option[String],
     virtual: Boolean,
     format: Option[Format],
-    annotations: Map[String, JsonNode],
-    warnings: Array[ErrorWithCsvContext],
-    var errors: Array[ErrorWithCsvContext]
+    annotations: Map[String, JsonNode]
 ) {
   val datatypeParser: Map[String, String => Either[
     ErrorWithoutContext,
@@ -1088,47 +1076,38 @@ case class Column private (
   }
 
   def addErrorIfRequiredValueAndValueEmpty(
-      value: String,
-      rowNumber: Long
-  ): Unit = {
+      value: String
+  ): Option[ErrorWithoutContext] = {
     if (required && value.isEmpty) {
-      errors :+= ErrorWithCsvContext(
-        "Required",
-        "schema",
-        rowNumber.toString,
-        columnOrdinal.toString,
-        value,
-        s"required => $required"
-      )
-    }
+      Some(ErrorWithoutContext("Required", value))
+    } else None
   }
 
-  def validateFormat(value: String, rowNumber: Long): Boolean = {
+  def validateFormat(value: String): Option[ErrorWithoutContext] = {
     format match {
       case Some(f) => {
         val formatValidator = datatypeFormatValidation(baseDataType)
-        if (formatValidator(value)) true
+        if (formatValidator(value)) None
         else {
-          errors = errors :+ ErrorWithCsvContext(
-            "format",
-            "schema",
-            rowNumber.toString,
-            columnOrdinal.toString,
-            value,
-            s"Value in csv does not match the format specified in metadata, Value: ${value} Format: ${f.pattern.get}"
+          Some(
+            ErrorWithoutContext(
+              "format",
+              s"Value in csv does not match the format specified in metadata, Value: ${value} Format: ${f.pattern.get}"
+            )
           )
-          false
         }
       }
-      case None => true
+      case None => None
     }
   }
 
-  def validateLength(value: String, rowNumber: Long): Boolean = {
-    var valid = true
+  def validateLength(
+      value: String
+  ): Array[ErrorWithoutContext] = {
     if (length.isEmpty && minLength.isEmpty && maxLength.isEmpty) {
-      valid = true
+      Array()
     } else {
+      var errors = Array[ErrorWithoutContext]()
       var lengthOfValue = value.length
       if (baseDataType == s"${xmlSchema}base64Binary") {
         lengthOfValue = value.replaceAll("==?$", "").length * (3 / 4)
@@ -1136,49 +1115,37 @@ case class Column private (
         lengthOfValue = value.length / 2
       }
       if (minLength.isDefined && lengthOfValue < minLength.get) {
-        errors = errors :+ ErrorWithCsvContext(
+        errors = errors :+ ErrorWithoutContext(
           "minLength",
-          "schema",
-          rowNumber.toString,
-          columnOrdinal.toString,
-          value,
-          s"value length less than minLength specified - $minLength"
+          s"value '${value}' length less than minLength specified - $minLength"
         )
-        valid = false
       }
       if (maxLength.isDefined && lengthOfValue > maxLength.get) {
-        errors = errors :+ ErrorWithCsvContext(
+        errors = errors :+ ErrorWithoutContext(
           "maxLength",
-          "schema",
-          rowNumber.toString,
-          columnOrdinal.toString,
-          value,
-          s"value length greater than maxLength specified - $maxLength"
+          s"value '${value}' length greater than maxLength specified - $maxLength"
         )
-        valid = false
       }
       if (length.isDefined && lengthOfValue != length.get) {
-        errors = errors :+ ErrorWithCsvContext(
+        errors = errors :+ ErrorWithoutContext(
           "length",
-          "schema",
-          rowNumber.toString,
-          columnOrdinal.toString,
-          value,
-          s"value length different from length specified - ${length.get}"
+          s"value '${value}' length different from length specified - ${length.get}"
         )
-        valid = false
       }
+      errors
     }
-    valid
   }
 
   def validate(
-      value: String,
-      rowNumber: Long
-  ): (WarningsAndErrors, Array[Any]) = {
+      value: String
+  ): (Array[ErrorWithoutContext], Array[Any]) = {
+    var errors = Array[ErrorWithoutContext]()
     if (nullParam.contains(value)) {
-      addErrorIfRequiredValueAndValueEmpty(value, rowNumber)
-      (WarningsAndErrors(errors, warnings), Array())
+      val errorWithoutContext = addErrorIfRequiredValueAndValueEmpty(value)
+      if (errorWithoutContext.isDefined) {
+        errors :+= errorWithoutContext.get
+      }
+      (errors, Array())
     } else {
       var valuesArrayToReturn = Array[Any]()
       val values = separator match {
@@ -1189,32 +1156,30 @@ case class Column private (
       for (v <- values) {
         parserForDataType(v) match {
           case Left(errorMessageContent) => {
-            errors = errors :+ ErrorWithCsvContext(
+            errors = errors :+ ErrorWithoutContext(
               errorMessageContent.`type`,
-              "schema",
-              rowNumber.toString,
-              columnOrdinal.toString,
-              s"'$v' - ${errorMessageContent.content}",
-              datatype.toPrettyString
+              s"'$v' - ${errorMessageContent.content}"
             )
             val invalidNode = JsonNodeFactory.instance.objectNode()
             invalidNode.set("invalid", new TextNode(v))
             valuesArrayToReturn = valuesArrayToReturn :+ invalidNode
           }
           case Right(s) => {
-            addErrorIfRequiredValueAndValueEmpty(s.toString, rowNumber)
-            if (
-              validateFormat(s.toString, rowNumber) && validateLength(
-                s.toString,
-                rowNumber
-              )
-            ) {
+            errors =
+              errors ++
+                validateLength(s.toString) ++
+                Array(
+                  addErrorIfRequiredValueAndValueEmpty(s.toString),
+                  validateFormat(s.toString)
+                ).flatten
+
+            if (errors.length == 0) {
               valuesArrayToReturn = valuesArrayToReturn :+ s
             }
           }
         }
       }
-      (WarningsAndErrors(errors, warnings), valuesArrayToReturn)
+      (errors, valuesArrayToReturn)
     }
   }
 
