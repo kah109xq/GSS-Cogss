@@ -515,26 +515,21 @@ case class Table private (
   var foreignKeyReferences: Array[ForeignKeyWithTable] = Array()
 
   def validateRow(row: CSVRecord): Option[ValidateRowOutput] = {
-    var errors = Array[ErrorWithCsvContext]()
-    var primaryKeyValues = List[Any]()
-    var foreignKeyReferenceValues =
-      List[
-        (ForeignKeyWithTable, List[Any])
-      ]() // to store the validated referenced Table Columns values in each row
-    var foreignKeyValues =
-      List[
-        (ForeignKeyWrapper, List[Any])
-      ]() // to store the validated foreign key values in each row
     if (columns.nonEmpty) {
+      var errors = Array[ErrorWithCsvContext]()
+      var primaryKeyValues = List[Any]()
+      var foreignKeyReferenceValues =
+        List[
+          (ForeignKeyWithTable, List[Any])
+        ]() // to store the validated referenced Table Columns values in each row
+      var foreignKeyValues =
+        List[
+          (ForeignKeyWrapper, List[Any])
+        ]() // to store the validated foreign key values in each row
       for ((value, column) <- row.iterator.asScalaArray.zip(columns)) {
         //catch any exception here, possibly outOfBounds  and set warning too many values
         val (es, v) = column.validate(value)
-        val newValue: List[Any] = if (v.length == 1) {
-          List(v(0))
-        } else {
-          v.toList
-        } // newValue will be single element of type Any if separator is not specified. If separator is specified, newValue will be Array[Any]
-
+        val newValue: List[Any] = v.toList
         errors = errors ++ es.map(e =>
           ErrorWithCsvContext(
             e.`type`,

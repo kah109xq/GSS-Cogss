@@ -67,7 +67,7 @@ class ColumnTest extends FunSuite {
     assert(column.default == "")
     assert(column.propertyUrl.isEmpty)
     assert(column.separator.isEmpty)
-    assert(column.titles.isEmpty)
+    assert(column.titleValues.isEmpty)
   }
 
   test("should override default values") {
@@ -102,12 +102,7 @@ class ColumnTest extends FunSuite {
       "und",
       mutable.Map()
     )
-
-    val expectedTitlesObject = JsonNodeFactory.instance.objectNode()
     val expectedDataType = "http://www.w3.org/2001/XMLSchema#integer"
-    val arrayNode = JsonNodeFactory.instance.arrayNode()
-    arrayNode.add("countryCode")
-    expectedTitlesObject.set("lang", arrayNode)
 
     assert(column.name.get === "countryCode")
     assert(column.columnOrdinal === 1)
@@ -123,7 +118,7 @@ class ColumnTest extends FunSuite {
     assert(column.separator.get === ",")
     assert(column.suppressOutput === true)
     assert(column.textDirection === "rtl")
-    assert(column.titles.get === expectedTitlesObject)
+    assert(column.titleValues === Array[String]("countryCode"))
     assert(column.valueUrl.get === "http://www.geonames.org/ontology")
     assert(column.virtual === true)
     assert(column.annotations === mutable.Map[String, JsonNode]())

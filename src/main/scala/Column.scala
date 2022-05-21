@@ -309,7 +309,6 @@ object Column {
       valueUrl = getValueUrl(inheritedPropertiesCopy),
       separator = getSeparator(inheritedPropertiesCopy),
       ordered = getOrdered(inheritedPropertiesCopy),
-      titles = titles,
       titleValues = getTitleValues(titles),
       suppressOutput = getSuppressOutput(columnProperties),
       virtual = getVirtual(columnProperties),
@@ -401,7 +400,6 @@ case class Column private (
     separator: Option[String],
     suppressOutput: Boolean,
     textDirection: String,
-    titles: Option[JsonNode],
     titleValues: Array[String],
     valueUrl: Option[String],
     virtual: Boolean,
@@ -1185,27 +1183,24 @@ case class Column private (
 
   def validateHeader(columnName: String): WarningsAndErrors = {
     var errors = Array[ErrorWithCsvContext]()
-    titles match {
-      case Some(titles) => {
-        var validHeaders = Array[String]()
-        for (title <- titleValues) {
-          if (Column.languagesMatch(title, lang)) {
-            validHeaders :+= title
-          }
+    if (titleValues.nonEmpty) {
+      var validHeaders = Array[String]()
+      for (title <- titleValues) {
+        if (Column.languagesMatch(title, lang)) {
+          validHeaders :+= title
         }
-        if (!validHeaders.contains(columnName)) {
-          errors :+= ErrorWithCsvContext(
-            "Invalid Header",
-            "Schema",
-            "1",
-            columnOrdinal.toString,
-            columnName,
-            titles.toPrettyString
-          )
-        }
-        WarningsAndErrors(Array(), errors)
       }
-      case None => WarningsAndErrors(Array(), Array())
-    }
+      if (!validHeaders.contains(columnName)) {
+        errors :+= ErrorWithCsvContext(
+          "Invalid Header",
+          "Schema",
+          "1",
+          columnOrdinal.toString,
+          columnName,
+          titleValues.mkString(",")
+        )
+      }
+      WarningsAndErrors(Array(), errors)
+    } else WarningsAndErrors(Array(), Array())
   }
 }
