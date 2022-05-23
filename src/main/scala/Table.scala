@@ -20,7 +20,7 @@ object Table {
       lang: String,
       commonProperties: Map[String, JsonNode],
       inheritedPropertiesIn: Map[String, JsonNode]
-  ): Table = {
+  ): (Table, Array[ErrorWithCsvContext]) = {
     val (annotations, tableProperties, inheritedProperties, warnings) =
       partitionAndValidateTablePropertiesByType(
         commonProperties,
@@ -150,7 +150,7 @@ object Table {
       url: String,
       tableProperties: Map[String, JsonNode],
       annotations: Map[String, JsonNode]
-  ): Table = {
+  ): (Table, Array[ErrorWithCsvContext]) = {
 
     tableSchema match {
       case tableSchemaObject: ObjectNode => {
@@ -186,7 +186,7 @@ object Table {
         val rowTitlesColumns =
           collectRowTitlesColumns(tableSchemaObject, columns)
 
-        new Table(
+        val table = new Table(
           url = url,
           id = getId(tableProperties),
           columns = columns,
@@ -197,9 +197,9 @@ object Table {
           rowTitleColumns = rowTitlesColumns,
           schemaId = getMaybeSchemaIdFromTableSchema(tableSchemaObject),
           suppressOutput = getSuppressOutput(tableProperties),
-          annotations = annotations,
-          warnings = warnings
+          annotations = annotations
         )
+        (table, warnings)
       }
       case _ =>
         throw new MetadataError(
@@ -433,8 +433,8 @@ object Table {
       annotations: Map[String, JsonNode],
       warnings: Array[ErrorWithCsvContext],
       url: String
-  ) = {
-    new Table(
+  ): (Table, Array[ErrorWithCsvContext]) = {
+    val table = new Table(
       url = url,
       id = None,
       columns = Array(),
@@ -445,9 +445,9 @@ object Table {
       rowTitleColumns = Array(),
       schemaId = None,
       suppressOutput = false,
-      annotations = annotations,
-      warnings = warnings
+      annotations = annotations
     )
+    (table, warnings)
   }
 
   private def getMaybeSchemaIdFromTableSchema(
@@ -505,8 +505,7 @@ case class Table private (
     rowTitleColumns: Array[Column],
     schemaId: Option[String],
     suppressOutput: Boolean,
-    annotations: Map[String, JsonNode],
-    var warnings: Array[ErrorWithCsvContext]
+    annotations: Map[String, JsonNode]
 ) {
 
   /**
@@ -561,7 +560,7 @@ case class Table private (
 
       Some(
         ValidateRowOutput(
-          WarningsAndErrors(warnings, errors),
+          WarningsAndErrors(Array(), errors),
           primaryKeyValues,
           foreignKeyReferenceValues,
           foreignKeyValues

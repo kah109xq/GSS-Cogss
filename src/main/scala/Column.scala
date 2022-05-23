@@ -1158,9 +1158,7 @@ case class Column private (
               errorMessageContent.`type`,
               s"'$v' - ${errorMessageContent.content}"
             )
-            val invalidNode = JsonNodeFactory.instance.objectNode()
-            invalidNode.set("invalid", new TextNode(v))
-            valuesArrayToReturn = valuesArrayToReturn :+ invalidNode
+            valuesArrayToReturn = valuesArrayToReturn :+ s"invalid - $v"
           }
           case Right(s) => {
             errors =
