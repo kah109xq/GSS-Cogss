@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.node.{
 }
 import org.scalatest.FunSuite
 
+import java.time.{ZoneId, ZonedDateTime}
 import scala.collection.mutable.Map
 
 class TableTest extends FunSuite {
@@ -79,7 +80,7 @@ class TableTest extends FunSuite {
     val jsonNode = objectMapper.readTree(json)
     val tableObject1 = jsonNode.get("tables").elements().asScalaArray(0)
     val tableObject2 = jsonNode.get("tables").elements().asScalaArray(1)
-    val table1 = Table.fromJson(
+    val (table1, w1) = Table.fromJson(
       tableObject1.asInstanceOf[ObjectNode],
       "http://w3c.github.io/csvw/tests/countries.json",
       "und",
@@ -87,7 +88,7 @@ class TableTest extends FunSuite {
       Map()
     )
 
-    val table2 = Table.fromJson(
+    val (table2, w2) = Table.fromJson(
       tableObject2.asInstanceOf[ObjectNode],
       "http://w3c.github.io/csvw/tests/countries.json",
       "und",
@@ -117,7 +118,7 @@ class TableTest extends FunSuite {
     )
     assert(table1.suppressOutput === true)
     assert(table1.annotations.isEmpty)
-    assert(table1.warnings.isEmpty)
+    assert(w1.isEmpty)
   }
 
   test("should raise exception for duplicate column names") {

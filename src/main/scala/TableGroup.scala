@@ -388,7 +388,7 @@ object TableGroup {
             new URL(new URL(baseUrl), tableUrl.asText()).toString
           )
           tableElementObject.set("url", tableUrl)
-          val table = Table.fromJson(
+          val (table, w) = Table.fromJson(
             tableElementObject,
             baseUrl,
             lang,
@@ -396,6 +396,7 @@ object TableGroup {
             inheritedProperties
           )
           tables += (tableUrl.asText -> table)
+          warnings = warnings.concat(w)
         }
         case _ => {
           warnings = warnings :+ ErrorWithCsvContext(
@@ -427,11 +428,6 @@ case class TableGroup private (
     annotations: Map[String, JsonNode],
     var warnings: Array[ErrorWithCsvContext]
 ) {
-  val warningsFromTables: Array[ErrorWithCsvContext] =
-    Array.from(tables.flatMap {
-      case (_, table) => table.warnings
-    })
-  warnings = warnings.concat(warningsFromTables)
 
   def validateHeader(
       header: CSVRecord,

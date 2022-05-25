@@ -20,7 +20,7 @@ object Table {
       lang: String,
       commonProperties: Map[String, JsonNode],
       inheritedPropertiesIn: Map[String, JsonNode]
-  ): Table = {
+  ): (Table, Array[ErrorWithCsvContext]) = {
     val (annotations, tableProperties, inheritedProperties, warnings) =
       partitionAndValidateTablePropertiesByType(
         commonProperties,
@@ -150,7 +150,7 @@ object Table {
       url: String,
       tableProperties: Map[String, JsonNode],
       annotations: Map[String, JsonNode]
-  ): Table = {
+  ): (Table, Array[ErrorWithCsvContext]) = {
 
     tableSchema match {
       case tableSchemaObject: ObjectNode => {
@@ -186,7 +186,7 @@ object Table {
         val rowTitlesColumns =
           collectRowTitlesColumns(tableSchemaObject, columns)
 
-        new Table(
+        val table = new Table(
           url = url,
           id = getId(tableProperties),
           columns = columns,
@@ -197,9 +197,9 @@ object Table {
           rowTitleColumns = rowTitlesColumns,
           schemaId = getMaybeSchemaIdFromTableSchema(tableSchemaObject),
           suppressOutput = getSuppressOutput(tableProperties),
-          annotations = annotations,
-          warnings = warnings
+          annotations = annotations
         )
+        (table, warnings)
       }
       case _ =>
         throw new MetadataError(
@@ -247,11 +247,27 @@ object Table {
       .flatMap {
         case (col, i) => {
           col match {
-            case colObj: ObjectNode =>
-              Some(
-                Column
-                  .fromJson(i + 1, colObj, baseUrl, lang, inheritedProperties)
+            case colObj: ObjectNode => {
+              val colNum = i + 1
+              val (colDef, w) = Column.fromJson(
+                colNum,
+                colObj,
+                baseUrl,
+                lang,
+                inheritedProperties
               )
+              warnings = warnings ++ w.map(e =>
+                ErrorWithCsvContext(
+                  e.`type`,
+                  "metadata",
+                  "",
+                  colNum.toString,
+                  e.content,
+                  ""
+                )
+              )
+              Some(colDef)
+            }
             case _ => {
               warnings = warnings :+ ErrorWithCsvContext(
                 "invalid_column_description",
@@ -417,8 +433,8 @@ object Table {
       annotations: Map[String, JsonNode],
       warnings: Array[ErrorWithCsvContext],
       url: String
-  ) = {
-    new Table(
+  ): (Table, Array[ErrorWithCsvContext]) = {
+    val table = new Table(
       url = url,
       id = None,
       columns = Array(),
@@ -429,9 +445,9 @@ object Table {
       rowTitleColumns = Array(),
       schemaId = None,
       suppressOutput = false,
-      annotations = annotations,
-      warnings = warnings
+      annotations = annotations
     )
+    (table, warnings)
   }
 
   private def getMaybeSchemaIdFromTableSchema(
@@ -489,38 +505,68 @@ case class Table private (
     rowTitleColumns: Array[Column],
     schemaId: Option[String],
     suppressOutput: Boolean,
-    annotations: Map[String, JsonNode],
-    var warnings: Array[ErrorWithCsvContext]
+    annotations: Map[String, JsonNode]
 ) {
-  var foreignKeyValues: Map[String, JsonNode] = Map()
 
   /**
     * This array contains the foreign keys defined in other tables' schemas which reference data inside this table.
     */
   var foreignKeyReferences: Array[ForeignKeyWithTable] = Array()
-  var foreignKeyReferenceValues: Map[String, JsonNode] = Map()
-  var warningsFromColumns: Array[ErrorWithCsvContext] =
-    Array[ErrorWithCsvContext]()
-  for (c <- columns) {
-    for (w <- c.warnings) {
-      warningsFromColumns :+= w
-    }
-  }
-  warnings = warnings.concat(warningsFromColumns)
 
-  def validateRow(row: CSVRecord): WarningsAndErrors = {
-    var errors = Array[ErrorWithCsvContext]()
+  def validateRow(row: CSVRecord): Option[ValidateRowOutput] = {
     if (columns.nonEmpty) {
+      var errors = Array[ErrorWithCsvContext]()
+      var primaryKeyValues = List[Any]()
+      var foreignKeyReferenceValues =
+        List[
+          (ForeignKeyWithTable, List[Any])
+        ]() // to store the validated referenced Table Columns values in each row
+      var foreignKeyValues =
+        List[
+          (ForeignKeyWrapper, List[Any])
+        ]() // to store the validated foreign key values in each row
       for ((value, column) <- row.iterator.asScalaArray.zip(columns)) {
         //catch any exception here, possibly outOfBounds  and set warning too many values
-        val result = column.validate(value, row.getRecordNumber)
-        errors = errors.concat(result.errors)
-        warnings = warnings.concat(result.warnings)
+        val (es, v) = column.validate(value)
+        val newValue: List[Any] = v.toList
+        errors = errors ++ es.map(e =>
+          ErrorWithCsvContext(
+            e.`type`,
+            "schema",
+            row.getRecordNumber.toString,
+            column.columnOrdinal.toString,
+            e.content,
+            s"required => ${column.required}"
+          )
+        )
+        if (primaryKey.contains(column)) {
+          primaryKeyValues :+= newValue
+        }
+
+        for (foreignKeyReferenceObject <- foreignKeyReferences) {
+          if (
+            foreignKeyReferenceObject.referencedTableColumns.contains(column)
+          ) {
+            foreignKeyReferenceValues :+= (foreignKeyReferenceObject, newValue)
+          }
+        }
+
+        for (foreignKeyWrapperObject <- foreignKeys) {
+          if (foreignKeyWrapperObject.localColumns.contains(column)) {
+            foreignKeyValues :+= (foreignKeyWrapperObject, newValue)
+          }
+        }
       }
-      WarningsAndErrors(warnings, errors)
-    } else {
-      WarningsAndErrors(Array(), Array())
-    }
+
+      Some(
+        ValidateRowOutput(
+          WarningsAndErrors(Array(), errors),
+          primaryKeyValues,
+          foreignKeyReferenceValues,
+          foreignKeyValues
+        )
+      )
+    } else None
   }
   def validateHeader(
       header: CSVRecord

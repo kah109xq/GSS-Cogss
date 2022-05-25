@@ -24,13 +24,14 @@ class ColumnTest extends FunSuite {
          |""".stripMargin
 
     val jsonNode = objectMapper.readTree(json)
-    Column.fromJson(
+    val (column, _) = Column.fromJson(
       1,
       jsonNode.asInstanceOf[ObjectNode],
       "https://www.w3.org/",
       "und",
       Map[String, JsonNode]()
     )
+    column
   }
 
   test("should provide appropriate default values") {
@@ -42,7 +43,7 @@ class ColumnTest extends FunSuite {
         |""".stripMargin
 
     val jsonNode = objectMapper.readTree(json)
-    val column = Column.fromJson(
+    val (column, warnings) = Column.fromJson(
       1,
       jsonNode.asInstanceOf[ObjectNode],
       "https://www.w3.org/",
@@ -50,12 +51,10 @@ class ColumnTest extends FunSuite {
       Map[String, JsonNode]()
     )
 
-    val datatypeDefaultValue: ObjectNode = JsonNodeFactory.instance
-      .objectNode()
-      .set("@id", new TextNode("http://www.w3.org/2001/XMLSchema#string"))
+    val datatypeDefaultValue = "http://www.w3.org/2001/XMLSchema#string"
 
     assert(column.name.get === "countryCode")
-    assert(column.datatype === datatypeDefaultValue)
+    assert(column.baseDataType === datatypeDefaultValue)
     assert(column.lang === "und")
     assert(column.textDirection === "inherit")
     assert(column.annotations === Map[String, JsonNode]())
@@ -68,7 +67,7 @@ class ColumnTest extends FunSuite {
     assert(column.default == "")
     assert(column.propertyUrl.isEmpty)
     assert(column.separator.isEmpty)
-    assert(column.titles.isEmpty)
+    assert(column.titleValues.isEmpty)
   }
 
   test("should override default values") {
@@ -96,29 +95,20 @@ class ColumnTest extends FunSuite {
         |""".stripMargin
 
     val jsonNode = objectMapper.readTree(json)
-    val column = Column.fromJson(
+    val (column, warnings) = Column.fromJson(
       1,
       jsonNode.asInstanceOf[ObjectNode],
       "https://www.w3.org/",
       "und",
       mutable.Map()
     )
-
-    val expectedTitlesObject = JsonNodeFactory.instance.objectNode()
-    val expectedDataType = JsonNodeFactory.instance.objectNode()
-    expectedDataType.set(
-      "@id",
-      new TextNode("http://www.w3.org/2001/XMLSchema#integer")
-    )
-    val arrayNode = JsonNodeFactory.instance.arrayNode()
-    arrayNode.add("countryCode")
-    expectedTitlesObject.set("lang", arrayNode)
+    val expectedDataType = "http://www.w3.org/2001/XMLSchema#integer"
 
     assert(column.name.get === "countryCode")
     assert(column.columnOrdinal === 1)
     assert(column.id === None)
     assert(column.aboutUrl.get === "sampleUrl")
-    assert(column.datatype === expectedDataType)
+    assert(column.baseDataType === expectedDataType)
     assert(column.default === "00")
     assert(column.lang === "en")
     assert(column.nullParam === Array[String]("-"))
@@ -128,11 +118,11 @@ class ColumnTest extends FunSuite {
     assert(column.separator.get === ",")
     assert(column.suppressOutput === true)
     assert(column.textDirection === "rtl")
-    assert(column.titles.get === expectedTitlesObject)
+    assert(column.titleValues === Array[String]("countryCode"))
     assert(column.valueUrl.get === "http://www.geonames.org/ontology")
     assert(column.virtual === true)
     assert(column.annotations === mutable.Map[String, JsonNode]())
-    assert(column.warnings === Array[ErrorWithCsvContext]())
+    assert(warnings === Array[ErrorWithCsvContext]())
   }
 
   test("it should generate warnings for null values of unexpected type") {
@@ -145,16 +135,16 @@ class ColumnTest extends FunSuite {
         |""".stripMargin
 
     val jsonNode = objectMapper.readTree(json)
-    val column = Column.fromJson(
+    val (column, warnings) = Column.fromJson(
       1,
       jsonNode.asInstanceOf[ObjectNode],
       "https://www.w3.org/",
       "und",
       Map()
     )
-    assert(column.warnings(0).`type` === "invalid_value")
-    assert(column.warnings(0).content === "null: true")
-    assert(column.warnings.length === 1)
+    assert(warnings(0).`type` === "invalid_value")
+    assert(warnings(0).content === "null: true")
+    assert(warnings.length === 1)
   }
 
   test("it should return no warnings for a null value of null") {
@@ -168,14 +158,14 @@ class ColumnTest extends FunSuite {
         |""".stripMargin
 
     val jsonNode = objectMapper.readTree(json)
-    val column = Column.fromJson(
+    val (column, warnings) = Column.fromJson(
       1,
       jsonNode.asInstanceOf[ObjectNode],
       "https://www.w3.org/",
       "und",
       Map()
     )
-    assert(column.warnings.length === 0)
+    assert(warnings.length === 0)
     assert(column.nullParam === Array[String](""))
   }
 
@@ -190,7 +180,7 @@ class ColumnTest extends FunSuite {
         |""".stripMargin
 
     val jsonNode = objectMapper.readTree(json)
-    val column = Column.fromJson(
+    val (column, warnings) = Column.fromJson(
       1,
       jsonNode.asInstanceOf[ObjectNode],
       "https://www.w3.org/",
@@ -207,7 +197,7 @@ class ColumnTest extends FunSuite {
 
     assert(column.name.get === "Id")
     assert(column.required)
-    assert(column.datatype === expectedDatatypeValue)
+    assert(column.minLength.get === 3)
   }
 
   // Tests for processFloatDatatype method
@@ -717,7 +707,7 @@ class ColumnTest extends FunSuite {
   test(
     "should process Y as true for boolean datatype when appropriate format is provided"
   ) {
-    val columnWithFormat = {
+    val (columnWithFormat, _) = {
       val json =
         s"""
            |{
@@ -761,4 +751,80 @@ class ColumnTest extends FunSuite {
       }
     }
   }
+
+  test("should set errors when length is less than min length specified") {
+    val json =
+      """
+      |{"name":"Measure",
+      |"datatype": {
+      |  "base": "string",
+      |  "minLength": 10,
+      |  "maxLength": 1000
+      |}
+      |}
+      |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val (column, warnings) = Column.fromJson(
+      1,
+      jsonNode.asInstanceOf[ObjectNode],
+      "https://www.w3.org/",
+      "und",
+      Map[String, JsonNode]()
+    )
+
+    val errors = column.validateLength("12")
+    assert(errors.length == 1)
+    assert(errors(0).`type` == "minLength")
+  }
+
+  test("should set errors when length is greater than max length specified") {
+    val json =
+      """
+        |{"name":"Measure",
+        |"datatype": {
+        |  "base": "string",
+        |  "minLength": 1,
+        |  "maxLength": 4
+        |}
+        |}
+        |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val (column, warnings) = Column.fromJson(
+      1,
+      jsonNode.asInstanceOf[ObjectNode],
+      "https://www.w3.org/",
+      "und",
+      Map[String, JsonNode]()
+    )
+
+    val errors = column.validateLength("ABCDEFG")
+    assert(errors.length == 1)
+    assert(errors(0).`type` == "maxLength")
+  }
+
+  test("should set errors when length is different from length specified") {
+    val json =
+      """
+        |{"name":"Measure",
+        |"datatype": {
+        |  "base": "string",
+        |  "length": 3,
+        |  "minLength": 1,
+        |  "maxLength": 4
+        |}
+        |}
+        |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val (column, warnings) = Column.fromJson(
+      1,
+      jsonNode.asInstanceOf[ObjectNode],
+      "https://www.w3.org/",
+      "und",
+      Map[String, JsonNode]()
+    )
+    val errors = column.validateLength("ABC4")
+    assert(errors.length == 1)
+    assert(errors(0).`type` == "length")
+  }
+
 }

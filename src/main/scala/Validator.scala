@@ -60,6 +60,8 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
     }
     val table = schema.tables(tableUri.toString)
 
+    // List of type Any with same values are not added again in a Set, whereas Array of Type any behaves differently.
+    var allPrimaryKeyValues: Set[List[Any]] = Set()
     for (row <- parser.asScala) {
       if (row.getRecordNumber == 1 && csvHeaderExpected) {
         validateHeader(schema, row, tableUri)
@@ -74,7 +76,23 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
             ""
           )
         }
-        val warningsAndErrors = table.validateRow(row)
+        val result = table.validateRow(row)
+        result match {
+          case Some(validateRowOutput) => {
+            val primaryKeyValues = validateRowOutput.primaryKeyValues
+            if (allPrimaryKeyValues.contains(primaryKeyValues)) {
+              errors = errors :+ ErrorWithCsvContext(
+                "duplicate_key",
+                "schema",
+                row.toString,
+                "",
+                s"key already present - ${fetchPrimaryKeyString(primaryKeyValues)}",
+                ""
+              )
+            } else allPrimaryKeyValues += primaryKeyValues
+          }
+          case None => {}
+        }
       }
     }
   }
@@ -91,9 +109,19 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
     errors = errors.concat(e)
   }
 
+  private def fetchPrimaryKeyString(list: List[Any]): String = {
+    val stringList = list.map {
+      case listOfAny: List[Any] =>
+        listOfAny.map(s => s.toString).mkString(",")
+      case i => i.toString
+    }
+    stringList.mkString(",")
+  }
+
   private def processWarnings(errorMessage: ErrorWithCsvContext): String = {
     s"Type: ${errorMessage.`type`}, Category: ${errorMessage.category}, " +
       s"Row: ${errorMessage.row}, Column: ${errorMessage.column}, " +
       s"Content: ${errorMessage.content}, Constraints: ${errorMessage.constraints} \n"
   }
+
 }
