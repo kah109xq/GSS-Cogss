@@ -2,6 +2,8 @@ package CSVValidation
 
 import CSVValidation.traits.JavaIteratorExtensions.IteratorHasAsScalaArray
 import CSVValidation.traits.ObjectNodeExtentions.IteratorHasGetKeysAndValues
+import CSVValidation.traits.ObjectNodeExtentions.ObjectNodeGetMaybeNode
+
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.{
   ArrayNode,
@@ -190,7 +192,16 @@ object Table {
           url = url,
           id = getId(tableProperties),
           columns = columns,
-          dialect = tableProperties.get("dialect"),
+          dialect = tableProperties
+            .get("dialect")
+            .flatMap {
+              case d: ObjectNode => Some(Dialect.fromJson(d))
+              case d if d.isNull => None
+              case d =>
+                throw MetadataError(
+                  s"Unexpected JsonNode type ${d.getClass.getName}"
+                )
+            },
           foreignKeys = foreignKeyMappings, // a new type here?
           notes = getNotes(tableProperties),
           primaryKey = primaryKeyToReturn,
@@ -498,7 +509,7 @@ case class Table private (
     url: String,
     id: Option[String],
     columns: Array[Column],
-    dialect: Option[JsonNode],
+    dialect: Option[Dialect],
     foreignKeys: Array[ForeignKeyWrapper],
     notes: Option[ArrayNode],
     primaryKey: Array[Column],
