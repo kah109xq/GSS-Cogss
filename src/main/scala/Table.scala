@@ -354,11 +354,11 @@ object Table {
   private def collectForeignKeyColumns(
       tableSchemaObject: ObjectNode,
       columns: Array[Column]
-  ): Array[ForeignKeyWrapper] = {
+  ): Array[ChildTableForeignKey] = {
     if (tableSchemaObject.path("foreignKeys").isMissingNode) {
       Array()
     } else {
-      var foreignKeys = Array[ForeignKeyWrapper]()
+      var foreignKeys = Array[ChildTableForeignKey]()
       val foreignKeysNode =
         tableSchemaObject.get("foreignKeys").asInstanceOf[ArrayNode]
       for (foreignKey <- foreignKeysNode.elements().asScalaArray) {
@@ -377,7 +377,7 @@ object Table {
               )
           }
         }
-        foreignKeys :+= ForeignKeyWrapper(
+        foreignKeys :+= ChildTableForeignKey(
           foreignKey.asInstanceOf[ObjectNode],
           foreignKeyColumns
         )
@@ -510,7 +510,7 @@ case class Table private (
     id: Option[String],
     columns: Array[Column],
     dialect: Option[Dialect],
-    foreignKeys: Array[ForeignKeyWrapper],
+    foreignKeys: Array[ChildTableForeignKey],
     notes: Option[ArrayNode],
     primaryKey: Array[Column],
     rowTitleColumns: Array[Column],
@@ -522,19 +522,21 @@ case class Table private (
   /**
     * This array contains the foreign keys defined in other tables' schemas which reference data inside this table.
     */
-  var foreignKeyReferences: Array[ForeignKeyWithTable] = Array()
+  var foreignKeyReferences: Array[ParentTableForeignKeyReference] = Array()
 
   def validateRow(row: CSVRecord): Option[ValidateRowOutput] = {
     if (columns.nonEmpty) {
       var errors = Array[ErrorWithCsvContext]()
+      var fk = List[Any]()
+      var fkrv = List[Any]()
       var primaryKeyValues = List[Any]()
       var foreignKeyReferenceValues =
         List[
-          (ForeignKeyWithTable, List[Any])
+          (ParentTableForeignKeyReference, List[Any])
         ]() // to store the validated referenced Table Columns values in each row
       var foreignKeyValues =
         List[
-          (ForeignKeyWrapper, List[Any])
+          (ChildTableForeignKey, List[Any])
         ]() // to store the validated foreign key values in each row
       for ((value, column) <- row.iterator.asScalaArray.zip(columns)) {
         //catch any exception here, possibly outOfBounds  and set warning too many values
@@ -556,7 +558,9 @@ case class Table private (
 
         for (foreignKeyReferenceObject <- foreignKeyReferences) {
           if (
-            foreignKeyReferenceObject.referencedTableColumns.contains(column)
+            foreignKeyReferenceObject.parentTableReferencedColumns.contains(
+              column
+            )
           ) {
             foreignKeyReferenceValues :+= (foreignKeyReferenceObject, newValue)
           }
@@ -573,8 +577,20 @@ case class Table private (
         ValidateRowOutput(
           WarningsAndErrors(Array(), errors),
           primaryKeyValues,
-          foreignKeyReferenceValues,
+          foreignKeyReferenceValues
+            .groupBy {
+              case (k, _) => k
+            }
+            .map {
+              case (k, values) =>
+                (k, KeyWithContext(row.getRecordNumber, values.map(v => v._2)))
+            },
           foreignKeyValues
+            .groupBy { case (k, _) => k }
+            .map {
+              case (k, values) =>
+                (k, KeyWithContext(row.getRecordNumber, values.map(v => v._2)))
+            }
         )
       )
     } else None

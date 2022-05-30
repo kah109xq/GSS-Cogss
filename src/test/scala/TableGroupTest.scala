@@ -81,13 +81,13 @@ class TableGroupTest extends FunSuite {
     assert(referencedTable.foreignKeyReferences.length === 1)
     val foreignKeyReference = referencedTable.foreignKeyReferences(0)
     assert(
-      foreignKeyReference.referencedTable.url === "http://w3c.github.io/csvw/tests/countries.csv"
+      foreignKeyReference.parentTable.url === "http://w3c.github.io/csvw/tests/countries.csv"
     )
 
-    assert(foreignKeyReference.referencedTableColumns.length === 1)
+    assert(foreignKeyReference.parentTableReferencedColumns.length === 1)
     assert(
       foreignKeyReference
-        .referencedTableColumns(0)
+        .parentTableReferencedColumns(0)
         .name
         .get === "countryCode"
     )
@@ -170,11 +170,11 @@ class TableGroupTest extends FunSuite {
 
     assert(referencedTable.foreignKeyReferences.length === 1)
     val foreignKeyReference = referencedTable.foreignKeyReferences(0)
-    assert(foreignKeyReference.referencedTable.url === referencedTable.url)
-    assert(foreignKeyReference.referencedTableColumns.length === 1)
+    assert(foreignKeyReference.parentTable.url === referencedTable.url)
+    assert(foreignKeyReference.parentTableReferencedColumns.length === 1)
     assert(
       foreignKeyReference
-        .referencedTableColumns(0)
+        .parentTableReferencedColumns(0)
         .name
         .get === "countryCode"
     )

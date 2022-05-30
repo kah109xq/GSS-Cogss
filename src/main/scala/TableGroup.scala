@@ -203,7 +203,7 @@ object TableGroup {
     for ((tableUrl, table) <- tables) {
       for ((foreignKey, i) <- table.foreignKeys.zipWithIndex) {
         val reference = foreignKey.jsonObject.get("reference")
-        val referencedTable: Table = setReferencedTableOrThrowException(
+        val parentTable: Table = setReferencedTableOrThrowException(
           baseUrl,
           tables,
           tableUrl,
@@ -211,12 +211,12 @@ object TableGroup {
           reference
         )
         val mapNameToColumn: mutable.Map[String, Column] = Map()
-        for (column <- referencedTable.columns) {
+        for (column <- parentTable.columns) {
           column.name
             .foreach(columnName => mapNameToColumn += (columnName -> column))
         }
 
-        val referencedColumns: Array[Column] = reference
+        val parentReferencedColumns: Array[Column] = reference
           .get("columnReference")
           .elements()
           .asScalaArray
@@ -225,16 +225,21 @@ object TableGroup {
               case Some(column) => column
               case None =>
                 throw new MetadataError(
-                  s"column named ${columnReference.asText()} does not exist in ${referencedTable.url}," +
+                  s"column named ${columnReference.asText()} does not exist in ${parentTable.url}," +
                     s" $$.tables[?(@.url = '${tableUrl}')].tableSchema.foreign_keys[${i}].reference.columnReference"
                 )
             }
           })
 
         val foreignKeyWithTable =
-          ForeignKeyWithTable(foreignKey, referencedTable, referencedColumns)
-        referencedTable.foreignKeyReferences :+= foreignKeyWithTable
-        tables += (referencedTable.url -> referencedTable)
+          ParentTableForeignKeyReference(
+            foreignKey,
+            parentTable,
+            parentReferencedColumns,
+            table
+          )
+        parentTable.foreignKeyReferences :+= foreignKeyWithTable
+        tables += (parentTable.url -> parentTable)
       }
     }
   }

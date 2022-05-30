@@ -1,12 +1,16 @@
 package CSVValidation
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.node.ObjectNode
 import org.scalatest.FunSuite
 
 import java.io.File
 import java.net.URI
 import java.time.{ZoneId, ZonedDateTime}
+import scala.collection.mutable
 
 class ValidatorTest extends FunSuite {
   val csvwExamplesBaseDir = "src/test/resources/csvwExamples/"
+  val objectMapper = new ObjectMapper()
   test("set warning when title is empty for a column") {
     val uri = new URI(
       s"file://${new File(s"${csvwExamplesBaseDir}observations_missing_headers.csv-metadata.json").getAbsolutePath}"
@@ -84,7 +88,7 @@ class ValidatorTest extends FunSuite {
     "it should NOT set primary key violation if datetime value is equal in UTC and the timezones differ"
   ) {
     val uri = new URI(
-      s"file://${new File(s"${csvwExamplesBaseDir}observations_primary_key_violation(datetime).csv-metadata.json").getAbsolutePath}"
+      s"file://${new File(s"${csvwExamplesBaseDir}observations_primary_key_datetime.csv-metadata.json").getAbsolutePath}"
     )
     val validator = new Validator(uri)
     validator.validate()
@@ -106,6 +110,17 @@ class ValidatorTest extends FunSuite {
       error.content.contains("key already present")
     )
     assert(error.category === "schema")
+  }
+
+  test(
+    "it should not set foreign key violation errors for correct foreign key references"
+  ) {
+    val uri = new URI(
+      s"file://${new File(s"${csvwExamplesBaseDir}foreignKeyValidationTest.csv-metadata.json").getAbsolutePath}"
+    )
+    val validator = new Validator(uri)
+    validator.validate()
+    assert(validator.errors.length === 0)
   }
 
   // Scala Sets are used to check for duplicates in PrimaryKeys. PrimaryKey columns received back in the Validator class will be a collection of Any type.
@@ -155,5 +170,15 @@ class ValidatorTest extends FunSuite {
     )
 
     assert(exampleSet3.size == 1)
+  }
+
+  test("asdasd") {
+
+    val set = mutable.Set[KeyWithContext]()
+    val val1 = KeyWithContext(1, List(1, 2, 3))
+    val val2 = KeyWithContext(89, List(1, 2, 3))
+    set += val1
+    set += val2
+    assert(set.size == 1)
   }
 }
