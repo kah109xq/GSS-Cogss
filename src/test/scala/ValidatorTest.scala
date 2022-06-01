@@ -123,6 +123,34 @@ class ValidatorTest extends FunSuite {
     assert(validator.errors.length === 0)
   }
 
+  test(
+    "it should set unmatched foreign key error when unmatched foreignKey reference is found"
+  ) {
+    val uri = new URI(
+      s"file://${new File(s"${csvwExamplesBaseDir}foreignKeyViolationTest.csv-metadata.json").getAbsolutePath}"
+    )
+    val validator = new Validator(uri)
+    validator.validate()
+    val errors = validator.errors
+    assert(errors.length === 1)
+    assert(errors(0).`type` === "unmatched_foreign_key_reference")
+    assert(errors(0).row === "3")
+  }
+
+  test(
+    "it should set multiple matched rows in parent table error when a foreign key in child table is matched with multiple rows in parent"
+  ) {
+    val uri = new URI(
+      s"file://${new File(s"${csvwExamplesBaseDir}foreignKeyValidationTestmultiple_parent_rows_matched.csv-metadata.json").getAbsolutePath}"
+    )
+    val validator = new Validator(uri)
+    validator.validate()
+    val errors = validator.errors
+    assert(errors.length === 1)
+    assert(errors(0).`type` === "multiple_matched_rows")
+    assert(errors(0).row === "5")
+  }
+
   // Scala Sets are used to check for duplicates in PrimaryKeys. PrimaryKey columns received back in the Validator class will be a collection of Any type.
   // This test ensures that a List of type Any with same values are not added again in a Set, whereas Array of Type any behaves differently.
   test(
@@ -172,13 +200,15 @@ class ValidatorTest extends FunSuite {
     assert(exampleSet3.size == 1)
   }
 
-  test("asdasd") {
+  test(
+    "it not add second key-value with the exact same values and different row number"
+  ) {
 
     val set = mutable.Set[KeyWithContext]()
     val val1 = KeyWithContext(1, List(1, 2, 3))
     val val2 = KeyWithContext(89, List(1, 2, 3))
     set += val1
-    set += val2
+    set += val2 // Since the hashcode method is overridden in KeyWithContext class val1 is equal to val2
     assert(set.size == 1)
   }
 }

@@ -235,7 +235,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
           .filter(k => k.isDuplicate)
 
         if (duplicateKeysInParent.nonEmpty) {
-          errors ++= keyValuesNotDefinedInParent
+          errors ++= duplicateKeysInParent
             .map(k =>
               ErrorWithCsvContext(
                 "multiple_matched_rows",
