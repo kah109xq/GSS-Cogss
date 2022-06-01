@@ -527,8 +527,6 @@ case class Table private (
   def validateRow(row: CSVRecord): Option[ValidateRowOutput] = {
     if (columns.nonEmpty) {
       var errors = Array[ErrorWithCsvContext]()
-      var fk = List[Any]()
-      var fkrv = List[Any]()
       var primaryKeyValues = List[Any]()
       var foreignKeyReferenceValues =
         List[

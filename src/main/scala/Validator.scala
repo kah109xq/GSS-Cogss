@@ -1,11 +1,12 @@
 package CSVValidation
 
+import com.typesafe.scalalogging.Logger
 import org.apache.commons.csv.{CSVFormat, CSVParser, CSVRecord}
 
 import java.io.File
 import java.net.URI
 import java.nio.charset.Charset
-import scala.collection.mutable.{Set, Map}
+import scala.collection.mutable.{Map, Set}
 import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsScala}
 
 // This is only a skeleton for the core Validator class to be created. It is planned to accept the source csv and
@@ -16,16 +17,31 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
   var errors: Array[ErrorWithCsvContext] = Array()
   var source: String = "" // Define how this is set, will it always be string?
   val mapAvailableCharsets = Charset.availableCharsets().asScala
-  def validate(): Either[String, Array[String]] = {
+  def validate(): WarningsAndErrors = {
     val mayBeTableGroupObject = Schema.loadMetadataAndValidate(tableCsvFile)
     mayBeTableGroupObject match {
       case Right(tableGroup) => {
+        warnings ++= tableGroup.warnings
         if (sourceUri.isEmpty) {
           validateSchemaTables(tableGroup)
         }
-        Right(tableGroup.warnings.map(w => processWarnings(w)))
+        WarningsAndErrors(warnings, errors)
       }
-      case Left(errorMessage) => Left(errorMessage)
+      case Left(errorMessage) => {
+        WarningsAndErrors(
+          Array(),
+          Array[ErrorWithCsvContext](
+            ErrorWithCsvContext(
+              "metadata file processing failed",
+              errorMessage,
+              "",
+              "",
+              "",
+              ""
+            )
+          )
+        )
+      }
     }
   }
 
@@ -54,6 +70,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
     CSVFormat.DEFAULT
       .withDelimiter(dialect.delimiter)
       .withQuote(dialect.quoteChar)
+      .withTrim() // Default for trim is true. Implement trim as per w3c spec, issue for this exists
       .withIgnoreEmptyLines(dialect.skipBlankRows)
       .withEscape(if (dialect.doubleQuote) '"' else '\\')
   }
@@ -98,6 +115,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
     // List of type Any with same values are not added again in a Set, whereas Array of Type any behaves differently.
     var allPrimaryKeyValues: Set[List[Any]] = Set()
     for (row <- parserAfterSkippedRows) {
+      System.out.print(".")
       if (row.getRecordNumber == 1 && dialect.header) {
         validateHeader(schema, row, tableUri)
       } else {
@@ -115,6 +133,8 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
         val result = table.validateRow(row)
         result match {
           case Some(validateRowOutput) => {
+            errors ++= validateRowOutput.warningsAndErrors.errors
+            warnings ++= validateRowOutput.warningsAndErrors.warnings
             validateRowOutput.childTableForeignKeys
               .foreach {
                 case (k, value) => {
@@ -272,12 +292,6 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
       case i => i.toString
     }
     stringList.mkString(",")
-  }
-
-  private def processWarnings(errorMessage: ErrorWithCsvContext): String = {
-    s"Type: ${errorMessage.`type`}, Category: ${errorMessage.category}, " +
-      s"Row: ${errorMessage.row}, Column: ${errorMessage.column}, " +
-      s"Content: ${errorMessage.content}, Constraints: ${errorMessage.constraints} \n"
   }
 
 }

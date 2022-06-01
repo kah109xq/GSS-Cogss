@@ -100,5 +100,5 @@ case class Dialect(
     skipColumns: Int = 0,
     skipBlankRows: Boolean = false,
     skipInitialSpace: Boolean = false,
-    trim: TrimType.Value = TrimType.False
+    trim: TrimType.Value = TrimType.True
 )

@@ -1,6 +1,7 @@
 import scopt.OParser
-import CSVValidation.Validator
+import CSVValidation.{ErrorWithCsvContext, Validator}
 import com.typesafe.scalalogging.Logger
+
 import java.io.File
 import java.net.URI
 case class Config(inputSchema: String = "")
@@ -17,22 +18,26 @@ object Main extends App {
   parser.parse(args, Config()) match {
     case Some(config) =>
       val validator = new Validator(getAbsoluteSchemaUri(config.inputSchema))
-      val result = validator.validate()
-      result match {
-        case Right(warnings) => {
-          println(Console.YELLOW + "Warnings")
-          warnings.foreach(x => logger.warn(x))
-        }
-        case Left(errorMessage) => {
-          println(Console.RED + "Error")
-          logger.error(errorMessage)
-          sys.exit(1)
-        }
+      val errorsAndWarnings = validator.validate()
+      if (errorsAndWarnings.warnings.nonEmpty) {
+        println(Console.YELLOW + "Warnings")
+        errorsAndWarnings.warnings.foreach(x =>
+          logger.warn(processWarningsAndErrors(x))
+        )
+      }
+      if (errorsAndWarnings.errors.nonEmpty) {
+        println(Console.RED + "Error")
+        errorsAndWarnings.errors.foreach(x =>
+          logger.warn(processWarningsAndErrors(x))
+        )
+        sys.exit(1)
       }
       println((Console.GREEN + "Result"))
-      println("Valid metadata")
+      println("Valid CSV-W")
     case None =>
   }
+
+  print(Console.RESET + "")
 
   private def getAbsoluteSchemaUri(schemaPath: String): URI = {
     val inputSchemaUri = new URI(schemaPath)
@@ -41,5 +46,13 @@ object Main extends App {
     } else {
       inputSchemaUri
     }
+  }
+
+  private def processWarningsAndErrors(
+      errorMessage: ErrorWithCsvContext
+  ): String = {
+    s"Type: ${errorMessage.`type`}, Category: ${errorMessage.category}, " +
+      s"Row: ${errorMessage.row}, Column: ${errorMessage.column}, " +
+      s"Content: ${errorMessage.content}, Constraints: ${errorMessage.constraints} \n"
   }
 }
