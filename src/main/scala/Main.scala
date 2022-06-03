@@ -30,6 +30,7 @@ object Main extends App {
         errorsAndWarnings.errors.foreach(x =>
           logger.warn(processWarningsAndErrors(x))
         )
+        print(Console.RESET + "")
         sys.exit(1)
       }
       println((Console.GREEN + "Result"))
