@@ -6,6 +6,7 @@ import org.apache.commons.csv.{CSVFormat, CSVParser, CSVRecord}
 import java.io.File
 import java.net.URI
 import java.nio.charset.Charset
+import scala.collection.mutable
 import scala.collection.mutable.{Map, Set}
 import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsScala}
 
@@ -78,6 +79,27 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
       .withEscape(if (dialect.doubleQuote) '"' else '\\')
   }
 
+  def getParser(
+      tableUri: URI,
+      dialect: Dialect,
+      format: CSVFormat,
+      tableCsvFile: File
+  ): CSVParser = {
+    if (tableUri.getScheme == "file") {
+      CSVParser.parse(
+        tableCsvFile,
+        mapAvailableCharsets(dialect.encoding),
+        format
+      )
+    } else {
+      CSVParser.parse(
+        tableUri.toURL,
+        mapAvailableCharsets(dialect.encoding),
+        format
+      )
+    }
+  }
+
   def readAndValidateCsv(
       schema: TableGroup,
       tableUri: URI,
@@ -89,42 +111,27 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
         Map[ParentTableForeignKeyReference, Set[KeyWithContext]]
     )
   ] = {
-    val parser = if (tableUri.getScheme == "file") {
-      val tableCsvFile = new File(tableUri)
-      if (!tableCsvFile.exists) {
-        errors :+= ErrorWithCsvContext(
-          "file_not_found",
-          "",
-          "",
-          "",
-          s"File named ${tableUri.toString} cannot be located",
-          ""
-        )
-        return None
-      }
-      CSVParser
-        .parse(
-          tableCsvFile,
-          mapAvailableCharsets(dialect.encoding),
-          format
-        )
-    } else {
-      CSVParser.parse(
-        tableUri.toURL,
-        mapAvailableCharsets(dialect.encoding),
-        format
+    val tableCsvFile = new File(tableUri)
+    if (!tableCsvFile.exists) {
+      errors :+= ErrorWithCsvContext(
+        "file_not_found",
+        "",
+        "",
+        "",
+        s"File named ${tableUri.toString} cannot be located",
+        ""
       )
+      return None
     }
-
+    val parser = getParser(tableUri, dialect, format, tableCsvFile)
     val parserAfterSkippedRows = parser.asScala.drop(dialect.skipRows)
-
     val table = schema.tables(tableUri.toString)
     val childTableForeignKeys =
       Map[ChildTableForeignKey, Set[KeyWithContext]]()
     val parentTableForeignKeyReferences =
       Map[ParentTableForeignKeyReference, Set[KeyWithContext]]()
-    // List of type Any with same values are not added again in a Set, whereas Array of Type any behaves differently.
-    val allPrimaryKeyValues: Set[List[Any]] = Set()
+    val allPrimaryKeyValues: Set[List[Any]] =
+      Set() // List of type Any with same values are not added again in a Set, whereas Array of Type any behaves differently.
     for (row <- parserAfterSkippedRows) {
       System.out.print(".")
       if (row.getRecordNumber == 1 && dialect.header) {
@@ -146,56 +153,81 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
           case Some(validateRowOutput) => {
             errors ++= validateRowOutput.warningsAndErrors.errors
             warnings ++= validateRowOutput.warningsAndErrors.warnings
-            validateRowOutput.childTableForeignKeys
-              .foreach {
-                case (k, value) => {
-                  val childKeyValues = childTableForeignKeys.getOrElse(
-                    k,
-                    Set[KeyWithContext]()
-                  )
-                  childKeyValues += value
-                  childTableForeignKeys(k) = childKeyValues
-                }
-              }
-
-            validateRowOutput.parentTableForeignKeyReferences
-              .foreach {
-                case (k, value) => {
-                  val allPossibleParentKeyValues =
-                    parentTableForeignKeyReferences.getOrElse(
-                      k,
-                      Set[KeyWithContext]()
-                    )
-                  if (allPossibleParentKeyValues.contains(value)) {
-                    allPossibleParentKeyValues -= value
-                    value.isDuplicate = true
-                  }
-                  allPossibleParentKeyValues += value
-                  parentTableForeignKeyReferences(k) =
-                    allPossibleParentKeyValues
-                }
-              }
-            val primaryKeyValues = validateRowOutput.primaryKeyValues
-            if (
-              primaryKeyValues.nonEmpty && allPrimaryKeyValues.contains(
-                primaryKeyValues
-              )
-            ) {
-              errors = errors :+ ErrorWithCsvContext(
-                "duplicate_key",
-                "schema",
-                row.toString,
-                "",
-                s"key already present - ${fetchPrimaryKeyString(primaryKeyValues)}",
-                ""
-              )
-            } else allPrimaryKeyValues += primaryKeyValues
+            setChildTableForeignKeys(validateRowOutput, childTableForeignKeys)
+            setParentTableForeignKeyReferences(
+              validateRowOutput,
+              parentTableForeignKeyReferences
+            )
+            validatePrimaryKeys(allPrimaryKeyValues, row, validateRowOutput)
           }
           case None => {}
         }
       }
     }
     Some(childTableForeignKeys, parentTableForeignKeyReferences)
+  }
+
+  private def validatePrimaryKeys(
+      allPrimaryKeyValues: mutable.Set[List[Any]],
+      row: CSVRecord,
+      validateRowOutput: ValidateRowOutput
+  ) = {
+    val primaryKeyValues = validateRowOutput.primaryKeyValues
+    if (
+      primaryKeyValues.nonEmpty && allPrimaryKeyValues.contains(
+        primaryKeyValues
+      )
+    ) {
+      errors = errors :+ ErrorWithCsvContext(
+        "duplicate_key",
+        "schema",
+        row.toString,
+        "",
+        s"key already present - ${fetchPrimaryKeyString(primaryKeyValues)}",
+        ""
+      )
+    } else allPrimaryKeyValues += primaryKeyValues
+  }
+
+  private def setParentTableForeignKeyReferences(
+      validateRowOutput: ValidateRowOutput,
+      parentTableForeignKeyReferences: Map[ParentTableForeignKeyReference, Set[
+        KeyWithContext
+      ]]
+  ) = {
+    validateRowOutput.parentTableForeignKeyReferences
+      .foreach {
+        case (k, value) => {
+          val allPossibleParentKeyValues =
+            parentTableForeignKeyReferences.getOrElse(
+              k,
+              Set[KeyWithContext]()
+            )
+          if (allPossibleParentKeyValues.contains(value)) {
+            allPossibleParentKeyValues -= value
+            value.isDuplicate = true
+          }
+          allPossibleParentKeyValues += value
+          parentTableForeignKeyReferences(k) = allPossibleParentKeyValues
+        }
+      }
+  }
+
+  private def setChildTableForeignKeys(
+      validateRowOutput: ValidateRowOutput,
+      childTableForeignKeys: Map[ChildTableForeignKey, Set[KeyWithContext]]
+  ) = {
+    validateRowOutput.childTableForeignKeys
+      .foreach {
+        case (k, value) => {
+          val childKeyValues = childTableForeignKeys.getOrElse(
+            k,
+            Set[KeyWithContext]()
+          )
+          childKeyValues += value
+          childTableForeignKeys(k) = childKeyValues
+        }
+      }
   }
 
   private def validateForeignKeyReferences(
