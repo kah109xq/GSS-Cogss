@@ -55,10 +55,13 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
       val tableUri = new URI(tableUrl)
       val dialect = table.dialect.getOrElse(Dialect())
       val format = setCsvFormat(dialect)
-      val (foreignKeyValues, foreignKeyReferenceValues) =
-        readAndValidateCsv(schema, tableUri, format, dialect)
-      allForeignKeyValues(table) = foreignKeyValues
-      allForeignKeyReferenceValues(table) = foreignKeyReferenceValues
+      readAndValidateCsv(schema, tableUri, format, dialect) match {
+        case Some(value) => {
+          allForeignKeyValues(table) = value._1
+          allForeignKeyReferenceValues(table) = value._2
+        }
+        case None => {}
+      }
     }
     validateForeignKeyReferences(
       allForeignKeyValues,
@@ -80,16 +83,24 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
       tableUri: URI,
       format: CSVFormat,
       dialect: Dialect
-  ): (
-      Map[ChildTableForeignKey, Set[KeyWithContext]],
-      Map[ParentTableForeignKeyReference, Set[KeyWithContext]]
-  ) = {
+  ): Option[
+    (
+        Map[ChildTableForeignKey, Set[KeyWithContext]],
+        Map[ParentTableForeignKeyReference, Set[KeyWithContext]]
+    )
+  ] = {
     val parser = if (tableUri.getScheme == "file") {
       val tableCsvFile = new File(tableUri)
       if (!tableCsvFile.exists) {
-        throw new MetadataError(
-          "CSV NOT FOUND"
-        ) // Change this to an error returned to the CLI
+        errors :+= ErrorWithCsvContext(
+          "file_not_found",
+          "",
+          "",
+          "",
+          s"File named ${tableUri.toString} cannot be located",
+          ""
+        )
+        return None
       }
       CSVParser
         .parse(
@@ -113,7 +124,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
     val parentTableForeignKeyReferences =
       Map[ParentTableForeignKeyReference, Set[KeyWithContext]]()
     // List of type Any with same values are not added again in a Set, whereas Array of Type any behaves differently.
-    var allPrimaryKeyValues: Set[List[Any]] = Set()
+    val allPrimaryKeyValues: Set[List[Any]] = Set()
     for (row <- parserAfterSkippedRows) {
       System.out.print(".")
       if (row.getRecordNumber == 1 && dialect.header) {
@@ -184,7 +195,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
         }
       }
     }
-    (childTableForeignKeys, parentTableForeignKeyReferences)
+    Some(childTableForeignKeys, parentTableForeignKeyReferences)
   }
 
   private def validateForeignKeyReferences(
