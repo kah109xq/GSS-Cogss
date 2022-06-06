@@ -16,7 +16,6 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsScala}
 class Validator(var tableCsvFile: URI, sourceUri: String = "") {
   var warnings: Array[ErrorWithCsvContext] = Array()
   var errors: Array[ErrorWithCsvContext] = Array()
-  var source: String = "" // Define how this is set, will it always be string?
   val mapAvailableCharsets = Charset.availableCharsets().asScala
   def validate(): WarningsAndErrors = {
     val mayBeTableGroupObject = Schema.loadMetadataAndValidate(tableCsvFile)
@@ -55,11 +54,11 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
       val table = schema.tables(tableUrl)
       val tableUri = new URI(tableUrl)
       val dialect = table.dialect.getOrElse(Dialect())
-      val format = setCsvFormat(dialect)
+      val format = getCsvFormat(dialect)
       readAndValidateCsv(schema, tableUri, format, dialect) match {
-        case Some(value) => {
-          allForeignKeyValues(table) = value._1
-          allForeignKeyReferenceValues(table) = value._2
+        case Some((foreignKeys, foreignKeyReferences)) => {
+          allForeignKeyValues(table) = foreignKeys
+          allForeignKeyReferenceValues(table) = foreignKeyReferences
         }
         case None => {}
       }
@@ -70,7 +69,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
     )
   }
 
-  def setCsvFormat(dialect: Dialect): CSVFormat = {
+  def getCsvFormat(dialect: Dialect): CSVFormat = {
     CSVFormat.DEFAULT
       .withDelimiter(dialect.delimiter)
       .withQuote(dialect.quoteChar)
@@ -82,20 +81,35 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
   def getParser(
       tableUri: URI,
       dialect: Dialect,
-      format: CSVFormat,
-      tableCsvFile: File
-  ): CSVParser = {
+      format: CSVFormat
+  ): Option[CSVParser] = {
     if (tableUri.getScheme == "file") {
-      CSVParser.parse(
-        tableCsvFile,
-        mapAvailableCharsets(dialect.encoding),
-        format
+      val tableCsvFile = new File(tableUri)
+      if (!tableCsvFile.exists) {
+        errors :+= ErrorWithCsvContext(
+          "file_not_found",
+          "",
+          "",
+          "",
+          s"File named ${tableUri.toString} cannot be located",
+          ""
+        )
+        return None
+      }
+      Some(
+        CSVParser.parse(
+          tableCsvFile,
+          mapAvailableCharsets(dialect.encoding),
+          format
+        )
       )
     } else {
-      CSVParser.parse(
-        tableUri.toURL,
-        mapAvailableCharsets(dialect.encoding),
-        format
+      Some(
+        CSVParser.parse(
+          tableUri.toURL,
+          mapAvailableCharsets(dialect.encoding),
+          format
+        )
       )
     }
   }
@@ -111,60 +125,56 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
         Map[ParentTableForeignKeyReference, Set[KeyWithContext]]
     )
   ] = {
-    val tableCsvFile = new File(tableUri)
-    if (!tableCsvFile.exists) {
-      errors :+= ErrorWithCsvContext(
-        "file_not_found",
-        "",
-        "",
-        "",
-        s"File named ${tableUri.toString} cannot be located",
-        ""
-      )
-      return None
-    }
-    val parser = getParser(tableUri, dialect, format, tableCsvFile)
-    val parserAfterSkippedRows = parser.asScala.drop(dialect.skipRows)
-    val table = schema.tables(tableUri.toString)
-    val childTableForeignKeys =
-      Map[ChildTableForeignKey, Set[KeyWithContext]]()
-    val parentTableForeignKeyReferences =
-      Map[ParentTableForeignKeyReference, Set[KeyWithContext]]()
-    val allPrimaryKeyValues: Set[List[Any]] =
-      Set() // List of type Any with same values are not added again in a Set, whereas Array of Type any behaves differently.
-    for (row <- parserAfterSkippedRows) {
-      System.out.print(".")
-      if (row.getRecordNumber == 1 && dialect.header) {
-        validateHeader(schema, row, tableUri)
-      } else {
-        if (row.size == 0) {
-          warnings :+= ErrorWithCsvContext(
-            "Blank rows",
-            "structure",
-            row.getRecordNumber.toString,
-            "",
-            "",
-            ""
-          )
-        }
+    val maybeParser = getParser(tableUri, dialect, format)
+    maybeParser match {
+      case Some(parser) => {
+        val parserAfterSkippedRows = parser.asScala.drop(dialect.skipRows)
+        val table = schema.tables(tableUri.toString)
+        val childTableForeignKeys =
+          Map[ChildTableForeignKey, Set[KeyWithContext]]()
+        val parentTableForeignKeyReferences =
+          Map[ParentTableForeignKeyReference, Set[KeyWithContext]]()
+        val allPrimaryKeyValues: Set[List[Any]] =
+          Set() // List of type Any with same values are not added again in a Set, whereas Array of Type any behaves differently.
+        for (row <- parserAfterSkippedRows) {
+          if (row.getRecordNumber == 1 && dialect.header) {
+            validateHeader(schema, row, tableUri)
+          } else {
+            if (row.size == 0) {
+              warnings :+= ErrorWithCsvContext(
+                "Blank rows",
+                "structure",
+                row.getRecordNumber.toString,
+                "",
+                "",
+                ""
+              )
+            }
 
-        val result = table.validateRow(row)
-        result match {
-          case Some(validateRowOutput) => {
-            errors ++= validateRowOutput.warningsAndErrors.errors
-            warnings ++= validateRowOutput.warningsAndErrors.warnings
-            setChildTableForeignKeys(validateRowOutput, childTableForeignKeys)
-            setParentTableForeignKeyReferences(
-              validateRowOutput,
-              parentTableForeignKeyReferences
-            )
-            validatePrimaryKeys(allPrimaryKeyValues, row, validateRowOutput)
+            val result = table.validateRow(row)
+            result match {
+              case Some(validateRowOutput) => {
+                errors ++= validateRowOutput.warningsAndErrors.errors
+                warnings ++= validateRowOutput.warningsAndErrors.warnings
+                setChildTableForeignKeys(
+                  validateRowOutput,
+                  childTableForeignKeys
+                )
+                setParentTableForeignKeyReferences(
+                  validateRowOutput,
+                  parentTableForeignKeyReferences
+                )
+                validatePrimaryKeys(allPrimaryKeyValues, row, validateRowOutput)
+              }
+              case None => {}
+            }
           }
-          case None => {}
         }
+        Some(childTableForeignKeys, parentTableForeignKeyReferences)
       }
+      case None => None
     }
-    Some(childTableForeignKeys, parentTableForeignKeyReferences)
+
   }
 
   private def validatePrimaryKeys(
@@ -254,27 +264,23 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
       ) {
         val childTableForeignKeys
             : Map[ChildTableForeignKey, Set[KeyWithContext]] =
-          childTableForeignKeysByTable.get(
-            parentTableForeignKeyReference.childTable
-          ) match {
-            case Some(x) => x
-            case None =>
+          childTableForeignKeysByTable
+            .get(parentTableForeignKeyReference.childTable)
+            .getOrElse(
               throw new Exception(
                 s"Could not find corresponding child table for parent table ${parentTable.url}"
               )
-          }
+            )
 
         val childTableKeyValues: Set[KeyWithContext] =
-          childTableForeignKeys.get(
-            parentTableForeignKeyReference.foreignKey
-          ) match {
-            case Some(x) => x
-            case None =>
+          childTableForeignKeys
+            .get(parentTableForeignKeyReference.foreignKey)
+            .getOrElse(
               throw new Exception(
-                s"Could not find foreign key against child table. " +
-                  parentTableForeignKeyReference.foreignKey.jsonObject.toPrettyString
+                s"Could not find foreign key against child table." + parentTableForeignKeyReference.foreignKey.jsonObject.toPrettyString
               )
-          }
+            )
+
         val keyValuesNotDefinedInParent =
           childTableKeyValues -- allPossibleParentTableValues
         if (keyValuesNotDefinedInParent.nonEmpty) {

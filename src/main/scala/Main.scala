@@ -22,13 +22,13 @@ object Main extends App {
       if (errorsAndWarnings.warnings.nonEmpty) {
         println(Console.YELLOW + "Warnings")
         errorsAndWarnings.warnings.foreach(x =>
-          logger.warn(processWarningsAndErrors(x))
+          logger.warn(getDescriptionForError(x))
         )
       }
       if (errorsAndWarnings.errors.nonEmpty) {
         println(Console.RED + "Error")
         errorsAndWarnings.errors.foreach(x =>
-          logger.warn(processWarningsAndErrors(x))
+          logger.warn(getDescriptionForError(x))
         )
         print(Console.RESET + "")
         sys.exit(1)
@@ -49,7 +49,7 @@ object Main extends App {
     }
   }
 
-  private def processWarningsAndErrors(
+  private def getDescriptionForError(
       errorMessage: ErrorWithCsvContext
   ): String = {
     s"Type: ${errorMessage.`type`}, Category: ${errorMessage.category}, " +

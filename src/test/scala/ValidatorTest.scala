@@ -201,7 +201,7 @@ class ValidatorTest extends FunSuite {
   }
 
   test(
-    "it not add second key-value with the exact same values and different row number"
+    "it should not add second key-value with the exact same values and different row number"
   ) {
 
     val set = mutable.Set[KeyWithContext]()

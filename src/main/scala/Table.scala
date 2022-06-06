@@ -144,6 +144,21 @@ object Table {
       .orElse(inheritedPropertiesCopy.get("tableSchema"))
   }
 
+  private def getDialect(
+      tableProperties: Map[String, JsonNode]
+  ): Option[Dialect] = {
+    tableProperties
+      .get("dialect")
+      .flatMap {
+        case d: ObjectNode => Some(Dialect.fromJson(d))
+        case d if d.isNull => None
+        case d =>
+          throw MetadataError(
+            s"Unexpected JsonNode type ${d.getClass.getName}"
+          )
+      }
+  }
+
   private def createTableForExistingSchema(
       tableSchema: JsonNode,
       inheritedProperties: Map[String, JsonNode],
@@ -192,16 +207,7 @@ object Table {
           url = url,
           id = getId(tableProperties),
           columns = columns,
-          dialect = tableProperties
-            .get("dialect")
-            .flatMap {
-              case d: ObjectNode => Some(Dialect.fromJson(d))
-              case d if d.isNull => None
-              case d =>
-                throw MetadataError(
-                  s"Unexpected JsonNode type ${d.getClass.getName}"
-                )
-            },
+          dialect = getDialect(tableProperties),
           foreignKeys = foreignKeyMappings, // a new type here?
           notes = getNotes(tableProperties),
           primaryKey = primaryKeyToReturn,
@@ -575,24 +581,43 @@ case class Table private (
         ValidateRowOutput(
           WarningsAndErrors(Array(), errors),
           primaryKeyValues,
-          foreignKeyReferenceValues
-            .groupBy {
-              case (k, _) => k
-            }
-            .map {
-              case (k, values) =>
-                (k, KeyWithContext(row.getRecordNumber, values.map(v => v._2)))
-            },
-          foreignKeyValues
-            .groupBy { case (k, _) => k }
-            .map {
-              case (k, values) =>
-                (k, KeyWithContext(row.getRecordNumber, values.map(v => v._2)))
-            }
+          getParentTableForeignKeys(foreignKeyReferenceValues, row),
+          getChildForeignKeys(foreignKeyValues, row)
         )
       )
     } else None
   }
+
+  private def getChildForeignKeys(
+      foreignKeyValues: List[(ChildTableForeignKey, List[Any])],
+      row: CSVRecord
+  ): Predef.Map[ChildTableForeignKey, KeyWithContext] = {
+    foreignKeyValues
+      .groupBy {
+        case (k, _) => k
+      }
+      .map {
+        case (k, values) =>
+          (k, KeyWithContext(row.getRecordNumber, values.map(v => v._2)))
+      }
+  }
+
+  private def getParentTableForeignKeys(
+      foreignKeyReferenceValues: List[
+        (ParentTableForeignKeyReference, List[Any])
+      ],
+      row: CSVRecord
+  ): Predef.Map[ParentTableForeignKeyReference, KeyWithContext] = {
+    foreignKeyReferenceValues
+      .groupBy {
+        case (k, _) => k
+      }
+      .map {
+        case (k, values) =>
+          (k, KeyWithContext(row.getRecordNumber, values.map(v => v._2)))
+      }
+  }
+
   def validateHeader(
       header: CSVRecord
   ): WarningsAndErrors = {
