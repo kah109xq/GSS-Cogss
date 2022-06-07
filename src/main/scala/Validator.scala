@@ -6,6 +6,7 @@ import org.apache.commons.csv.{CSVFormat, CSVParser, CSVRecord}
 import java.io.File
 import java.net.URI
 import java.nio.charset.Charset
+import java.time.ZonedDateTime
 import scala.collection.mutable
 import scala.collection.mutable.{Map, Set}
 import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsScala}
@@ -291,9 +292,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
                 "schema",
                 k.rowNumber.toString,
                 "",
-                k.keyValues.mkString(
-                  ","
-                ), // todo: Do something better than this so date/time values are printed out nicely.
+                getListElementsStringValue(k.keyValues),
                 ""
               )
             )
@@ -311,15 +310,22 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
                 "schema",
                 k.rowNumber.toString,
                 "",
-                k.keyValues.mkString(
-                  ","
-                ), // todo: Do something better than this so date/time values are printed out nicely.
+                getListElementsStringValue(k.keyValues),
                 ""
               )
             )
         }
       }
     }
+  }
+
+  private def getListElementsStringValue(list: List[Any]): String = {
+    list
+      .map {
+        case dt: ZonedDateTime => dt.toString
+        case _                 => {}
+      }
+      .mkString(",")
   }
 
   private def validateHeader(
