@@ -21,8 +21,8 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
   def validate(): WarningsAndErrors = {
     val mayBeTableGroupObject = Schema.loadMetadataAndValidate(tableCsvFile)
     mayBeTableGroupObject match {
-      case Right(tableGroup) => {
-        warnings ++= tableGroup.warnings
+      case Right((tableGroup, w)) => {
+        warnings ++= w
         if (sourceUri.isEmpty) {
           validateSchemaTables(tableGroup)
         }

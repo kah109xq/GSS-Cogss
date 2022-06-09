@@ -21,7 +21,10 @@ object TableGroup {
   val validProperties: Array[String] = Array[String]("tables", "notes", "@type")
   val containsWhitespaces: Regex = ".*\\s.*".r
 
-  def fromJson(tableGroupNode: ObjectNode, baseUri: String): TableGroup = {
+  def fromJson(
+      tableGroupNode: ObjectNode,
+      baseUri: String
+  ): (TableGroup, Array[ErrorWithCsvContext]) = {
     var baseUrl = baseUri.trim
     var warnings = Array[ErrorWithCsvContext]()
     val matcher = containsWhitespaces.pattern.matcher(baseUrl)
@@ -59,14 +62,14 @@ object TableGroup {
 
     findForeignKeysLinkToReferencedTables(baseUrl, tables)
 
-    return TableGroup(
+    val tableGroup = TableGroup(
       baseUrl,
       id,
       tables,
       commonProperties.get("notes"),
-      annotations,
-      warnings
+      annotations
     )
+    (tableGroup, warnings)
   }
 
   private def restructureIfNodeIsSingleTable(
@@ -430,8 +433,7 @@ case class TableGroup private (
     id: Option[String],
     tables: Map[String, Table],
     notes: Option[JsonNode],
-    annotations: Map[String, JsonNode],
-    var warnings: Array[ErrorWithCsvContext]
+    annotations: Map[String, JsonNode]
 ) {
 
   def validateHeader(
