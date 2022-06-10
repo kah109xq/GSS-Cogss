@@ -530,62 +530,58 @@ case class Table private (
     */
   var foreignKeyReferences: Array[ParentTableForeignKeyReference] = Array()
 
-  def validateRow(row: CSVRecord): Option[ValidateRowOutput] = {
-    if (columns.nonEmpty) {
-      var errors = Array[ErrorWithCsvContext]()
-      var primaryKeyValues = List[Any]()
-      var foreignKeyReferenceValues =
-        List[
-          (ParentTableForeignKeyReference, List[Any])
-        ]() // to store the validated referenced Table Columns values in each row
-      var foreignKeyValues =
-        List[
-          (ChildTableForeignKey, List[Any])
-        ]() // to store the validated foreign key values in each row
-      for ((value, column) <- row.iterator.asScalaArray.zip(columns)) {
-        //catch any exception here, possibly outOfBounds  and set warning too many values
-        val (es, v) = column.validate(value)
-        val newValue: List[Any] = v.toList
-        errors = errors ++ es.map(e =>
-          ErrorWithCsvContext(
-            e.`type`,
-            "schema",
-            row.getRecordNumber.toString,
-            column.columnOrdinal.toString,
-            e.content,
-            s"required => ${column.required}"
-          )
+  def validateRow(row: CSVRecord): ValidateRowOutput = {
+    var errors = Array[ErrorWithCsvContext]()
+    var primaryKeyValues = List[Any]()
+    var foreignKeyReferenceValues =
+      List[
+        (ParentTableForeignKeyReference, List[Any])
+      ]() // to store the validated referenced Table Columns values in each row
+    var foreignKeyValues =
+      List[
+        (ChildTableForeignKey, List[Any])
+      ]() // to store the validated foreign key values in each row
+    for ((value, column) <- row.iterator.asScalaArray.zip(columns)) {
+      //catch any exception here, possibly outOfBounds  and set warning too many values
+      val (es, v) = column.validate(value)
+      val newValue: List[Any] = v.toList
+      errors = errors ++ es.map(e =>
+        ErrorWithCsvContext(
+          e.`type`,
+          "schema",
+          row.getRecordNumber.toString,
+          column.columnOrdinal.toString,
+          e.content,
+          s"required => ${column.required}"
         )
-        if (primaryKey.contains(column)) {
-          primaryKeyValues :+= newValue
-        }
+      )
+      if (primaryKey.contains(column)) {
+        primaryKeyValues :+= newValue
+      }
 
-        for (foreignKeyReferenceObject <- foreignKeyReferences) {
-          if (
-            foreignKeyReferenceObject.parentTableReferencedColumns.contains(
-              column
-            )
-          ) {
-            foreignKeyReferenceValues :+= (foreignKeyReferenceObject, newValue)
-          }
-        }
-
-        for (foreignKeyWrapperObject <- foreignKeys) {
-          if (foreignKeyWrapperObject.localColumns.contains(column)) {
-            foreignKeyValues :+= (foreignKeyWrapperObject, newValue)
-          }
+      for (foreignKeyReferenceObject <- foreignKeyReferences) {
+        if (
+          foreignKeyReferenceObject.parentTableReferencedColumns.contains(
+            column
+          )
+        ) {
+          foreignKeyReferenceValues :+= (foreignKeyReferenceObject, newValue)
         }
       }
 
-      Some(
-        ValidateRowOutput(
-          WarningsAndErrors(Array(), errors),
-          primaryKeyValues,
-          getParentTableForeignKeys(foreignKeyReferenceValues, row),
-          getChildForeignKeys(foreignKeyValues, row)
-        )
-      )
-    } else None
+      for (foreignKeyWrapperObject <- foreignKeys) {
+        if (foreignKeyWrapperObject.localColumns.contains(column)) {
+          foreignKeyValues :+= (foreignKeyWrapperObject, newValue)
+        }
+      }
+    }
+
+    ValidateRowOutput(
+      WarningsAndErrors(Array(), errors),
+      primaryKeyValues,
+      getParentTableForeignKeys(foreignKeyReferenceValues, row),
+      getChildForeignKeys(foreignKeyValues, row)
+    )
   }
 
   private def getChildForeignKeys(

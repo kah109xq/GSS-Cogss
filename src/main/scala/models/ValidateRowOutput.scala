@@ -1,11 +1,11 @@
 package CSVValidation
 
 case class ValidateRowOutput(
-    warningsAndErrors: WarningsAndErrors,
-    primaryKeyValues: List[Any],
+    warningsAndErrors: WarningsAndErrors = WarningsAndErrors(),
+    primaryKeyValues: List[Any] = List(),
     parentTableForeignKeyReferences: Map[
       ParentTableForeignKeyReference,
       KeyWithContext
-    ],
-    childTableForeignKeys: Map[ChildTableForeignKey, KeyWithContext]
+    ] = Map(),
+    childTableForeignKeys: Map[ChildTableForeignKey, KeyWithContext] = Map()
 )

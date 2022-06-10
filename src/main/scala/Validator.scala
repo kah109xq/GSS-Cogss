@@ -1,6 +1,7 @@
 package CSVValidation
 
-import com.typesafe.scalalogging.Logger
+import CSVValidation.WarningsAndErrors.{Errors, Warnings}
+import CSVValidation.traits.OptionExtensions.OptionIfDefined
 import org.apache.commons.csv.{CSVFormat, CSVParser, CSVRecord}
 
 import java.io.File
@@ -11,22 +12,20 @@ import scala.collection.mutable
 import scala.collection.mutable.{Map, Set}
 import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsScala}
 
-// This is only a skeleton for the core Validator class to be created. It is planned to accept the source csv and
-// schema and return errors and warnings collection when validate method is invoked. Changes to this signature can be
-// made in the due course or as per requirements
 class Validator(var tableCsvFile: URI, sourceUri: String = "") {
-  var warnings: Array[ErrorWithCsvContext] = Array()
-  var errors: Array[ErrorWithCsvContext] = Array()
   val mapAvailableCharsets = Charset.availableCharsets().asScala
   def validate(): WarningsAndErrors = {
-    val mayBeTableGroupObject = Schema.loadMetadataAndValidate(tableCsvFile)
-    mayBeTableGroupObject match {
-      case Right((tableGroup, w)) => {
-        warnings ++= w
+    Schema.loadMetadataAndValidate(tableCsvFile) match {
+      case Right((tableGroup, warnings)) => {
         if (sourceUri.isEmpty) {
-          validateSchemaTables(tableGroup)
+          val warningsAndErrors = validateSchemaTables(tableGroup)
+          WarningsAndErrors(
+            warningsAndErrors.warnings ++ warnings,
+            warningsAndErrors.errors
+          )
+        } else {
+          throw new NotImplementedError()
         }
-        WarningsAndErrors(warnings, errors)
       }
       case Left(errorMessage) => {
         WarningsAndErrors(
@@ -46,28 +45,34 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
     }
   }
 
-  def validateSchemaTables(schema: TableGroup) = {
+  def validateSchemaTables(schema: TableGroup): WarningsAndErrors = {
     val allForeignKeyValues =
       Map[Table, Map[ChildTableForeignKey, Set[KeyWithContext]]]()
     val allForeignKeyReferenceValues =
       Map[Table, Map[ParentTableForeignKeyReference, Set[KeyWithContext]]]()
+    var warnings: Warnings = Array()
+    var errors: Errors = Array()
+
     for (tableUrl <- schema.tables.keys) {
       val table = schema.tables(tableUrl)
       val tableUri = new URI(tableUrl)
       val dialect = table.dialect.getOrElse(Dialect())
       val format = getCsvFormat(dialect)
-      readAndValidateCsv(schema, tableUri, format, dialect) match {
-        case Some((foreignKeys, foreignKeyReferences)) => {
-          allForeignKeyValues(table) = foreignKeys
-          allForeignKeyReferenceValues(table) = foreignKeyReferences
-        }
-        case None => {}
-      }
+      val (warningsAndErrors, foreignKeys, foreignKeyReferences) =
+        readAndValidateCsv(schema, tableUri, format, dialect)
+
+      warnings ++= warningsAndErrors.warnings
+      errors ++= warningsAndErrors.errors
+      allForeignKeyValues(table) = foreignKeys
+      allForeignKeyReferenceValues(table) = foreignKeyReferences
     }
-    validateForeignKeyReferences(
+
+    errors ++= validateForeignKeyReferences(
       allForeignKeyValues,
       allForeignKeyReferenceValues
     )
+
+    WarningsAndErrors(warnings, errors)
   }
 
   def getCsvFormat(dialect: Dialect): CSVFormat = {
@@ -83,21 +88,22 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
       tableUri: URI,
       dialect: Dialect,
       format: CSVFormat
-  ): Option[CSVParser] = {
+  ): Either[ErrorWithCsvContext, CSVParser] = {
     if (tableUri.getScheme == "file") {
       val tableCsvFile = new File(tableUri)
       if (!tableCsvFile.exists) {
-        errors :+= ErrorWithCsvContext(
-          "file_not_found",
-          "",
-          "",
-          "",
-          s"File named ${tableUri.toString} cannot be located",
-          ""
+        Left(
+          ErrorWithCsvContext(
+            "file_not_found",
+            "",
+            "",
+            "",
+            s"File named ${tableUri.toString} cannot be located",
+            ""
+          )
         )
-        return None
       }
-      Some(
+      Right(
         CSVParser.parse(
           tableCsvFile,
           mapAvailableCharsets(dialect.encoding),
@@ -105,7 +111,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
         )
       )
     } else {
-      Some(
+      Right(
         CSVParser.parse(
           tableUri.toURL,
           mapAvailableCharsets(dialect.encoding),
@@ -120,84 +126,137 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
       tableUri: URI,
       format: CSVFormat,
       dialect: Dialect
-  ): Option[
-    (
-        Map[ChildTableForeignKey, Set[KeyWithContext]],
-        Map[ParentTableForeignKeyReference, Set[KeyWithContext]]
-    )
-  ] = {
-    val maybeParser = getParser(tableUri, dialect, format)
-    maybeParser match {
-      case Some(parser) => {
-        val parserAfterSkippedRows = parser.asScala.drop(dialect.skipRows)
-        val table = schema.tables(tableUri.toString)
-        val childTableForeignKeys =
-          Map[ChildTableForeignKey, Set[KeyWithContext]]()
-        val parentTableForeignKeyReferences =
-          Map[ParentTableForeignKeyReference, Set[KeyWithContext]]()
-        val allPrimaryKeyValues: Set[List[Any]] =
-          Set() // List of type Any with same values are not added again in a Set, whereas Array of Type any behaves differently.
-        for (row <- parserAfterSkippedRows) {
-          if (row.getRecordNumber == 1 && dialect.header) {
-            validateHeader(schema, row, tableUri)
-          } else {
-            if (row.size == 0) {
-              warnings :+= ErrorWithCsvContext(
-                "Blank rows",
-                "structure",
-                row.getRecordNumber.toString,
-                "",
-                "",
-                ""
-              )
-            }
-
-            val result = table.validateRow(row)
-            result match {
-              case Some(validateRowOutput) => {
-                errors ++= validateRowOutput.warningsAndErrors.errors
-                warnings ++= validateRowOutput.warningsAndErrors.warnings
-                setChildTableForeignKeys(
-                  validateRowOutput,
-                  childTableForeignKeys
-                )
-                setParentTableForeignKeyReferences(
-                  validateRowOutput,
-                  parentTableForeignKeyReferences
-                )
-                validatePrimaryKeys(allPrimaryKeyValues, row, validateRowOutput)
-              }
-              case None => {}
-            }
-          }
-        }
-        Some(childTableForeignKeys, parentTableForeignKeyReferences)
+  ): (
+      WarningsAndErrors,
+      Map[ChildTableForeignKey, Set[KeyWithContext]],
+      Map[ParentTableForeignKeyReference, Set[KeyWithContext]]
+  ) = {
+    getParser(tableUri, dialect, format) match {
+      case Right(parser) =>
+        readAndValidateWithParser(schema, tableUri, dialect, parser)
+      case Left(error) => {
+        val errors = Array(error)
+        (WarningsAndErrors(Array(), errors), Map(), Map())
       }
-      case None => None
     }
 
   }
 
-  private def validatePrimaryKeys(
+  private def readAndValidateWithParser(
+      schema: TableGroup,
+      tableUri: URI,
+      dialect: Dialect,
+      parser: CSVParser
+  ) = {
+    var warnings: Array[ErrorWithCsvContext] = Array()
+    var errors: Array[ErrorWithCsvContext] = Array()
+
+    val parserAfterSkippedRows = parser.asScala.drop(dialect.skipRows)
+    val table = schema.tables(tableUri.toString)
+    val childTableForeignKeys =
+      Map[ChildTableForeignKey, mutable.Set[KeyWithContext]]()
+    val parentTableForeignKeyReferences =
+      Map[ParentTableForeignKeyReference, mutable.Set[KeyWithContext]]()
+    val allPrimaryKeyValues: mutable.Set[List[Any]] =
+      Set() // List of type Any with same values are not added again in a Set, whereas Array of Type any behaves
+    // differently.
+
+    parserAfterSkippedRows
+      .map(row =>
+        (
+          row,
+          parseRow(
+            schema,
+            tableUri,
+            dialect,
+            table,
+            row
+          )
+        )
+      )
+      .foreach {
+        case (row, validateRowOutput) => {
+          errors ++= validateRowOutput.warningsAndErrors.errors
+          warnings ++= validateRowOutput.warningsAndErrors.warnings
+          setChildTableForeignKeys(
+            validateRowOutput,
+            childTableForeignKeys
+          )
+          setParentTableForeignKeyReferences(
+            validateRowOutput,
+            parentTableForeignKeyReferences
+          )
+          validatePrimaryKey(allPrimaryKeyValues, row, validateRowOutput)
+            .ifDefined(e => {
+              errors :+= e
+            })
+        }
+      }
+
+    (
+      WarningsAndErrors(warnings, errors),
+      childTableForeignKeys,
+      parentTableForeignKeyReferences
+    )
+  }
+
+  private def parseRow(
+      schema: TableGroup,
+      tableUri: URI,
+      dialect: Dialect,
+      table: Table,
+      row: CSVRecord
+  ): ValidateRowOutput = {
+    if (row.getRecordNumber == 1 && dialect.header) {
+      val warningsAndErrors = schema.validateHeader(row, tableUri.toString)
+      ValidateRowOutput(warningsAndErrors)
+    } else {
+      if (row.size == 0) {
+        val blankRowWarning = ErrorWithCsvContext(
+          "Blank rows",
+          "structure",
+          row.getRecordNumber.toString,
+          "",
+          "",
+          ""
+        )
+        val warningsAndErrors = WarningsAndErrors(Array(blankRowWarning))
+        ValidateRowOutput(warningsAndErrors)
+      } else {
+        if (table.columns.length >= row.size()) { // todo: Ensure there's a error defined somewhere else when this is not true.
+          table.validateRow(row)
+        } else {
+          ValidateRowOutput()
+        }
+      }
+    }
+  }
+
+  private def validatePrimaryKey(
       allPrimaryKeyValues: mutable.Set[List[Any]],
       row: CSVRecord,
       validateRowOutput: ValidateRowOutput
-  ) = {
+  ): Option[ErrorWithCsvContext] = {
     val primaryKeyValues = validateRowOutput.primaryKeyValues
     if (
       primaryKeyValues.nonEmpty && allPrimaryKeyValues.contains(
         primaryKeyValues
       )
     ) {
-      errors = errors :+ ErrorWithCsvContext(
-        "duplicate_key",
-        "schema",
-        row.toString,
-        "",
-        s"key already present - ${fetchPrimaryKeyString(primaryKeyValues)}",
-        ""
+      Some(
+        ErrorWithCsvContext(
+          "duplicate_key",
+          "schema",
+          row.toString,
+          "",
+          s"key already present - ${fetchPrimaryKeyString(primaryKeyValues)}",
+          ""
+        )
       )
-    } else allPrimaryKeyValues += primaryKeyValues
+    } else {
+      allPrimaryKeyValues += primaryKeyValues
+      None
+    }
   }
 
   private def setParentTableForeignKeyReferences(
@@ -250,11 +309,12 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
         Table,
         Map[ParentTableForeignKeyReference, Set[KeyWithContext]]
       ]
-  ) = {
+  ): Errors = {
     // Child Table : Parent Table
     // Country, Year, Population  : Country, Name
     // UK, 2021, 67M  : UK, United Kingdom
     // EU, 2021, 448M : EU, Europe
+    var errors: Errors = Array[ErrorWithCsvContext]()
     for (
       (parentTable, mapParentTableForeignKeyReferenceToAllPossibleValues) <-
         parentTableForeignKeyReferencesByTable
@@ -317,27 +377,16 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
         }
       }
     }
+    errors
   }
 
   private def getListElementsStringValue(list: List[Any]): String = {
     list
       .map {
         case dt: ZonedDateTime => dt.toString
-        case _                 => {}
+        case other             => other
       }
       .mkString(",")
-  }
-
-  private def validateHeader(
-      schema: TableGroup,
-      header: CSVRecord,
-      tableUri: URI
-  ): Unit = {
-    // If the dialect trim is set to true, do header.map{|h| h.strip! } if @dialect["trim"] == :true
-    val WarningsAndErrors(w, e) =
-      schema.validateHeader(header, tableUri.toString)
-    warnings = warnings.concat(w)
-    errors = errors.concat(e)
   }
 
   private def fetchPrimaryKeyString(list: List[Any]): String = {

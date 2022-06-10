@@ -1,5 +1,6 @@
 package CSVValidation
 
+import CSVValidation.WarningsAndErrors.Warnings
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.fasterxml.jackson.databind.node.ObjectNode
 
@@ -11,7 +12,7 @@ object Schema {
 
   def loadMetadataAndValidate(
       schemaUri: URI
-  ): Either[String, (TableGroup, Array[ErrorWithCsvContext])] = {
+  ): Either[String, (TableGroup, Warnings)] = {
     try {
       val jsonNode = if (schemaUri.getScheme == "file") {
         val f = new File(schemaUri)

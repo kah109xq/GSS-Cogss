@@ -16,9 +16,9 @@ class ValidatorTest extends FunSuite {
       s"file://${new File(s"${csvwExamplesBaseDir}observations_missing_headers.csv-metadata.json").getAbsolutePath}"
     )
     val validator = new Validator(uri)
-    validator.validate()
-    assert(validator.warnings.length === 1)
-    val warning = validator.warnings(0)
+    val warningsAndErros = validator.validate()
+    assert(warningsAndErros.warnings.length === 1)
+    val warning = warningsAndErros.warnings(0)
     assert(warning.`type` === "Empty column name")
     assert(warning.column === "2")
     assert(warning.category === "Schema")
@@ -31,9 +31,9 @@ class ValidatorTest extends FunSuite {
       s"file://${new File(s"${csvwExamplesBaseDir}observations_missing_headers.csv-metadata.json").getAbsolutePath}"
     )
     val validator = new Validator(uri)
-    validator.validate()
-    assert(validator.errors.length === 1)
-    val error = validator.errors(0)
+    val warningsAndErrors = validator.validate()
+    assert(warningsAndErrors.errors.length === 1)
+    val error = warningsAndErrors.errors(0)
     assert(error.`type` === "Invalid Header")
     assert(error.row === "1")
     assert(error.column === "2")
@@ -46,9 +46,9 @@ class ValidatorTest extends FunSuite {
       s"file://${new File(s"${csvwExamplesBaseDir}observations_duplicate_headers.csv-metadata.json").getAbsolutePath}"
     )
     val validator = new Validator(uri)
-    validator.validate()
-    assert(validator.warnings.length === 1)
-    val warning = validator.warnings(0)
+    val warningsAndErrors = validator.validate()
+    assert(warningsAndErrors.warnings.length === 1)
+    val warning = warningsAndErrors.warnings(0)
     assert(warning.`type` === "Duplicate column name")
     assert(warning.column === "3")
     assert(warning.content === "Age")
@@ -61,9 +61,9 @@ class ValidatorTest extends FunSuite {
       s"file://${new File(s"${csvwExamplesBaseDir}observations_duplicate_headers.csv-metadata.json").getAbsolutePath}"
     )
     val validator = new Validator(uri)
-    validator.validate()
-    assert(validator.errors.length === 1)
-    val error = validator.errors(0)
+    val warningsAndErrors = validator.validate()
+    assert(warningsAndErrors.errors.length === 1)
+    val error = warningsAndErrors.errors(0)
     assert(error.`type` === "Invalid Header")
     assert(error.column === "2")
     assert(error.content === "Age")
@@ -74,9 +74,9 @@ class ValidatorTest extends FunSuite {
       s"file://${new File(s"${csvwExamplesBaseDir}observations_duplicate_primary_key.csv-metadata.json").getAbsolutePath}"
     )
     val validator = new Validator(uri)
-    validator.validate()
-    assert(validator.errors.length === 1)
-    val error = validator.errors(0)
+    val warningsAndErrors = validator.validate()
+    assert(warningsAndErrors.errors.length === 1)
+    val error = warningsAndErrors.errors(0)
     assert(error.`type` === "duplicate_key")
     assert(
       error.content.contains("key already present")
@@ -91,8 +91,8 @@ class ValidatorTest extends FunSuite {
       s"file://${new File(s"${csvwExamplesBaseDir}observations_primary_key_datetime.csv-metadata.json").getAbsolutePath}"
     )
     val validator = new Validator(uri)
-    validator.validate()
-    assert(validator.errors.length === 0)
+    val warningsAndErrors = validator.validate()
+    assert(warningsAndErrors.errors.length === 0)
   }
 
   test(
@@ -102,9 +102,9 @@ class ValidatorTest extends FunSuite {
       s"file://${new File(s"${csvwExamplesBaseDir}obs_decimal_primary_key_vio.csv-metadata.json").getAbsolutePath}"
     )
     val validator = new Validator(uri)
-    validator.validate()
-    assert(validator.errors.length === 1)
-    val error = validator.errors(0)
+    val warningsAndErrors = validator.validate()
+    assert(warningsAndErrors.errors.length === 1)
+    val error = warningsAndErrors.errors(0)
     assert(error.`type` === "duplicate_key")
     assert(
       error.content.contains("key already present")
@@ -119,8 +119,8 @@ class ValidatorTest extends FunSuite {
       s"file://${new File(s"${csvwExamplesBaseDir}foreignKeyValidationTest.csv-metadata.json").getAbsolutePath}"
     )
     val validator = new Validator(uri)
-    validator.validate()
-    assert(validator.errors.length === 0)
+    val warningsAndErrors = validator.validate()
+    assert(warningsAndErrors.errors.length === 0)
   }
 
   test(
@@ -130,8 +130,8 @@ class ValidatorTest extends FunSuite {
       s"file://${new File(s"${csvwExamplesBaseDir}foreignKeyViolationTest.csv-metadata.json").getAbsolutePath}"
     )
     val validator = new Validator(uri)
-    validator.validate()
-    val errors = validator.errors
+    val warningsAndErrors = validator.validate()
+    val errors = warningsAndErrors.errors
     assert(errors.length === 1)
     assert(errors(0).`type` === "unmatched_foreign_key_reference")
     assert(errors(0).row === "3")
@@ -144,8 +144,8 @@ class ValidatorTest extends FunSuite {
       s"file://${new File(s"${csvwExamplesBaseDir}foreignKeyValidationTestmultiple_parent_rows_matched.csv-metadata.json").getAbsolutePath}"
     )
     val validator = new Validator(uri)
-    validator.validate()
-    val errors = validator.errors
+    val warningsAndErrors = validator.validate()
+    val errors = warningsAndErrors.errors
     assert(errors.length === 1)
     assert(errors(0).`type` === "multiple_matched_rows")
     assert(errors(0).row === "5")
