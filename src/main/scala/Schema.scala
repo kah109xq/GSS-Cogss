@@ -12,7 +12,7 @@ object Schema {
 
   def loadMetadataAndValidate(
       schemaUri: URI
-  ): Either[String, (TableGroup, Warnings)] = {
+  ): Either[String, (TableGroup, Array[WarningWithCsvContext])] = {
     try {
       val jsonNode = if (schemaUri.getScheme == "file") {
         val f = new File(schemaUri)
@@ -41,7 +41,7 @@ object Schema {
   private def fromCsvwMetadata(
       uri: String,
       json: ObjectNode
-  ): (TableGroup, Array[ErrorWithCsvContext]) = {
+  ): (TableGroup, Array[WarningWithCsvContext]) = {
     TableGroup.fromJson(json, uri)
   }
 

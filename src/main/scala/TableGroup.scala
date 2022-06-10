@@ -24,9 +24,9 @@ object TableGroup {
   def fromJson(
       tableGroupNode: ObjectNode,
       baseUri: String
-  ): (TableGroup, Array[ErrorWithCsvContext]) = {
+  ): (TableGroup, Array[WarningWithCsvContext]) = {
     var baseUrl = baseUri.trim
-    var warnings = Array[ErrorWithCsvContext]()
+    var warnings = Array[WarningWithCsvContext]()
     val matcher = containsWhitespaces.pattern.matcher(baseUrl)
     if (matcher.matches()) {
       println(
@@ -97,10 +97,10 @@ object TableGroup {
       contextBaseAndLangObject: ObjectNode,
       baseUrl: String,
       lang: String
-  ): (String, String, Array[ErrorWithCsvContext]) = {
+  ): (String, String, Array[WarningWithCsvContext]) = {
     var baseUrlNew = baseUrl
     var langNew: String = lang
-    var warnings = Array[ErrorWithCsvContext]()
+    var warnings = Array[WarningWithCsvContext]()
 
     for ((property, value) <- contextBaseAndLangObject.getKeysAndValues) {
       val (newValue, w, csvwPropertyType) = PropertyChecker
@@ -112,18 +112,18 @@ object TableGroup {
             case "@language" => langNew = newValue.asText()
           }
         } else {
-          throw new MetadataError(
+          throw MetadataError(
             s"@context contains properties other than @base or @language $property)"
           )
         }
       } else {
         if (!Array[String]("@base", "@language").contains(property)) {
-          throw new MetadataError(
+          throw MetadataError(
             s"@context contains properties other than @base or @language $property)"
           )
         }
         warnings = warnings.concat(w.map { w =>
-          ErrorWithCsvContext(
+          WarningWithCsvContext(
             w,
             "metadata",
             "",
@@ -142,12 +142,12 @@ object TableGroup {
       context: ArrayNode,
       baseUrl: String,
       lang: String
-  ): (String, String, Array[ErrorWithCsvContext]) = {
+  ): (String, String, Array[WarningWithCsvContext]) = {
     def validateFirstItemInContext(): Unit = {
       context.get(0) match {
         case s: TextNode if s.asText == csvwContextUri => {}
         case _ =>
-          throw new MetadataError(
+          throw MetadataError(
             s"First item in @context must be string ${csvwContextUri} "
           )
       }
@@ -175,7 +175,7 @@ object TableGroup {
         // If @context contains just one element, the namespace for csvw should always be http://www.w3.org/ns/csvw
         // "@context": "http://www.w3.org/ns/csvw"
         validateFirstItemInContext()
-        (baseUrl, lang, Array[ErrorWithCsvContext]())
+        (baseUrl, lang, Array[WarningWithCsvContext]())
       }
       case l =>
         throw new MetadataError(s"Unexpected @context array length $l")
@@ -186,14 +186,14 @@ object TableGroup {
       rootNode: ObjectNode,
       baseUrl: String,
       lang: String
-  ): (String, String, Array[ErrorWithCsvContext]) = {
+  ): (String, String, Array[WarningWithCsvContext]) = {
     val context = rootNode.get("@context")
 
     val (baseUrlNew, langNew, warnings) = context match {
       case a: ArrayNode => validateContextArrayNode(a, baseUrl, lang)
       case s: TextNode if s.asText == csvwContextUri =>
-        (baseUrl, lang, Array[ErrorWithCsvContext]())
-      case _ => throw new MetadataError("Invalid Context")
+        (baseUrl, lang, Array[WarningWithCsvContext]())
+      case _ => throw MetadataError("Invalid Context")
     }
     rootNode.remove("@context")
     (baseUrlNew, langNew, warnings)
@@ -310,26 +310,24 @@ object TableGroup {
       Map[String, JsonNode],
       Map[String, JsonNode],
       Map[String, JsonNode],
-      Array[ErrorWithCsvContext]
+      Array[WarningWithCsvContext]
   ) = {
     val annotations = Map[String, JsonNode]()
     val commonProperties = Map[String, JsonNode]()
     val inheritedProperties = Map[String, JsonNode]()
-    var warnings = Array[ErrorWithCsvContext]()
+    var warnings = Array[WarningWithCsvContext]()
     for ((property, value) <- tableGroupNode.getKeysAndValues) {
       if (!validProperties.contains(property)) {
         val (newValue, w, csvwPropertyType) =
           PropertyChecker.checkProperty(property, value, baseUrl, lang)
-        warnings = w.map[ErrorWithCsvContext](x =>
-          ErrorWithCsvContext(x, "metadata", "", "", s"$property : $value", "")
-        )
+        warnings = w.map(x => WarningWithCsvContext(x, "metadata", "", "", s"$property : $value", ""))
         csvwPropertyType match {
           case PropertyType.Annotation => annotations += (property -> newValue)
           case PropertyType.Common     => commonProperties += (property -> newValue)
           case PropertyType.Inherited =>
             inheritedProperties += (property -> newValue)
           case _ => {
-            warnings :+= ErrorWithCsvContext(
+            warnings :+= WarningWithCsvContext(
               "invalid_property",
               "metadata",
               "",
@@ -351,10 +349,10 @@ object TableGroup {
       lang: String,
       commonProperties: mutable.Map[String, JsonNode],
       inheritedProperties: mutable.Map[String, JsonNode]
-  ): (mutable.Map[String, Table], Array[ErrorWithCsvContext]) = {
+  ): (mutable.Map[String, Table], Array[WarningWithCsvContext]) = {
     tableGroupNode.path("tables") match {
       case t: ArrayNode if t.isEmpty() =>
-        throw new MetadataError("Empty tables property")
+        throw MetadataError("Empty tables property")
       case t: ArrayNode =>
         extractTablesFromNode(
           t,
@@ -363,8 +361,8 @@ object TableGroup {
           commonProperties,
           inheritedProperties
         )
-      case n if n.isMissingNode => throw new MetadataError("No tables property")
-      case _                    => throw new MetadataError("Tables property is not an array")
+      case n if n.isMissingNode => throw MetadataError("No tables property")
+      case _                    => throw MetadataError("Tables property is not an array")
     }
   }
 
@@ -374,15 +372,15 @@ object TableGroup {
       lang: String,
       commonProperties: Map[String, JsonNode],
       inheritedProperties: Map[String, JsonNode]
-  ): (mutable.Map[String, Table], Array[ErrorWithCsvContext]) = {
-    var warnings = Array[ErrorWithCsvContext]()
+  ): (mutable.Map[String, Table], Array[WarningWithCsvContext]) = {
+    var warnings = Array[WarningWithCsvContext]()
     val tables = Map[String, Table]()
     for (tableElement <- tablesArrayNode.elements().asScalaArray) {
       tableElement match {
         case tableElementObject: ObjectNode => {
           var tableUrl = tableElement.get("url")
           if (!tableUrl.isTextual) {
-            warnings = warnings :+ ErrorWithCsvContext(
+            warnings = warnings :+ WarningWithCsvContext(
               "invalid_url",
               "metadata",
               "",
@@ -407,7 +405,7 @@ object TableGroup {
           warnings = warnings.concat(w)
         }
         case _ => {
-          warnings = warnings :+ ErrorWithCsvContext(
+          warnings = warnings :+ WarningWithCsvContext(
             "invalid_table_description",
             "metadata",
             "",

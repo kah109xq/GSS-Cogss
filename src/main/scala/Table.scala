@@ -22,7 +22,7 @@ object Table {
       lang: String,
       commonProperties: Map[String, JsonNode],
       inheritedPropertiesIn: Map[String, JsonNode]
-  ): (Table, Array[ErrorWithCsvContext]) = {
+  ): (Table, Array[WarningWithCsvContext]) = {
     val (annotations, tableProperties, inheritedProperties, warnings) =
       partitionAndValidateTablePropertiesByType(
         commonProperties,
@@ -67,9 +67,9 @@ object Table {
       Map[String, JsonNode],
       Map[String, JsonNode],
       Map[String, JsonNode],
-      Array[ErrorWithCsvContext]
+      Array[WarningWithCsvContext]
   ) = {
-    var warnings = Array[ErrorWithCsvContext]()
+    var warnings = Array[WarningWithCsvContext]()
     val annotations = Map[String, JsonNode]()
     val tableProperties: Map[String, JsonNode] =
       MapHelpers.deepCloneJsonPropertiesMap(commonProperties)
@@ -93,8 +93,8 @@ object Table {
           warnings = Array
             .concat(
               warnings,
-              w.map[ErrorWithCsvContext](x =>
-                ErrorWithCsvContext(
+              w.map(x =>
+                WarningWithCsvContext(
                   x,
                   "metadata",
                   "",
@@ -110,7 +110,7 @@ object Table {
             case PropertyType.Table | PropertyType.Common =>
               tableProperties += (property -> newValue)
             case PropertyType.Column => {
-              warnings = warnings :+ ErrorWithCsvContext(
+              warnings = warnings :+ WarningWithCsvContext(
                 "invalid_property",
                 "metadata",
                 "",
@@ -131,7 +131,7 @@ object Table {
       tableProperties: Map[String, JsonNode]
   ): String = {
     tableProperties
-      .getOrElse("url", throw new MetadataError("URL not found for table"))
+      .getOrElse("url", throw MetadataError("URL not found for table"))
       .asText()
   }
 
@@ -167,11 +167,11 @@ object Table {
       url: String,
       tableProperties: Map[String, JsonNode],
       annotations: Map[String, JsonNode]
-  ): (Table, Array[ErrorWithCsvContext]) = {
+  ): (Table, Array[WarningWithCsvContext]) = {
 
     tableSchema match {
       case tableSchemaObject: ObjectNode => {
-        var warnings = Array[ErrorWithCsvContext]()
+        var warnings = Array[WarningWithCsvContext]()
 
         ensureColumnsNodeIsArray(tableSchemaObject, url)
           .foreach(w => warnings :+= w)
@@ -219,7 +219,7 @@ object Table {
         (table, warnings)
       }
       case _ =>
-        throw new MetadataError(
+        throw MetadataError(
           s"Table schema must be object for table $url "
         )
     }
@@ -228,14 +228,14 @@ object Table {
   private def ensureColumnsNodeIsArray(
       tableSchemaObject: ObjectNode,
       url: String
-  ): Option[ErrorWithCsvContext] = {
+  ): Option[WarningWithCsvContext] = {
     val columnsNode = tableSchemaObject.path("columns")
     if (!columnsNode.isMissingNode && columnsNode.isArray) {
       None
     } else {
       tableSchemaObject.set("columns", JsonNodeFactory.instance.arrayNode())
       Some(
-        ErrorWithCsvContext(
+        WarningWithCsvContext(
           "invalid_value",
           "metadata",
           "",
@@ -252,8 +252,8 @@ object Table {
       lang: String,
       inheritedProperties: Map[String, JsonNode],
       tableSchemaObject: ObjectNode
-  ): (Array[Column], Array[ErrorWithCsvContext]) = {
-    var warnings = Array[ErrorWithCsvContext]()
+  ): (Array[Column], Array[WarningWithCsvContext]) = {
+    var warnings = Array[WarningWithCsvContext]()
 
     val columnObjects = tableSchemaObject
       .get("columns")
@@ -274,7 +274,7 @@ object Table {
                 inheritedProperties
               )
               warnings = warnings ++ w.map(e =>
-                ErrorWithCsvContext(
+                WarningWithCsvContext(
                   e.`type`,
                   "metadata",
                   "",
@@ -286,7 +286,7 @@ object Table {
               Some(colDef)
             }
             case _ => {
-              warnings = warnings :+ ErrorWithCsvContext(
+              warnings = warnings :+ WarningWithCsvContext(
                 "invalid_column_description",
                 "metadata",
                 "",
@@ -395,8 +395,8 @@ object Table {
   private def collectPrimaryKeyColumns(
       tableSchemaObject: ObjectNode,
       columns: Array[Column]
-  ): (Array[Column], Array[ErrorWithCsvContext]) = {
-    var warnings = Array[ErrorWithCsvContext]()
+  ): (Array[Column], Array[WarningWithCsvContext]) = {
+    var warnings = Array[WarningWithCsvContext]()
     if (!tableSchemaObject.path("primaryKey").isMissingNode) {
       var primaryKeyColumns = Array[Column]()
       val primaryKeys = tableSchemaObject.get("primaryKey")
@@ -408,7 +408,7 @@ object Table {
         maybeCol match {
           case Some(col) => primaryKeyColumns :+= col
           case None => {
-            warnings = warnings :+ ErrorWithCsvContext(
+            warnings = warnings :+ WarningWithCsvContext(
               "invalid_column_reference",
               "metadata",
               "",
@@ -447,10 +447,10 @@ object Table {
   }
 
   private def initializeTableWithDefaults(
-      annotations: Map[String, JsonNode],
-      warnings: Array[ErrorWithCsvContext],
-      url: String
-  ): (Table, Array[ErrorWithCsvContext]) = {
+                                           annotations: Map[String, JsonNode],
+                                           warnings: Array[WarningWithCsvContext],
+                                           url: String
+  ): (Table, Array[WarningWithCsvContext]) = {
     val table = new Table(
       url = url,
       id = None,
@@ -617,14 +617,14 @@ case class Table private (
   def validateHeader(
       header: CSVRecord
   ): WarningsAndErrors = {
-    var warnings: Array[ErrorWithCsvContext] = Array()
+    var warnings: Array[WarningWithCsvContext] = Array()
     var errors: Array[ErrorWithCsvContext] = Array()
     var columnIndex = 0
     var columnNames: Array[String] = Array()
     while (columnIndex < header.size()) {
       val columnName = header.get(columnIndex).trim
       if (columnName == "") {
-        warnings :+= ErrorWithCsvContext(
+        warnings :+= WarningWithCsvContext(
           "Empty column name",
           "Schema",
           "",
@@ -634,7 +634,7 @@ case class Table private (
         )
       }
       if (columnNames.contains(columnName)) {
-        warnings :+= ErrorWithCsvContext(
+        warnings :+= WarningWithCsvContext(
           "Duplicate column name",
           "Schema",
           "",

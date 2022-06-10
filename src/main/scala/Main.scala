@@ -1,5 +1,4 @@
-import scopt.OParser
-import CSVValidation.{ErrorWithCsvContext, Validator}
+import CSVValidation.{MessageWithCsvContext, Validator}
 import com.typesafe.scalalogging.Logger
 
 import java.io.File
@@ -22,13 +21,13 @@ object Main extends App {
       if (errorsAndWarnings.warnings.nonEmpty) {
         println(Console.YELLOW + "Warnings")
         errorsAndWarnings.warnings.foreach(x =>
-          logger.warn(getDescriptionForError(x))
+          logger.warn(getDescriptionForMessage(x))
         )
       }
       if (errorsAndWarnings.errors.nonEmpty) {
         println(Console.RED + "Error")
         errorsAndWarnings.errors.foreach(x =>
-          logger.warn(getDescriptionForError(x))
+          logger.warn(getDescriptionForMessage(x))
         )
         print(Console.RESET + "")
         sys.exit(1)
@@ -49,8 +48,8 @@ object Main extends App {
     }
   }
 
-  private def getDescriptionForError(
-      errorMessage: ErrorWithCsvContext
+  private def getDescriptionForMessage(
+      errorMessage: MessageWithCsvContext
   ): String = {
     s"Type: ${errorMessage.`type`}, Category: ${errorMessage.category}, " +
       s"Row: ${errorMessage.row}, Column: ${errorMessage.column}, " +

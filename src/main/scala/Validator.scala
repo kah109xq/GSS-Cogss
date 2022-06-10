@@ -30,7 +30,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
       case Left(errorMessage) => {
         WarningsAndErrors(
           Array(),
-          Array[ErrorWithCsvContext](
+          Array(
             ErrorWithCsvContext(
               "metadata file processing failed",
               errorMessage,
@@ -148,7 +148,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
       dialect: Dialect,
       parser: CSVParser
   ) = {
-    var warnings: Array[ErrorWithCsvContext] = Array()
+    var warnings: Array[WarningWithCsvContext] = Array()
     var errors: Array[ErrorWithCsvContext] = Array()
 
     val parserAfterSkippedRows = parser.asScala.drop(dialect.skipRows)
@@ -212,7 +212,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
       ValidateRowOutput(warningsAndErrors)
     } else {
       if (row.size == 0) {
-        val blankRowWarning = ErrorWithCsvContext(
+        val blankRowError = ErrorWithCsvContext(
           "Blank rows",
           "structure",
           row.getRecordNumber.toString,
@@ -220,7 +220,8 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
           "",
           ""
         )
-        val warningsAndErrors = WarningsAndErrors(Array(blankRowWarning))
+        val warningsAndErrors =
+          WarningsAndErrors(errors = Array(blankRowError))
         ValidateRowOutput(warningsAndErrors)
       } else {
         if (table.columns.length >= row.size()) { // todo: Ensure there's a error defined somewhere else when this is not true.
