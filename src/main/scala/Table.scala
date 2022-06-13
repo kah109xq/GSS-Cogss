@@ -447,9 +447,9 @@ object Table {
   }
 
   private def initializeTableWithDefaults(
-                                           annotations: Map[String, JsonNode],
-                                           warnings: Array[WarningWithCsvContext],
-                                           url: String
+      annotations: Map[String, JsonNode],
+      warnings: Array[WarningWithCsvContext],
+      url: String
   ): (Table, Array[WarningWithCsvContext]) = {
     val table = new Table(
       url = url,

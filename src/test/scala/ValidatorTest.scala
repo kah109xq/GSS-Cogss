@@ -96,6 +96,21 @@ class ValidatorTest extends FunSuite {
   }
 
   test(
+    "error messages should include datetime values for primary key violation"
+  ) {
+    val uri = new URI(
+      s"file://${new File(s"${csvwExamplesBaseDir}observations_primary_key_datetime_violation.csv-metadata.json").getAbsolutePath}"
+    )
+    val validator = new Validator(uri)
+    val warningsAndErrors = validator.validate()
+    assert(warningsAndErrors.errors.length === 1)
+    val error = warningsAndErrors.errors(0)
+    assert(
+      error.content === "key already present - W00000001,2004-04-12T20:20+02:00[UTC+02:00],Y16T49,fair-health"
+    )
+  }
+
+  test(
     "it should set primary key violation when decimal value is equal even if the strings representing them differ"
   ) {
     val uri = new URI(

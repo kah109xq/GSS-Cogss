@@ -187,9 +187,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
             parentTableForeignKeyReferences
           )
           validatePrimaryKey(allPrimaryKeyValues, row, validateRowOutput)
-            .ifDefined(e => {
-              errors :+= e
-            })
+            .ifDefined(e => errors :+= e)
         }
       }
 
@@ -224,23 +222,33 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
           WarningsAndErrors(errors = Array(blankRowError))
         ValidateRowOutput(warningsAndErrors)
       } else {
-        if (table.columns.length >= row.size()) { // todo: Ensure there's a error defined somewhere else when this is not true.
+        if (table.columns.length >= row.size()) {
           table.validateRow(row)
         } else {
-          ValidateRowOutput()
+          val raggedRowsError = ErrorWithCsvContext(
+            "ragged_rows",
+            "structure",
+            row.getRecordNumber.toString,
+            "",
+            "",
+            ""
+          )
+          val warningsAndErrors =
+            WarningsAndErrors(errors = Array(raggedRowsError))
+          ValidateRowOutput(warningsAndErrors)
         }
       }
     }
   }
 
   private def validatePrimaryKey(
-      allPrimaryKeyValues: mutable.Set[List[Any]],
+      existingPrimaryKeyValues: mutable.Set[List[Any]],
       row: CSVRecord,
       validateRowOutput: ValidateRowOutput
   ): Option[ErrorWithCsvContext] = {
     val primaryKeyValues = validateRowOutput.primaryKeyValues
     if (
-      primaryKeyValues.nonEmpty && allPrimaryKeyValues.contains(
+      primaryKeyValues.nonEmpty && existingPrimaryKeyValues.contains(
         primaryKeyValues
       )
     ) {
@@ -250,12 +258,12 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
           "schema",
           row.toString,
           "",
-          s"key already present - ${fetchPrimaryKeyString(primaryKeyValues)}",
+          s"key already present - ${getListStringValue(primaryKeyValues)}",
           ""
         )
       )
     } else {
-      allPrimaryKeyValues += primaryKeyValues
+      existingPrimaryKeyValues += primaryKeyValues
       None
     }
   }
@@ -330,7 +338,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
             .get(parentTableForeignKeyReference.childTable)
             .getOrElse(
               throw new Exception(
-                s"Could not find corresponding child table for parent table ${parentTable.url}"
+                s"Could not find corresponding child table(${parentTableForeignKeyReference.childTable.url}) for parent table ${parentTable.url}"
               )
             )
 
@@ -353,7 +361,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
                 "schema",
                 k.rowNumber.toString,
                 "",
-                getListElementsStringValue(k.keyValues),
+                getListStringValue(k.keyValues),
                 ""
               )
             )
@@ -371,7 +379,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
                 "schema",
                 k.rowNumber.toString,
                 "",
-                getListElementsStringValue(k.keyValues),
+                getListStringValue(k.keyValues),
                 ""
               )
             )
@@ -381,16 +389,7 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
     errors
   }
 
-  private def getListElementsStringValue(list: List[Any]): String = {
-    list
-      .map {
-        case dt: ZonedDateTime => dt.toString
-        case other             => other
-      }
-      .mkString(",")
-  }
-
-  private def fetchPrimaryKeyString(list: List[Any]): String = {
+  private def getListStringValue(list: List[Any]): String = {
     val stringList = list.map {
       case listOfAny: List[Any] =>
         listOfAny.map(s => s.toString).mkString(",")
