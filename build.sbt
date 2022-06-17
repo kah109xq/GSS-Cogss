@@ -78,6 +78,8 @@ libraryDependencies += "org.apache.commons" % "commons-csv" % "1.8"
 // To learn more about multi-project builds, head over to the official sbt
 // documentation at http://www.scala-sbt.org/documentation.html
 
+enablePlugins(JavaAppPackaging)
+
 Compile / resourceGenerators += Def.task {
   import sys.process._
   val path = "pwd".!!.trim

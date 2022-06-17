@@ -122,7 +122,7 @@ class ColumnTest extends FunSuite {
     assert(column.valueUrl.get === "http://www.geonames.org/ontology")
     assert(column.virtual === true)
     assert(column.annotations === mutable.Map[String, JsonNode]())
-    assert(warnings === Array[ErrorWithCsvContext]())
+    assert(warnings === Array[WarningWithCsvContext]())
   }
 
   test("it should generate warnings for null values of unexpected type") {

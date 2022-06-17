@@ -67,7 +67,7 @@ class TableGroupTest extends FunSuite {
         |}
         |""".stripMargin
     val jsonNode = objectMapper.readTree(json)
-    val tableGroup = TableGroup.fromJson(
+    val (tableGroup, warnings) = TableGroup.fromJson(
       jsonNode.asInstanceOf[ObjectNode],
       "http://w3c.github.io/csvw/tests/countries.json"
     )
@@ -81,13 +81,13 @@ class TableGroupTest extends FunSuite {
     assert(referencedTable.foreignKeyReferences.length === 1)
     val foreignKeyReference = referencedTable.foreignKeyReferences(0)
     assert(
-      foreignKeyReference.referencedTable.url === "http://w3c.github.io/csvw/tests/countries.csv"
+      foreignKeyReference.parentTable.url === "http://w3c.github.io/csvw/tests/countries.csv"
     )
 
-    assert(foreignKeyReference.referencedTableColumns.length === 1)
+    assert(foreignKeyReference.parentTableReferencedColumns.length === 1)
     assert(
       foreignKeyReference
-        .referencedTableColumns(0)
+        .parentTableReferencedColumns(0)
         .name
         .get === "countryCode"
     )
@@ -161,7 +161,7 @@ class TableGroupTest extends FunSuite {
         |}
         |""".stripMargin
     val jsonNode = objectMapper.readTree(json)
-    val tableGroup = TableGroup.fromJson(
+    val (tableGroup, warnings) = TableGroup.fromJson(
       jsonNode.asInstanceOf[ObjectNode],
       "http://w3c.github.io/csvw/tests/"
     )
@@ -170,11 +170,11 @@ class TableGroupTest extends FunSuite {
 
     assert(referencedTable.foreignKeyReferences.length === 1)
     val foreignKeyReference = referencedTable.foreignKeyReferences(0)
-    assert(foreignKeyReference.referencedTable.url === referencedTable.url)
-    assert(foreignKeyReference.referencedTableColumns.length === 1)
+    assert(foreignKeyReference.parentTable.url === referencedTable.url)
+    assert(foreignKeyReference.parentTableReferencedColumns.length === 1)
     assert(
       foreignKeyReference
-        .referencedTableColumns(0)
+        .parentTableReferencedColumns(0)
         .name
         .get === "countryCode"
     )
@@ -222,7 +222,7 @@ class TableGroupTest extends FunSuite {
         |}
         |""".stripMargin
     val jsonNode = objectMapper.readTree(json)
-    val tableGroup = TableGroup.fromJson(
+    val (tableGroup, warnings) = TableGroup.fromJson(
       jsonNode.asInstanceOf[ObjectNode],
       "http://w3c.github.io/csvw/tests/test040-metadata.json"
     )
@@ -230,7 +230,7 @@ class TableGroupTest extends FunSuite {
       tableGroup.tables("http://w3c.github.io/csvw/tests/test040.csv")
 
     assert(tableGroup.annotations.size === 0)
-    assert(tableGroup.warnings.length === 0)
+    assert(warnings.length === 0)
     assert(tableGroup.tables.size === 1)
     assert(table.columns.length === 10)
     assert(
@@ -288,7 +288,7 @@ class TableGroupTest extends FunSuite {
         |  }
         |""".stripMargin
     val jsonNode = objectMapper.readTree(json)
-    val tableGroup = TableGroup.fromJson(
+    val (tableGroup, warnings) = TableGroup.fromJson(
       jsonNode.asInstanceOf[ObjectNode],
       "http://w3c.github.io/csvw/tests/test040-metadata.json"
     )
