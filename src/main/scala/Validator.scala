@@ -12,10 +12,10 @@ import scala.collection.mutable
 import scala.collection.mutable.{Map, Set}
 import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsScala}
 
-class Validator(var tableCsvFile: URI, sourceUri: String = "") {
+class Validator(var schemaUri: URI, sourceUri: String = "") {
   val mapAvailableCharsets = Charset.availableCharsets().asScala
   def validate(): WarningsAndErrors = {
-    Schema.loadMetadataAndValidate(tableCsvFile) match {
+    Schema.loadMetadataAndValidate(schemaUri) match {
       case Right((tableGroup, warnings)) => {
         if (sourceUri.isEmpty) {
           val warningsAndErrors = validateSchemaTables(tableGroup)
