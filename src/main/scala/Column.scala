@@ -288,13 +288,14 @@ object Column {
 
     val newLang = getLangOrDefault(inheritedPropertiesCopy)
 
-    val formatNode = columnDesc.path("format")
+    val name = getName(columnProperties, lang)
+    val formatNode = datatype.path("format")
 
     val titles = columnProperties.get("titles")
 
     val column = new Column(
       columnOrdinal = columnOrdinal,
-      name = getName(columnProperties, lang),
+      name = name,
       id = getId(columnProperties),
       minLength = minLength,
       maxLength = maxLength,

@@ -85,7 +85,7 @@ class StepDefinitions extends ScalaDsl with EN {
   }
 
   When("I carry out CSVW validation") { () =>
-    val validator = new Validator("", csvFilePath)
+    val validator = new Validator(schemaUrl, csvFilePath)
     warningsAndErrors = validator.validate()
   }
 
@@ -99,5 +99,9 @@ class StepDefinitions extends ScalaDsl with EN {
 
   Then("there should be errors") { () =>
     assert(warningsAndErrors.errors.length > 0)
+  }
+
+  Then("""there should be warnings""") { () =>
+    assert(warningsAndErrors.warnings.length > 0)
   }
 }

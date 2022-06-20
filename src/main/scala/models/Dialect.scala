@@ -66,7 +66,7 @@ object Dialect {
       .getOrElse(false)
     val trim = dialectNode
       .getMaybeNode("trim")
-      .map(n => TrimType.withName(n.asText))
+      .map(n => TrimType.fromString(n.asText))
       .getOrElse(TrimType.False)
 
     Dialect(

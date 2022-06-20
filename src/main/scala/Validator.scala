@@ -2,7 +2,7 @@ package CSVValidation
 
 import CSVValidation.WarningsAndErrors.{Errors, Warnings}
 import CSVValidation.traits.OptionExtensions.OptionIfDefined
-import org.apache.commons.csv.{CSVFormat, CSVParser, CSVRecord}
+import org.apache.commons.csv.{CSVFormat, CSVParser, CSVRecord, QuoteMode}
 
 import java.io.File
 import java.net.URI
@@ -87,12 +87,20 @@ class Validator(var schemaUri: String, sourceUri: String = "") {
   }
 
   def getCsvFormat(dialect: Dialect): CSVFormat = {
-    CSVFormat.DEFAULT
+    val format = CSVFormat.RFC4180
       .withDelimiter(dialect.delimiter)
       .withQuote(dialect.quoteChar)
       .withTrim() // Default for trim is true. Implement trim as per w3c spec, issue for this exists
       .withIgnoreEmptyLines(dialect.skipBlankRows)
-      .withEscape(if (dialect.doubleQuote) '"' else '\\')
+
+    if (dialect.doubleQuote) {
+      // https://github.com/apache/commons-csv/commit/c025d73d31ca9c9c467f3bad142ca62d7ebee76b
+      // Above link explains that escaping with a double-quote mark only works if you avoid specifying the escape character.
+      // The default behaviour of CsvParser will ensure the escape functions correctly.
+      format
+    } else {
+      format.withEscape('\\')
+    }
   }
 
   def getParser(

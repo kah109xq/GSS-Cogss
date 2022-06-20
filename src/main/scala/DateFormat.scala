@@ -242,7 +242,7 @@ case class DateFormat(format: Option[String], dataType: String) {
             case e => Left(e.getMessage)
           }
         } else {
-          Left("Does not match expected format")
+          Left(s"Does not match expected format '${format.getOrElse("")}'")
         }
       }
       case (None, _) =>

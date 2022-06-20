@@ -136,7 +136,11 @@ object PropertyChecker {
         (newValue, warnings, PropertyType.Annotation)
       } catch {
         case e: Exception => {
-          (value, Array[String]("invalid_property"), PropertyType.Undefined)
+          (
+            value,
+            Array[String](s"invalid_property ${e.getMessage}"),
+            PropertyType.Undefined
+          )
         }
       }
     }
@@ -920,7 +924,7 @@ object PropertyChecker {
         val (newSchemaBaseUrl, newSchemaLang) =
           fetchSchemaBaseUrlAndLangAndRemoveContext(
             schemaJson,
-            schemaBaseUrl,
+            schemaUrl,
             schemaLang
           )
         schemaBaseUrl = newSchemaBaseUrl
@@ -938,7 +942,7 @@ object PropertyChecker {
       var warnings = Array[String]()
       val fieldsAndValues = Array.from(schemaJson.fields.asScala)
       for (fieldAndValue <- fieldsAndValues) {
-        warnings = validateObjectAndUpdateSchemaJson(
+        warnings ++= validateObjectAndUpdateSchemaJson(
           schemaJson,
           schemaBaseUrl,
           schemaLang,
@@ -957,7 +961,7 @@ object PropertyChecker {
       schemaLang: String,
       property: String,
       value: JsonNode
-  ): (Array[String]) = {
+  ): Array[String] = {
     var warnings = Array[String]()
     if (property == "@id") {
       val matcher =
@@ -1487,7 +1491,7 @@ object PropertyChecker {
       PropertyType.Value
   ) = { (value, baseUrl, _) =>
     {
-      val url = baseUrl + value.asText()
+      val url = new URL(new URL(baseUrl), value.asText()).toString
       // Don't know how to place a URI object in JsonNode, keeping the text value as of now
       (new TextNode(url), Array[String](), csvwPropertyType)
     }
