@@ -1,4 +1,6 @@
+import CSVValidation.{Validator, WarningsAndErrors}
 import io.cucumber.scala.{EN, ScalaDsl}
+
 import scala.io.Source
 import org.slf4j.LoggerFactory
 import sttp.client3._
@@ -10,15 +12,18 @@ class StepDefinitions extends ScalaDsl with EN {
   // Adapted from https://github.com/Data-Liberation-Front/csvlint.rb/tree/master/features/step_definitions
   private val log = LoggerFactory.getLogger(classOf[StepDefinitions])
   private val fixturesPath = "src/test/resources/features/fixtures/"
-  private var csv:String = ""
-  private var metadata:String = ""
-  private var content:String = ""
-  private var schemaUrl:String = ""
+  private var csvFilePath = ""
+  private var warningsAndErrors: WarningsAndErrors = WarningsAndErrors()
+  private var link = ""
+  private var csv: String = ""
+  private var metadata: String = ""
+  private var content: String = ""
+  private var schemaUrl: String = ""
   private var fileUrl = ""
-  private var contextUrl:String = ""
+  private var contextUrl: String = ""
   private var testingBackend = None
   private var notFoundStartsWith = List[String]()
-  private var notFountEndsWith =  List[String]()
+  private var notFountEndsWith = List[String]()
 
   // Assume we use sttp as http client.
   // Call this funciton and set the testing backend object. Pass the backend object into validator function
@@ -35,13 +40,12 @@ class StepDefinitions extends ScalaDsl with EN {
         case r if r.uri.path.endsWith(notFountEndsWith) =>
           Response("Not found", StatusCode.NotFound)
         case r if r.uri.path.endsWith(notFoundStartsWith) =>
-        Response("Not found", StatusCode.NotFound)
+          Response("Not found", StatusCode.NotFound)
       })
   }
 
   Given("""^I have a CSV file called "(.*?)"$""") { (filename: String) =>
-    val filePath = fixturesPath + filename
-    csv = Source.fromFile(filePath).getLines.mkString
+    csvFilePath = fixturesPath + filename
   }
 
   Given("""^it is stored at the url "(.*?)"$""") { (url: String) =>
@@ -64,25 +68,36 @@ class StepDefinitions extends ScalaDsl with EN {
     metadata = Source.fromFile(filePath).getLines.mkString
   }
 
-  And("""^the (schema|metadata) is stored at the url "(.*?)"$""") { (schemaType:String, url:String) =>
-    schemaUrl = url
+  And("""^the (schema|metadata) is stored at the url "(.*?)"$""") {
+    (schemaType: String, url: String) =>
+      schemaUrl = url
   }
 
-  And("""^I have a file called "(.*?)" at the url "(.*?)"$""") { (fileName: String, url:String) =>
-    val filePath = fixturesPath + fileName
-    content = Source.fromFile(filePath).getLines.mkString
-    fileUrl = url
+  Given("""^it has a Link header holding "(.*?)"$""") { l: String =>
+    link = s"""$l; type='application/csvm+json'"""
+  }
+
+  And("""^I have a file called "(.*?)" at the url "(.*?)"$""") {
+    (fileName: String, url: String) =>
+      val filePath = fixturesPath + fileName
+      content = Source.fromFile(filePath).getLines.mkString
+      fileUrl = url
   }
 
   When("I carry out CSVW validation") { () =>
-    throw new io.cucumber.scala.PendingException()
+    val validator = new Validator("", csvFilePath)
+    warningsAndErrors = validator.validate()
   }
 
   Then("there should not be errors") { () =>
-    throw new io.cucumber.scala.PendingException()
+    assert(warningsAndErrors.errors.length == 0)
   }
 
   And("there should not be warnings") { () =>
-    throw new io.cucumber.scala.PendingException()
+    assert(warningsAndErrors.warnings.length == 0)
+  }
+
+  Then("there should be errors") { () =>
+    assert(warningsAndErrors.errors.length > 0)
   }
 }

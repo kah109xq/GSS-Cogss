@@ -12,10 +12,21 @@ import scala.collection.mutable
 import scala.collection.mutable.{Map, Set}
 import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsScala}
 
-class Validator(var schemaUri: URI, sourceUri: String = "") {
+class Validator(var schemaUri: String, sourceUri: String = "") {
   val mapAvailableCharsets = Charset.availableCharsets().asScala
+  private def getAbsoluteSchemaUri(schemaPath: String): URI = {
+    val inputSchemaUri = new URI(schemaPath)
+    if (inputSchemaUri.getScheme == null) {
+      new URI(s"file://${new File(schemaPath).getAbsolutePath}")
+    } else {
+      inputSchemaUri
+    }
+  }
+
   def validate(): WarningsAndErrors = {
-    Schema.loadMetadataAndValidate(schemaUri) match {
+    if (schemaUri.isEmpty) return WarningsAndErrors()
+    val x = getAbsoluteSchemaUri(schemaUri)
+    Schema.loadMetadataAndValidate(x) match {
       case Right((tableGroup, warnings)) => {
         if (sourceUri.isEmpty) {
           val warningsAndErrors = validateSchemaTables(tableGroup)

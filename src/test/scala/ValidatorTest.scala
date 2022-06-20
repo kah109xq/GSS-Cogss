@@ -12,9 +12,8 @@ class ValidatorTest extends FunSuite {
   val csvwExamplesBaseDir = "src/test/resources/csvwExamples/"
   val objectMapper = new ObjectMapper()
   test("set warning when title is empty for a column") {
-    val uri = new URI(
+    val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}observations_missing_headers.csv-metadata.json").getAbsolutePath}"
-    )
     val validator = new Validator(uri)
     val warningsAndErros = validator.validate()
     assert(warningsAndErros.warnings.length === 1)
@@ -27,9 +26,8 @@ class ValidatorTest extends FunSuite {
   test(
     "set error when title is empty for a column and specified in the metadata file"
   ) {
-    val uri = new URI(
+    val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}observations_missing_headers.csv-metadata.json").getAbsolutePath}"
-    )
     val validator = new Validator(uri)
     val warningsAndErrors = validator.validate()
     assert(warningsAndErrors.errors.length === 1)
@@ -42,9 +40,8 @@ class ValidatorTest extends FunSuite {
   test(
     "set warnings when duplicate titles are present"
   ) {
-    val uri = new URI(
+    val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}observations_duplicate_headers.csv-metadata.json").getAbsolutePath}"
-    )
     val validator = new Validator(uri)
     val warningsAndErrors = validator.validate()
     assert(warningsAndErrors.warnings.length === 1)
@@ -57,9 +54,8 @@ class ValidatorTest extends FunSuite {
   test(
     "set error when title is found in csv file is different from the metadata file"
   ) {
-    val uri = new URI(
+    val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}observations_duplicate_headers.csv-metadata.json").getAbsolutePath}"
-    )
     val validator = new Validator(uri)
     val warningsAndErrors = validator.validate()
     assert(warningsAndErrors.errors.length === 1)
@@ -70,9 +66,8 @@ class ValidatorTest extends FunSuite {
   }
 
   test("should set error when primary keys are not unique") {
-    val uri = new URI(
+    val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}observations_duplicate_primary_key.csv-metadata.json").getAbsolutePath}"
-    )
     val validator = new Validator(uri)
     val warningsAndErrors = validator.validate()
     assert(warningsAndErrors.errors.length === 1)
@@ -87,9 +82,8 @@ class ValidatorTest extends FunSuite {
   test(
     "it should NOT set primary key violation if datetime value is equal in UTC and the timezones differ"
   ) {
-    val uri = new URI(
+    val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}observations_primary_key_datetime.csv-metadata.json").getAbsolutePath}"
-    )
     val validator = new Validator(uri)
     val warningsAndErrors = validator.validate()
     assert(warningsAndErrors.errors.length === 0)
@@ -98,9 +92,8 @@ class ValidatorTest extends FunSuite {
   test(
     "error messages should include datetime values for primary key violation"
   ) {
-    val uri = new URI(
+    val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}observations_primary_key_datetime_violation.csv-metadata.json").getAbsolutePath}"
-    )
     val validator = new Validator(uri)
     val warningsAndErrors = validator.validate()
     assert(warningsAndErrors.errors.length === 1)
@@ -113,9 +106,8 @@ class ValidatorTest extends FunSuite {
   test(
     "it should set primary key violation when decimal value is equal even if the strings representing them differ"
   ) {
-    val uri = new URI(
+    val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}obs_decimal_primary_key_vio.csv-metadata.json").getAbsolutePath}"
-    )
     val validator = new Validator(uri)
     val warningsAndErrors = validator.validate()
     assert(warningsAndErrors.errors.length === 1)
@@ -130,9 +122,8 @@ class ValidatorTest extends FunSuite {
   test(
     "it should not set foreign key violation errors for correct foreign key references"
   ) {
-    val uri = new URI(
+    val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}foreignKeyValidationTest.csv-metadata.json").getAbsolutePath}"
-    )
     val validator = new Validator(uri)
     val warningsAndErrors = validator.validate()
     assert(warningsAndErrors.errors.length === 0)
@@ -141,9 +132,8 @@ class ValidatorTest extends FunSuite {
   test(
     "it should set unmatched foreign key error when unmatched foreignKey reference is found"
   ) {
-    val uri = new URI(
+    val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}foreignKeyViolationTest.csv-metadata.json").getAbsolutePath}"
-    )
     val validator = new Validator(uri)
     val warningsAndErrors = validator.validate()
     val errors = warningsAndErrors.errors
@@ -155,9 +145,8 @@ class ValidatorTest extends FunSuite {
   test(
     "it should set multiple matched rows in parent table error when a foreign key in child table is matched with multiple rows in parent"
   ) {
-    val uri = new URI(
+    val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}foreignKeyValidationTestmultiple_parent_rows_matched.csv-metadata.json").getAbsolutePath}"
-    )
     val validator = new Validator(uri)
     val warningsAndErrors = validator.validate()
     val errors = warningsAndErrors.errors

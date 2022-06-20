@@ -24,40 +24,26 @@ object Main extends App {
 
   OParser.parse(parser, args, Config()) match {
     case Some(config) =>
-      if (config.inputSchema.isEmpty) {
-        println((Console.GREEN + "Result"))
-        println("Valid CSV-W")
-      } else {
-        val validator = new Validator(getAbsoluteSchemaUri(config.inputSchema))
-        val errorsAndWarnings = validator.validate()
-        if (errorsAndWarnings.warnings.nonEmpty) {
-          println(Console.YELLOW + "Warnings")
-          errorsAndWarnings.warnings.foreach(x =>
-            logger.warn(getDescriptionForMessage(x))
-          )
-        }
-        if (errorsAndWarnings.errors.nonEmpty) {
-          println(Console.RED + "Error")
-          errorsAndWarnings.errors.foreach(x =>
-            logger.warn(getDescriptionForMessage(x))
-          )
-          print(Console.RESET + "")
-          sys.exit(1)
-        }
-        println((Console.GREEN + "Result"))
-        println("Valid CSV-W")
-        print(Console.RESET + "")
+      val validator = new Validator(config.inputSchema)
+      val errorsAndWarnings = validator.validate()
+      if (errorsAndWarnings.warnings.nonEmpty) {
+        println(Console.YELLOW + "Warnings")
+        errorsAndWarnings.warnings.foreach(x =>
+          logger.warn(getDescriptionForMessage(x))
+        )
       }
+      if (errorsAndWarnings.errors.nonEmpty) {
+        println(Console.RED + "Error")
+        errorsAndWarnings.errors.foreach(x =>
+          logger.warn(getDescriptionForMessage(x))
+        )
+        print(Console.RESET + "")
+        sys.exit(1)
+      }
+      println((Console.GREEN + "Result"))
+      println("Valid CSV-W")
+      print(Console.RESET + "")
     case _ => throw new Exception("Invalid arguments")
-  }
-
-  private def getAbsoluteSchemaUri(schemaPath: String): URI = {
-    val inputSchemaUri = new URI(schemaPath)
-    if (inputSchemaUri.getScheme == null) {
-      new URI(s"file://${new File(schemaPath).getAbsolutePath}")
-    } else {
-      inputSchemaUri
-    }
   }
 
   private def getDescriptionForMessage(
