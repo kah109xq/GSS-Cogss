@@ -179,19 +179,16 @@ object Column {
 
   def getTitleValues(
       titles: Option[JsonNode]
-  ): Array[String] = {
-    var validHeaders = Array[String]()
+  ): Map[String, Array[String]] = {
+    val langToTitles = Map[String, Array[String]]()
     titles match {
       case Some(titles) => {
-        for ((_, v) <- titles.asInstanceOf[ObjectNode].getKeysAndValues) {
-          val titlesArray = Array.from(v.elements().asScala)
-          for (title <- titlesArray) {
-            validHeaders :+= title.asText()
-          }
+        for ((l, v) <- titles.asInstanceOf[ObjectNode].getKeysAndValues) {
+          langToTitles(l) = Array.from(v.elements().asScala.map(_.asText()))
         }
-        validHeaders
+        langToTitles
       }
-      case _ => validHeaders
+      case _ => langToTitles
     }
   }
 
@@ -401,7 +398,7 @@ case class Column private (
     separator: Option[String],
     suppressOutput: Boolean,
     textDirection: String,
-    titleValues: Array[String],
+    titleValues: Map[String, Array[String]],
     valueUrl: Option[String],
     virtual: Boolean,
     format: Option[Format],
@@ -1184,9 +1181,9 @@ case class Column private (
     var errors = Array[ErrorWithCsvContext]()
     if (titleValues.nonEmpty) {
       var validHeaders = Array[String]()
-      for (title <- titleValues) {
-        if (Column.languagesMatch(title, lang)) {
-          validHeaders :+= title
+      for (titleLanguage <- titleValues.keys) {
+        if (Column.languagesMatch(titleLanguage, lang)) {
+          validHeaders ++= titleValues(titleLanguage)
         }
       }
       if (!validHeaders.contains(columnName)) {

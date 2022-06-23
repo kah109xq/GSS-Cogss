@@ -1215,7 +1215,7 @@ object PropertyChecker {
           val returnObject = JsonNodeFactory.instance.objectNode()
           val arrayNode = JsonNodeFactory.instance.arrayNode()
           arrayNode.add(s.asText())
-          returnObject.set("lang", arrayNode)
+          returnObject.set(lang, arrayNode)
           (returnObject, Array[String](), csvwPropertyType)
         }
         case a: ArrayNode => {
@@ -1234,7 +1234,7 @@ object PropertyChecker {
           val returnObject = JsonNodeFactory.instance.objectNode()
           val arrayNode: ArrayNode =
             PropertyChecker.mapper.valueToTree(validTitles)
-          returnObject.set("lang", arrayNode)
+          returnObject.set(lang, arrayNode)
           (returnObject, warnings, csvwPropertyType)
         }
         case o: ObjectNode => {
