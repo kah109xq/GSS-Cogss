@@ -976,6 +976,7 @@ object PropertyChecker {
     } else {
       val (validatedV, warningsForP, propertyType) =
         checkProperty(property, value, schemaBaseUrl.toString, schemaLang)
+      warnings ++= warningsForP
       if (
         (propertyType == PropertyType.Schema || propertyType == PropertyType.Inherited) && warningsForP.isEmpty
       ) {
@@ -985,7 +986,7 @@ object PropertyChecker {
         if (
           propertyType != PropertyType.Schema && propertyType != PropertyType.Inherited
         ) {
-          warnings = warnings :+ "invalid_property"
+          warnings :+= "invalid_property"
         }
       }
     }
