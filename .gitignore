@@ -22,3 +22,4 @@ src/main/bin/run-csvw-tests
 model.txt
 hw_25000.csv
 manifest-validation.jsonld
+csv-validation-0.1/*

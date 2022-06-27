@@ -925,9 +925,9 @@ class PropertyCheckerTest extends FunSuite {
       "und"
     )
 
-    assert(!values.path("lang").isMissingNode)
-    assert(values.get("lang").isArray)
-    assert(values.get("lang").elements().next().asText() === "Sample Title")
+    assert(!values.path("und").isMissingNode)
+    assert(values.get("und").isArray)
+    assert(values.get("und").elements().next().asText() === "Sample Title")
     assert(warnings === Array[String]())
   }
 
@@ -940,10 +940,10 @@ class PropertyCheckerTest extends FunSuite {
     val (values, warnings, _) =
       PropertyChecker.checkProperty("titles", arrNode, "", "und")
 
-    assert(!values.path("lang").isMissingNode)
-    assert(values.get("lang").isArray)
+    assert(!values.path("und").isMissingNode)
+    assert(values.get("und").isArray)
     assert(
-      values.get("lang").elements().next().asText() === "sample text value"
+      values.get("und").elements().next().asText() === "sample text value"
     )
     assert(
       warnings === Array[String](

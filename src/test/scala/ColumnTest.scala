@@ -99,7 +99,7 @@ class ColumnTest extends FunSuite {
       1,
       jsonNode.asInstanceOf[ObjectNode],
       "https://www.w3.org/",
-      "und",
+      "en",
       mutable.Map()
     )
     val expectedDataType = "http://www.w3.org/2001/XMLSchema#integer"
@@ -118,7 +118,7 @@ class ColumnTest extends FunSuite {
     assert(column.separator.get === ",")
     assert(column.suppressOutput === true)
     assert(column.textDirection === "rtl")
-    assert(column.titleValues === Array[String]("countryCode"))
+    assert(column.titleValues("en") === Array("countryCode"))
     assert(column.valueUrl.get === "http://www.geonames.org/ontology")
     assert(column.virtual === true)
     assert(column.annotations === mutable.Map[String, JsonNode]())
@@ -712,7 +712,10 @@ class ColumnTest extends FunSuite {
         s"""
            |{
            |"name":"countryCode",
-           |"format":"Y|N"
+           |"datatype": {
+           |  "base": "boolean",
+           |   "format": "Y|N"
+           | }
            |}"
            |""".stripMargin
 

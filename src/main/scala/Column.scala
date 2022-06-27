@@ -22,6 +22,7 @@ import errors.ErrorWithoutContext
 import java.lang
 import java.math.BigInteger
 import java.time.ZonedDateTime
+import scala.collection.mutable
 import scala.collection.mutable.Map
 import scala.jdk.CollectionConverters.IteratorHasAsScala
 import scala.math.BigInt.javaBigInteger2bigInt
@@ -398,7 +399,7 @@ case class Column private (
     separator: Option[String],
     suppressOutput: Boolean,
     textDirection: String,
-    titleValues: Map[String, Array[String]],
+    titleValues: mutable.Map[String, Array[String]],
     valueUrl: Option[String],
     virtual: Boolean,
     format: Option[Format],
@@ -1179,24 +1180,24 @@ case class Column private (
 
   def validateHeader(columnName: String): WarningsAndErrors = {
     var errors = Array[ErrorWithCsvContext]()
-    if (titleValues.nonEmpty) {
-      var validHeaders = Array[String]()
-      for (titleLanguage <- titleValues.keys) {
-        if (Column.languagesMatch(titleLanguage, lang)) {
-          validHeaders ++= titleValues(titleLanguage)
-        }
+//    if (titleValues.nonEmpty) {
+    var validHeaders = Array[String]()
+    for (titleLanguage <- titleValues.keys) {
+      if (Column.languagesMatch(titleLanguage, lang)) {
+        validHeaders ++= titleValues(titleLanguage)
       }
-      if (!validHeaders.contains(columnName)) {
-        errors :+= ErrorWithCsvContext(
-          "Invalid Header",
-          "Schema",
-          "1",
-          columnOrdinal.toString,
-          columnName,
-          titleValues.mkString(",")
-        )
-      }
-      WarningsAndErrors(Array(), errors)
-    } else WarningsAndErrors(Array(), Array())
+    }
+    if (!validHeaders.contains(columnName)) {
+      errors :+= ErrorWithCsvContext(
+        "Invalid Header",
+        "Schema",
+        "1",
+        columnOrdinal.toString,
+        columnName,
+        titleValues.mkString(",")
+      )
+    }
+    WarningsAndErrors(Array(), errors)
+//    } else WarningsAndErrors(Array(), Array())
   }
 }
