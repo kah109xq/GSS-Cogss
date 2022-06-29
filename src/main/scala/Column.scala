@@ -1107,7 +1107,7 @@ case class Column private (
       var errors = Array[ErrorWithoutContext]()
       var lengthOfValue = value.length
       if (baseDataType == s"${xmlSchema}base64Binary") {
-        lengthOfValue = value.replaceAll("==?$", "").length * (3 / 4)
+        lengthOfValue = value.replaceAll("==?$", "").length * 3 / 4
       } else if (baseDataType == s"${xmlSchema}hexBinary") {
         lengthOfValue = value.length / 2
       }
