@@ -284,6 +284,19 @@ object Column {
       if (datatype.path("length").isMissingNode) None
       else Some(datatype.get("length").asText().toInt)
 
+    val minInclusive: Option[Double] =
+      if (datatype.path("minInclusive").isMissingNode) None
+      else Some(datatype.get("minInclusive").asText().toDouble)
+    val maxInclusive: Option[Double] =
+      if (datatype.path("maxInclusive").isMissingNode) None
+      else Some(datatype.get("maxInclusive").asText().toDouble)
+    val minExclusive: Option[Double] =
+      if (datatype.path("minExclusive").isMissingNode) None
+      else Some(datatype.get("minExclusive").asText().toDouble)
+    val maxExclusive: Option[Double] =
+      if (datatype.path("maxExclusive").isMissingNode) None
+      else Some(datatype.get("maxExclusive").asText().toDouble)
+
     val newLang = getLangOrDefault(inheritedPropertiesCopy)
 
     val name = getName(columnProperties, lang)
@@ -298,6 +311,10 @@ object Column {
       minLength = minLength,
       maxLength = maxLength,
       length = length,
+      minInclusive = minInclusive,
+      maxInclusive = maxInclusive,
+      minExclusive = minExclusive,
+      maxExclusive = maxExclusive,
       baseDataType = getBaseDataType(datatype),
       lang = newLang,
       nullParam = getNullParam(inheritedPropertiesCopy),
@@ -389,6 +406,10 @@ case class Column private (
     minLength: Option[Int],
     maxLength: Option[Int],
     length: Option[Int],
+    minInclusive: Option[Double],
+    maxInclusive: Option[Double],
+    minExclusive: Option[Double],
+    maxExclusive: Option[Double],
     baseDataType: String,
     default: String,
     lang: String,
@@ -1133,6 +1154,35 @@ case class Column private (
     }
   }
 
+  def validateValue(value: String): Array[ErrorWithoutContext] = {
+    var errors = Array[ErrorWithoutContext]()
+    if (minInclusive.isDefined && value.toDouble < minInclusive.get) {
+      errors = errors :+ ErrorWithoutContext(
+        "min_inclusive",
+        s"value '$value' less than minInclusive value - '${minInclusive.get}'"
+      )
+    }
+    if (maxInclusive.isDefined && value.toDouble > maxInclusive.get) {
+      errors = errors :+ ErrorWithoutContext(
+        "maxInclusive",
+        s"value '$value' less than maxInclusive value - '${maxInclusive.get}'"
+      )
+    }
+    if (minExclusive.isDefined && value.toDouble <= minExclusive.get) {
+      errors = errors :+ ErrorWithoutContext(
+        "minExclusive",
+        s"value '$value' less than minExclusive value - '${minExclusive.get}'"
+      )
+    }
+    if (maxExclusive.isDefined && value.toDouble >= maxExclusive.get) {
+      errors = errors :+ ErrorWithoutContext(
+        "maxExclusive",
+        s"value '$value' less than maxExclusive value - '${maxExclusive.get}'"
+      )
+    }
+    errors
+  }
+
   def validate(
       value: String
   ): (Array[ErrorWithoutContext], Array[Any]) = {
@@ -1163,6 +1213,7 @@ case class Column private (
             errors =
               errors ++
                 validateLength(s.toString) ++
+                validateValue(s.toString) ++
                 Array(
                   addErrorIfRequiredValueAndValueEmpty(s.toString),
                   validateFormat(s.toString)
