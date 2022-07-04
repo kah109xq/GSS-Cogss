@@ -352,7 +352,9 @@ object Column {
             if (node.isMissingNode) {
               None
             } else {
-              Some(node.get(propertyName).asText())
+              if (!node.path(propertyName).isMissingNode) {
+                Some(node.get(propertyName).asText())
+              } else None
             }
           }
 
