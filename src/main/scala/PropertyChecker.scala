@@ -234,8 +234,14 @@ object PropertyChecker {
       throw new MetadataError(
         "common property with @value has both @language and @type"
       )
-      // Add this exception condition
-      // raise Csvlint::Csvw::MetadataError.new(), "common property with @value has properties other than @language or @type" unless value.except("@type").except("@language").except("@value").empty?
+    }
+    var fieldNames = Array.from(valueCopy.fieldNames().asScala)
+    fieldNames = fieldNames.filter(!_.contains("@type"))
+    fieldNames = fieldNames.filter(!_.contains("@language"))
+    if (fieldNames.length > 1) {
+      throw new MetadataError(
+        "common property with @value has properties other than @language or @type"
+      )
     }
   }
 

@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 
 import java.io.{File, PrintWriter, StringWriter}
 import java.net.URI
-import java.nio.file.Paths
 object Schema {
   val objectMapper = new ObjectMapper()
 
