@@ -573,11 +573,11 @@ object PropertyChecker {
         .deepCopy()
         .asInstanceOf[JsonNode]
       valueCopy match {
-        case v: ObjectNode => {
-          val datatypeNode = v.asInstanceOf[ObjectNode]
+        case datatypeNode: ObjectNode => {
           if (!datatypeNode.path("@id").isMissingNode) {
             val idValue = datatypeNode.get("@id").asText()
-            if (BuiltInDataTypes.types.contains(idValue)) {
+            val builtInDataTypeValues = BuiltInDataTypes.types.values.toList
+            if (builtInDataTypeValues.contains(idValue)) {
               throw new MetadataError(
                 s"datatype @id must not be the id of a built-in datatype ($idValue)"
               )

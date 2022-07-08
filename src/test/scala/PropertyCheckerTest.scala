@@ -277,7 +277,7 @@ class PropertyCheckerTest extends FunSuite {
     val json =
       """
         |{
-        | "@id": "string"
+        | "@id": "http://www.w3.org/2001/XMLSchema#string"
         |}
         |""".stripMargin
     val jsonNode = objectMapper.readTree(json)
@@ -286,7 +286,7 @@ class PropertyCheckerTest extends FunSuite {
       PropertyChecker.checkProperty("datatype", jsonNode, "", "und")
     }
     assert(
-      thrown.getMessage === "datatype @id must not be the id of a built-in datatype (string)"
+      thrown.getMessage === "datatype @id must not be the id of a built-in datatype (http://www.w3.org/2001/XMLSchema#string)"
     )
   }
 
