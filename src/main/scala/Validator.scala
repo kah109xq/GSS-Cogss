@@ -24,9 +24,11 @@ class Validator(var schemaUri: String, sourceUri: String = "") {
   }
 
   def validate(): WarningsAndErrors = {
-    if (schemaUri.isEmpty) return WarningsAndErrors()
-    val x = getAbsoluteSchemaUri(schemaUri)
-    Schema.loadMetadataAndValidate(x) match {
+    // When CSV is fetched from web and the associated schema is in the header, this wont work.
+    // Change this (returning empty warnings and errors when schemaUri is blank) when that feature is implemented
+    if (schemaUri.isBlank) return WarningsAndErrors()
+    val absoluteSchemaUri = getAbsoluteSchemaUri(schemaUri)
+    Schema.loadMetadataAndValidate(absoluteSchemaUri) match {
       case Right((tableGroup, warnings)) => {
         if (sourceUri.isEmpty) {
           val warningsAndErrors = validateSchemaTables(tableGroup)

@@ -4,7 +4,10 @@ import scopt.OParser
 
 import java.io.File
 import java.net.URI
-case class Config(inputSchema: String = "", csvPath: String = "")
+case class Config(
+    inputSchema: Option[String] = None,
+    csvPath: Option[String] = None
+)
 object Main extends App {
   val logger = Logger("Root")
   val builder = OParser.builder[Config]
@@ -14,17 +17,17 @@ object Main extends App {
       programName("CSVW-Validation"),
       head("CSVW-Validation", "1.0"),
       opt[String]('s', "schema")
-        .action((x, c) => c.copy(inputSchema = x))
+        .action((x, c) => c.copy(inputSchema = Some(x)))
         .text("filename of Schema/metadata file"),
       opt[String]('c', "csv")
-        .action((x, c) => c.copy(csvPath = x))
+        .action((x, c) => c.copy(csvPath = Some(x)))
         .text("filename of CSV file")
     )
   }
 
   OParser.parse(parser, args, Config()) match {
     case Some(config) =>
-      val validator = new Validator(config.inputSchema)
+      val validator = new Validator(config.inputSchema.get)
       val errorsAndWarnings = validator.validate()
       if (errorsAndWarnings.warnings.nonEmpty) {
         println(Console.YELLOW + "Warnings")
