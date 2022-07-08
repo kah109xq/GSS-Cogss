@@ -253,7 +253,7 @@ object PropertyChecker {
       throw new MetadataError("common property with @language lacks a @value")
     }
     val matcher = Bcp47Language.r.pattern.matcher(v.asText())
-    if (!matcher.matches() && !v.isEmpty) {
+    if (!matcher.matches() || v.isEmpty) {
       throw new MetadataError(
         s"common property has invalid @language (${v.asText()})"
       )
