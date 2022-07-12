@@ -9,6 +9,7 @@ import CSVValidation.Column.{
   xmlSchema
 }
 import CSVValidation.traits.ObjectNodeExtentions.IteratorHasGetKeysAndValues
+import CSVValidation.traits.ObjectNodeExtentions.ObjectNodeGetMaybeNode
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.{
   ArrayNode,
@@ -352,9 +353,8 @@ object Column {
             if (node.isMissingNode) {
               None
             } else {
-              if (!node.path(propertyName).isMissingNode) {
-                Some(node.get(propertyName).asText())
-              } else None
+              val value = node.getMaybeNode(propertyName)
+              if (value.isDefined) Some(value.get.asText()) else None
             }
           }
 
@@ -1233,7 +1233,6 @@ case class Column private (
 
   def validateHeader(columnName: String): WarningsAndErrors = {
     var errors = Array[ErrorWithCsvContext]()
-//    if (titleValues.nonEmpty) {
     var validHeaders = Array[String]()
     for (titleLanguage <- titleValues.keys) {
       if (Column.languagesMatch(titleLanguage, lang)) {
@@ -1251,6 +1250,5 @@ case class Column private (
       )
     }
     WarningsAndErrors(Array(), errors)
-//    } else WarningsAndErrors(Array(), Array())
   }
 }

@@ -12,7 +12,7 @@ import scala.collection.mutable
 import scala.collection.mutable.{Map, Set}
 import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsScala}
 
-class Validator(var schemaUri: String, sourceUri: String = "") {
+class Validator(var schemaUri: Option[String], sourceUri: String = "") {
   val mapAvailableCharsets = Charset.availableCharsets().asScala
   private def getAbsoluteSchemaUri(schemaPath: String): URI = {
     val inputSchemaUri = new URI(schemaPath)
@@ -26,8 +26,8 @@ class Validator(var schemaUri: String, sourceUri: String = "") {
   def validate(): WarningsAndErrors = {
     // When CSV is fetched from web and the associated schema is in the header, this wont work.
     // Change this (returning empty warnings and errors when schemaUri is blank) when that feature is implemented
-    if (schemaUri.isBlank) return WarningsAndErrors()
-    val absoluteSchemaUri = getAbsoluteSchemaUri(schemaUri)
+    if (schemaUri.isEmpty) return WarningsAndErrors()
+    val absoluteSchemaUri = getAbsoluteSchemaUri(schemaUri.get)
     Schema.loadMetadataAndValidate(absoluteSchemaUri) match {
       case Right((tableGroup, warnings)) => {
         if (sourceUri.isEmpty) {

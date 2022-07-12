@@ -18,7 +18,7 @@ class StepDefinitions extends ScalaDsl with EN {
   private var csv: String = ""
   private var metadata: String = ""
   private var content: String = ""
-  private var schemaUrl: String = ""
+  private var schemaUrl: Option[String] = None
   private var fileUrl = ""
   private var contextUrl: String = ""
   private var testingBackend = None
@@ -70,7 +70,7 @@ class StepDefinitions extends ScalaDsl with EN {
 
   And("""^the (schema|metadata) is stored at the url "(.*?)"$""") {
     (schemaType: String, url: String) =>
-      schemaUrl = url
+      schemaUrl = Some(url)
   }
 
   Given("""^it has a Link header holding "(.*?)"$""") { l: String =>

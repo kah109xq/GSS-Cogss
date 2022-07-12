@@ -27,7 +27,7 @@ object Main extends App {
 
   OParser.parse(parser, args, Config()) match {
     case Some(config) =>
-      val validator = new Validator(config.inputSchema.get)
+      val validator = new Validator(config.inputSchema)
       val errorsAndWarnings = validator.validate()
       if (errorsAndWarnings.warnings.nonEmpty) {
         println(Console.YELLOW + "Warnings")

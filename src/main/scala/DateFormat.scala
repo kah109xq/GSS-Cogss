@@ -161,19 +161,11 @@ case class DateFormat(format: Option[String], dataType: String) {
   })
 
   private def mapTFormatsToUts35(formatIn: String): String = {
-    // As per W3C specification for CSV-W, datetime format patterns mentioned here in this method should also be accpected.
+    // As per W3C specification for CSV-W, datetime format patterns mentioned here in this method should also be accepted.
     // The SimpleDateFormat class does not recognize the time separator(T)
-    // and thus these 3 formats are transformed to include the time separator (as a special char)
+    // and thus these 3 formats specified in the link below are transformed to include the time separator (as a special char)
     // https://www.w3.org/TR/2015/REC-tabular-data-model-20151217/#h-formats-for-dates-and-times
-    var format = formatIn
-    val replacement = Map(
-      "yyyy-MM-ddTHH:mm:ss.S" -> "yyyy-MM-dd'T'HH:mm:ss.S",
-      "yyyy-MM-ddTHH:mm:ss" -> "yyyy-MM-dd'T'HH:mm:ss",
-      "yyyy-MM-ddTHH:mm" -> "yyyy-MM-dd'T'HH:mm"
-    )
-    for ((original, newVersion) <- replacement) {
-      format = format.replaceAll(original, newVersion)
-    }
+    val format = formatIn.replaceAll("yyyy-MM-ddTHH:mm", "yyyy-MM-dd'T'HH:mm")
     format
   }
 
