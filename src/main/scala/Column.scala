@@ -285,18 +285,18 @@ object Column {
       if (datatype.path("length").isMissingNode) None
       else Some(datatype.get("length").asText().toInt)
 
-    val minInclusive: Option[Double] =
+    val minInclusive: Option[BigDecimal] =
       if (datatype.path("minInclusive").isMissingNode) None
-      else Some(datatype.get("minInclusive").asText().toDouble)
-    val maxInclusive: Option[Double] =
+      else Some(BigDecimal(datatype.get("minInclusive").asText))
+    val maxInclusive: Option[BigDecimal] =
       if (datatype.path("maxInclusive").isMissingNode) None
-      else Some(datatype.get("maxInclusive").asText().toDouble)
-    val minExclusive: Option[Double] =
+      else Some(BigDecimal(datatype.get("maxInclusive").asText))
+    val minExclusive: Option[BigDecimal] =
       if (datatype.path("minExclusive").isMissingNode) None
-      else Some(datatype.get("minExclusive").asText().toDouble)
-    val maxExclusive: Option[Double] =
+      else Some(BigDecimal(datatype.get("minExclusive").asText))
+    val maxExclusive: Option[BigDecimal] =
       if (datatype.path("maxExclusive").isMissingNode) None
-      else Some(datatype.get("maxExclusive").asText().toDouble)
+      else Some(BigDecimal(datatype.get("maxExclusive").asText))
 
     val newLang = getLangOrDefault(inheritedPropertiesCopy)
 
@@ -350,12 +350,8 @@ object Column {
               node: ObjectNode,
               propertyName: String
           ): Option[String] = {
-            if (node.isMissingNode) {
-              None
-            } else {
-              val value = node.getMaybeNode(propertyName)
-              if (value.isDefined) Some(value.get.asText()) else None
-            }
+            if (node.isMissingNode) None
+            else node.getMaybeNode(propertyName).map(_.asText())
           }
 
           val pattern = getMaybeValueFromNode(formatObjectNode, "pattern")
@@ -408,10 +404,10 @@ case class Column private (
     minLength: Option[Int],
     maxLength: Option[Int],
     length: Option[Int],
-    minInclusive: Option[Double],
-    maxInclusive: Option[Double],
-    minExclusive: Option[Double],
-    maxExclusive: Option[Double],
+    minInclusive: Option[BigDecimal],
+    maxInclusive: Option[BigDecimal],
+    minExclusive: Option[BigDecimal],
+    maxExclusive: Option[BigDecimal],
     baseDataType: String,
     default: String,
     lang: String,
@@ -428,6 +424,11 @@ case class Column private (
     format: Option[Format],
     annotations: Map[String, JsonNode]
 ) {
+  lazy val minInclusiveInt: Option[BigInt] = minInclusive.map(_.toBigInt)
+  lazy val maxInclusiveInt: Option[BigInt] = maxInclusive.map(_.toBigInt)
+  lazy val minExclusiveInt: Option[BigInt] = minExclusive.map(_.toBigInt)
+  lazy val maxExclusiveInt: Option[BigInt] = maxExclusive.map(_.toBigInt)
+
   val datatypeParser: Map[String, String => Either[
     ErrorWithoutContext,
     Any
@@ -1156,30 +1157,87 @@ case class Column private (
     }
   }
 
-  def validateValue(value: String): Array[ErrorWithoutContext] = {
+  def validateValue(value: Any): Array[ErrorWithoutContext] =
+    value match {
+      case numericValue: Number => {
+        validateNumericValue(numericValue)
+      }
+      case s: String        => Array[ErrorWithoutContext]()
+      case d: ZonedDateTime => Array[ErrorWithoutContext]()
+      case b: Boolean       => Array[ErrorWithoutContext]()
+      case _ =>
+        throw new IllegalArgumentException(
+          s"Have not mapped ${value.getClass} yet."
+        )
+    }
+
+  private def validateNumericValue(
+      numericValue: Number
+  ): Array[ErrorWithoutContext] = {
+    numericValue match {
+      case _: java.lang.Long | _: Integer | _: java.lang.Short |
+          _: java.lang.Float | _: java.lang.Double | _: java.lang.Byte =>
+        checkNumericValueRangeConstraints[Long](
+          numericValue.longValue(),
+          longValue => minInclusive.exists(longValue < _),
+          longValue => minExclusive.exists(longValue <= _),
+          longValue => maxInclusive.exists(longValue > _),
+          longValue => maxExclusive.exists(longValue >= _)
+        )
+      case bd: BigDecimal =>
+        checkNumericValueRangeConstraints[BigDecimal](
+          bd,
+          bigDecimalValue => minInclusive.exists(bigDecimalValue < _),
+          bigDecimalValue => minExclusive.exists(bigDecimalValue <= _),
+          bigDecimalValue => maxInclusive.exists(bigDecimalValue > _),
+          bigDecimalValue => maxExclusive.exists(bigDecimalValue >= _)
+        )
+      case bi: BigInteger => {
+        checkNumericValueRangeConstraints[BigInt](
+          BigInt(bi),
+          bigIntValue => minInclusiveInt.exists(bigIntValue < _),
+          bigIntValue => minExclusiveInt.exists(bigIntValue <= _),
+          bigIntValue => maxInclusiveInt.exists(bigIntValue > _),
+          bigIntValue => maxExclusiveInt.exists(bigIntValue >= _)
+        )
+      }
+      case _ =>
+        throw new IllegalArgumentException(
+          s"Unmatched numeric type ${numericValue.getClass}"
+        )
+    }
+  }
+
+  def checkNumericValueRangeConstraints[T](
+      value: T,
+      lessThanMinInclusive: T => Boolean,
+      lessThanEqualToMinExclusive: T => Boolean,
+      greaterThanMaxInclusive: T => Boolean,
+      greaterThanEqualToMaxExclusive: T => Boolean
+  ): Array[ErrorWithoutContext] = {
     var errors = Array[ErrorWithoutContext]()
-    if (minInclusive.isDefined && value.toDouble < minInclusive.get) {
+    if (lessThanMinInclusive(value)) {
       errors = errors :+ ErrorWithoutContext(
-        "min_inclusive",
-        s"value '$value' less than minInclusive value - '${minInclusive.get}'"
+        "minInclusive",
+        s"value '$value' less than minInclusive value '${minInclusive.get}'"
       )
     }
-    if (maxInclusive.isDefined && value.toDouble > maxInclusive.get) {
+    if (greaterThanMaxInclusive(value)) {
       errors = errors :+ ErrorWithoutContext(
         "maxInclusive",
-        s"value '$value' less than maxInclusive value - '${maxInclusive.get}'"
+        s"value '$value' greater than maxInclusive value '${maxInclusive.get}'"
       )
     }
-    if (minExclusive.isDefined && value.toDouble <= minExclusive.get) {
+    if (lessThanEqualToMinExclusive(value)) {
       errors = errors :+ ErrorWithoutContext(
         "minExclusive",
-        s"value '$value' less than minExclusive value - '${minExclusive.get}'"
+        s"value '$value' less than or equal to minExclusive value '${minExclusive.get}'"
       )
     }
-    if (maxExclusive.isDefined && value.toDouble >= maxExclusive.get) {
+    if (greaterThanEqualToMaxExclusive(value)) {
       errors = errors :+ ErrorWithoutContext(
         "maxExclusive",
-        s"value '$value' less than maxExclusive value - '${maxExclusive.get}'"
+        s"value '$value' greater than or equal to maxExclusive value '${maxExclusive.get}'"
       )
     }
     errors
@@ -1215,7 +1273,7 @@ case class Column private (
             errors =
               errors ++
                 validateLength(s.toString) ++
-                validateValue(s.toString) ++
+                validateValue(s) ++
                 Array(
                   addErrorIfRequiredValueAndValueEmpty(s.toString),
                   validateFormat(s.toString)

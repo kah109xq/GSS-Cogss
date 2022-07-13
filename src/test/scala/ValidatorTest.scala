@@ -10,7 +10,6 @@ import scala.collection.mutable
 
 class ValidatorTest extends FunSuite {
   val csvwExamplesBaseDir = "src/test/resources/csvwExamples/"
-  val objectMapper = new ObjectMapper()
   test("set warning when title is empty for a column") {
     val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}observations_missing_headers.csv-metadata.json").getAbsolutePath}"

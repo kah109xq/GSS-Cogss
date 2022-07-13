@@ -1,4 +1,5 @@
 package CSVValidation
+import CSVValidation.ConfiguredObjectMapper.objectMapper
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node._
 import org.scalatest.{FunSuite, Tag}
@@ -6,8 +7,6 @@ import org.scalatest.{FunSuite, Tag}
 import scala.jdk.CollectionConverters.IteratorHasAsScala
 
 class PropertyCheckerTest extends FunSuite {
-  val objectMapper = new ObjectMapper()
-
   test("boolean property checker should return correct types") {
     val result = PropertyChecker.checkProperty(
       "suppressOutput",

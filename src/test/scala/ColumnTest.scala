@@ -1,5 +1,6 @@
 package CSVValidation
-import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
+import CSVValidation.ConfiguredObjectMapper.objectMapper
+import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.{
   IntNode,
   JsonNodeFactory,
@@ -13,7 +14,6 @@ import scala.collection.mutable
 import scala.collection.mutable.Map
 
 class ColumnTest extends FunSuite {
-  val objectMapper = new ObjectMapper()
   def getColumnWithFormat(formatJson: Option[String]): Column = {
     val json =
       s"""
@@ -830,4 +830,228 @@ class ColumnTest extends FunSuite {
     assert(errors(0).`type` == "length")
   }
 
+  // Tests for validateNumericValue
+  test(
+    "should correctly set errors when minInclusive and maxInclusive are bigDecimals"
+  ) {
+    val json =
+      """
+        |{"name":"Measure",
+        |"datatype": {
+        |  "base": "decimal",
+        |  "minInclusive": 312938797193279127391467892467284100.45,
+        |  "maxInclusive": 312938797193279127391467892467284500.45
+        |}
+        |}
+        |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val (column, warnings) = Column.fromJson(
+      1,
+      jsonNode.asInstanceOf[ObjectNode],
+      "https://www.w3.org/",
+      "und",
+      Map[String, JsonNode]()
+    )
+    val error1 =
+      column.validateValue(5)
+    assert(error1.length == 1)
+    assert(error1(0).`type` === "minInclusive")
+
+    val error2 =
+      column.validateValue(
+        BigDecimal("312938797193279127391467892467284100")
+      )
+    assert(error2.length == 1)
+    assert(error2(0).`type` === "minInclusive")
+
+    val error3 =
+      column.validateValue(
+        BigDecimal("312938797193279127391467892467284501.45")
+      )
+    assert(error3.length == 1)
+    assert(error3(0).`type` === "maxInclusive")
+
+    val error4 =
+      column.validateValue(
+        BigInt("312938797193279127391467892467284099").bigInteger
+      )
+    assert(error4.length == 1)
+    assert(error4(0).`type` === "minInclusive")
+
+    val error5 =
+      column.validateValue(
+        BigInt("312938797193279127391467892467284999").bigInteger
+      )
+    assert(error5.length == 1)
+    assert(error5(0).`type` === "maxInclusive")
+
+    val error6 =
+      column.validateValue(
+        BigDecimal("312938797193279127391467892467284300.234234234")
+      )
+    assert(error6.length == 0)
+  }
+
+  test(
+    "should correctly set errors when minInclusive and maxInclusive are integers"
+  ) {
+    val json =
+      """
+        |{"name":"Measure",
+        |"datatype": {
+        |  "base": "decimal",
+        |  "minInclusive": 45,
+        |  "maxInclusive": 54
+        |}
+        |}
+        |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val (column, warnings) = Column.fromJson(
+      1,
+      jsonNode.asInstanceOf[ObjectNode],
+      "https://www.w3.org/",
+      "und",
+      Map[String, JsonNode]()
+    )
+    val error1 =
+      column.validateValue(3)
+    assert(error1.length == 1)
+    assert(error1(0).`type` === "minInclusive")
+    val error2 =
+      column.validateValue(55)
+    assert(error2.length == 1)
+    assert(error2(0).`type` === "maxInclusive")
+
+    val error3 =
+      column.validateValue(
+        BigInt("232423423423423423423423423423423423").bigInteger
+      )
+    assert(error3.length == 1)
+    assert(error3(0).`type` === "maxInclusive")
+    val error4 =
+      column.validateValue(
+        BigInt("4").bigInteger
+      )
+    assert(error4.length == 1)
+    assert(error4(0).`type` === "minInclusive")
+
+    val error5 =
+      column.validateValue(
+        BigDecimal("232423423423423423423423423423423423.123123")
+      )
+    assert(error5.length == 1)
+    assert(error5(0).`type` === "maxInclusive")
+    val error6 =
+      column.validateValue(
+        BigDecimal("4.123123123")
+      )
+    assert(error6.length == 1)
+    assert(error6(0).`type` === "minInclusive")
+
+    val error7 =
+      column.validateValue(
+        BigDecimal("45.123123123")
+      )
+    assert(error7.length == 0)
+  }
+
+  test(
+    "should correctly set errors when minInclusive and maxInclusive are BigIntegers"
+  ) {
+    val json =
+      """
+        |{"name":"Measure",
+        |"datatype": {
+        |  "base": "decimal",
+        |  "minInclusive": 9223372036854771000,
+        |  "maxInclusive": 9223372036854775807
+        |}
+        |}
+        |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val (column, warnings) = Column.fromJson(
+      1,
+      jsonNode.asInstanceOf[ObjectNode],
+      "https://www.w3.org/",
+      "und",
+      Map[String, JsonNode]()
+    )
+    val error1 =
+      column.validateValue(3)
+    assert(error1.length == 1)
+    assert(error1(0).`type` === "minInclusive")
+    val error2 =
+      column.validateValue(BigInt("9223372036854771000").bigInteger)
+    assert(error2.length == 0)
+
+    val error3 =
+      column.validateValue(
+        BigInt("232423423423423423423423423423423423").bigInteger
+      )
+    assert(error3.length == 1)
+    assert(error3(0).`type` === "maxInclusive")
+    val error4 =
+      column.validateValue(
+        BigInt("922337203685477").bigInteger
+      )
+    assert(error4.length == 1)
+    assert(error4(0).`type` === "minInclusive")
+
+    val error5 =
+      column.validateValue(
+        BigDecimal("232423423423423423423423423423423423.123123")
+      )
+    assert(error5.length == 1)
+    assert(error5(0).`type` === "maxInclusive")
+    val error6 =
+      column.validateValue(
+        BigDecimal("4.123123123")
+      )
+    assert(error6.length == 1)
+    assert(error6(0).`type` === "minInclusive")
+  }
+
+  // Test for minExclusive and maxExclusive properties along with tests for error messages
+  test(
+    "should correctly set errors when minExclusive and maxExclusive are BigIntegers"
+  ) {
+    val json =
+      """
+        |{"name":"Measure",
+        |"datatype": {
+        |  "base": "decimal",
+        |  "minExclusive": 9223372036854771000,
+        |  "maxExclusive": 9223372036854775807
+        |}
+        |}
+        |""".stripMargin
+    val jsonNode = objectMapper.readTree(json)
+    val (column, warnings) = Column.fromJson(
+      1,
+      jsonNode.asInstanceOf[ObjectNode],
+      "https://www.w3.org/",
+      "und",
+      Map[String, JsonNode]()
+    )
+    val error1 =
+      column.validateValue(BigDecimal("9223372036854771000"))
+    assert(error1.length == 1)
+    assert(error1(0).`type` === "minExclusive")
+    assert(
+      error1(
+        0
+      ).content === "value '9223372036854771000' less than or equal to minExclusive value '9223372036854771000'"
+    )
+
+    val error2 =
+      column.validateValue(BigInt("9223372036854775899").bigInteger)
+    assert(error2.length == 1)
+    assert(error2(0).`type` === "maxExclusive")
+    assert(
+      error2(
+        0
+      ).content === "value '9223372036854775899' greater than or equal to maxExclusive value '9223372036854775807'"
+    )
+
+  }
 }
