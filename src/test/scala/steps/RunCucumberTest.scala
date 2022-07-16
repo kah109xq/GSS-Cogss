@@ -3,4 +3,5 @@
 //
 //@RunWith(classOf[Cucumber])
 //@CucumberOptions(features = Array("src/test/resources/features"))
+////@CucumberOptions(tags = "@runThisTest")
 //class RunCucumberTest

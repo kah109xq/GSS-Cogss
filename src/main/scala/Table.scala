@@ -46,7 +46,8 @@ object Table {
           lang,
           url,
           tableProperties,
-          annotations
+          annotations,
+          warnings
         )
       case _ =>
         initializeTableWithDefaults(
@@ -166,12 +167,14 @@ object Table {
       lang: String,
       url: String,
       tableProperties: Map[String, JsonNode],
-      annotations: Map[String, JsonNode]
+      annotations: Map[String, JsonNode],
+      existingWarnings: Array[WarningWithCsvContext]
   ): (Table, Array[WarningWithCsvContext]) = {
 
     tableSchema match {
       case tableSchemaObject: ObjectNode => {
         var warnings = Array[WarningWithCsvContext]()
+        warnings = warnings.concat(existingWarnings)
 
         ensureColumnsNodeIsArray(tableSchemaObject, url)
           .foreach(w => warnings :+= w)

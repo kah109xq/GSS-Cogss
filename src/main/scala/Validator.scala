@@ -2,7 +2,7 @@ package CSVValidation
 
 import CSVValidation.WarningsAndErrors.{Errors, Warnings}
 import CSVValidation.traits.OptionExtensions.OptionIfDefined
-import org.apache.commons.csv.{CSVFormat, CSVParser, CSVRecord}
+import org.apache.commons.csv.{CSVFormat, CSVParser, CSVRecord, QuoteMode}
 
 import java.io.File
 import java.net.URI
@@ -12,10 +12,23 @@ import scala.collection.mutable
 import scala.collection.mutable.{Map, Set}
 import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsScala}
 
-class Validator(var tableCsvFile: URI, sourceUri: String = "") {
+class Validator(var schemaUri: Option[String], sourceUri: String = "") {
   val mapAvailableCharsets = Charset.availableCharsets().asScala
+  private def getAbsoluteSchemaUri(schemaPath: String): URI = {
+    val inputSchemaUri = new URI(schemaPath)
+    if (inputSchemaUri.getScheme == null) {
+      new URI(s"file://${new File(schemaPath).getAbsolutePath}")
+    } else {
+      inputSchemaUri
+    }
+  }
+
   def validate(): WarningsAndErrors = {
-    Schema.loadMetadataAndValidate(tableCsvFile) match {
+    // When CSV is fetched from web and the associated schema is in the header, this wont work.
+    // Change this (returning empty warnings and errors when schemaUri is blank) when that feature is implemented
+    if (schemaUri.isEmpty) return WarningsAndErrors()
+    val absoluteSchemaUri = getAbsoluteSchemaUri(schemaUri.get)
+    Schema.loadMetadataAndValidate(absoluteSchemaUri) match {
       case Right((tableGroup, warnings)) => {
         if (sourceUri.isEmpty) {
           val warningsAndErrors = validateSchemaTables(tableGroup)
@@ -76,12 +89,20 @@ class Validator(var tableCsvFile: URI, sourceUri: String = "") {
   }
 
   def getCsvFormat(dialect: Dialect): CSVFormat = {
-    CSVFormat.DEFAULT
+    val format = CSVFormat.RFC4180
       .withDelimiter(dialect.delimiter)
       .withQuote(dialect.quoteChar)
       .withTrim() // Default for trim is true. Implement trim as per w3c spec, issue for this exists
       .withIgnoreEmptyLines(dialect.skipBlankRows)
-      .withEscape(if (dialect.doubleQuote) '"' else '\\')
+
+    if (dialect.doubleQuote) {
+      // https://github.com/apache/commons-csv/commit/c025d73d31ca9c9c467f3bad142ca62d7ebee76b
+      // Above link explains that escaping with a double-quote mark only works if you avoid specifying the escape character.
+      // The default behaviour of CsvParser will ensure the escape functions correctly.
+      format
+    } else {
+      format.withEscape('\\')
+    }
   }
 
   def getParser(

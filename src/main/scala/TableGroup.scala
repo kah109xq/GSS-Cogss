@@ -1,7 +1,10 @@
 package CSVValidation
 
 import CSVValidation.traits.JavaIteratorExtensions.IteratorHasAsScalaArray
-import CSVValidation.traits.ObjectNodeExtentions.IteratorHasGetKeysAndValues
+import CSVValidation.traits.ObjectNodeExtentions.{
+  IteratorHasGetKeysAndValues,
+  ObjectNodeGetMaybeNode
+}
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.{
   ArrayNode,
@@ -22,7 +25,7 @@ object TableGroup {
   val containsWhitespaces: Regex = ".*\\s.*".r
 
   def fromJson(
-      tableGroupNode: ObjectNode,
+      tableGroupNodeIn: ObjectNode,
       baseUri: String
   ): (TableGroup, Array[WarningWithCsvContext]) = {
     var baseUrl = baseUri.trim
@@ -35,11 +38,11 @@ object TableGroup {
       )
     }
     val processContextResult =
-      processContextGetBaseUrlLang(tableGroupNode, baseUrl, "und")
+      processContextGetBaseUrlLang(tableGroupNodeIn, baseUrl, "und")
     baseUrl = processContextResult._1
     val lang = processContextResult._2
     warnings = Array.concat(warnings, processContextResult._3)
-    restructureIfNodeIsSingleTable(tableGroupNode)
+    val tableGroupNode = restructureIfNodeIsSingleTable(tableGroupNodeIn)
 
     val (annotations, commonProperties, inheritedProperties, w1) =
       classifyPropertiesBasedOnPropertyTypeAndSetWarnings(
@@ -74,15 +77,17 @@ object TableGroup {
 
   private def restructureIfNodeIsSingleTable(
       tableGroupNode: ObjectNode
-  ): Unit = {
+  ): ObjectNode = {
     if (tableGroupNode.path("tables").isMissingNode) {
       if (!tableGroupNode.path("url").isMissingNode) {
-        val tableGroupNodeCopy = tableGroupNode.deepCopy()
-        val jsonArrayNode = JsonNodeFactory.instance.arrayNode()
-        jsonArrayNode.insert(0, tableGroupNodeCopy)
-        tableGroupNode.set("tables", jsonArrayNode)
+        val newTableGroup = JsonNodeFactory.instance.objectNode()
+        val tables = JsonNodeFactory.instance.arrayNode()
+        tables.insert(0, tableGroupNode)
+        newTableGroup.set("tables", tables)
+        return newTableGroup
       }
     }
+    tableGroupNode
   }
 
   /**
@@ -320,7 +325,16 @@ object TableGroup {
       if (!validProperties.contains(property)) {
         val (newValue, w, csvwPropertyType) =
           PropertyChecker.checkProperty(property, value, baseUrl, lang)
-        warnings = w.map(x => WarningWithCsvContext(x, "metadata", "", "", s"$property : $value", ""))
+        warnings = w.map(x =>
+          WarningWithCsvContext(
+            x,
+            "metadata",
+            "",
+            "",
+            s"$property : ${value.toPrettyString}",
+            ""
+          )
+        )
         csvwPropertyType match {
           case PropertyType.Annotation => annotations += (property -> newValue)
           case PropertyType.Common     => commonProperties += (property -> newValue)

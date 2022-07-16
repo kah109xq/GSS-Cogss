@@ -1,4 +1,5 @@
 package CSVValidation
+import CSVValidation.ConfiguredObjectMapper.objectMapper
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node._
 import org.scalatest.{FunSuite, Tag}
@@ -6,8 +7,6 @@ import org.scalatest.{FunSuite, Tag}
 import scala.jdk.CollectionConverters.IteratorHasAsScala
 
 class PropertyCheckerTest extends FunSuite {
-  val objectMapper = new ObjectMapper()
-
   test("boolean property checker should return correct types") {
     val result = PropertyChecker.checkProperty(
       "suppressOutput",
@@ -277,7 +276,7 @@ class PropertyCheckerTest extends FunSuite {
     val json =
       """
         |{
-        | "@id": "string"
+        | "@id": "http://www.w3.org/2001/XMLSchema#string"
         |}
         |""".stripMargin
     val jsonNode = objectMapper.readTree(json)
@@ -286,7 +285,7 @@ class PropertyCheckerTest extends FunSuite {
       PropertyChecker.checkProperty("datatype", jsonNode, "", "und")
     }
     assert(
-      thrown.getMessage === "datatype @id must not be the id of a built-in datatype (string)"
+      thrown.getMessage === "datatype @id must not be the id of a built-in datatype (http://www.w3.org/2001/XMLSchema#string)"
     )
   }
 
@@ -925,9 +924,9 @@ class PropertyCheckerTest extends FunSuite {
       "und"
     )
 
-    assert(!values.path("lang").isMissingNode)
-    assert(values.get("lang").isArray)
-    assert(values.get("lang").elements().next().asText() === "Sample Title")
+    assert(!values.path("und").isMissingNode)
+    assert(values.get("und").isArray)
+    assert(values.get("und").elements().next().asText() === "Sample Title")
     assert(warnings === Array[String]())
   }
 
@@ -940,10 +939,10 @@ class PropertyCheckerTest extends FunSuite {
     val (values, warnings, _) =
       PropertyChecker.checkProperty("titles", arrNode, "", "und")
 
-    assert(!values.path("lang").isMissingNode)
-    assert(values.get("lang").isArray)
+    assert(!values.path("und").isMissingNode)
+    assert(values.get("und").isArray)
     assert(
-      values.get("lang").elements().next().asText() === "sample text value"
+      values.get("und").elements().next().asText() === "sample text value"
     )
     assert(
       warnings === Array[String](

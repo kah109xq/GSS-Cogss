@@ -154,11 +154,20 @@ case class DateFormat(format: Option[String], dataType: String) {
     utcZoneId
   }
 
-  def getFormat() = format
+  def getFormat(): Option[String] = format
   val simpleDateFormatter: Option[SimpleDateFormat] = format.map(f => {
     ensureDateTimeFormatContainsRecognizedSymbols(f)
-    new SimpleDateFormat(f)
+    new SimpleDateFormat(mapTFormatsToUts35(f))
   })
+
+  private def mapTFormatsToUts35(formatIn: String): String = {
+    // As per W3C specification for CSV-W, datetime format patterns mentioned here in this method should also be accepted.
+    // The SimpleDateFormat class does not recognize the time separator(T)
+    // and thus these 3 formats specified in the link below are transformed to include the time separator (as a special char)
+    // https://www.w3.org/TR/2015/REC-tabular-data-model-20151217/#h-formats-for-dates-and-times
+    val format = formatIn.replaceAll("yyyy-MM-ddTHH:mm", "yyyy-MM-dd'T'HH:mm")
+    format
+  }
 
   /**
     * This function ensures that the pattern received does not contain symbols which this class does not
@@ -198,14 +207,17 @@ case class DateFormat(format: Option[String], dataType: String) {
     val parsedDateTime =
       parseInputDateTimeRetainTimeZoneInfo(formatter, inputDate)
     formatter.setTimeZone(parsedDateTime.getTimeZone)
+    try {
+      val formattedDate = formatter.format(parsedDateTime.getTime)
+      val formatPreservesAllInformation = formattedDate == inputDate
 
-    val formattedDate = formatter.format(parsedDateTime.getTime)
-    val formatPreservesAllInformation = formattedDate == inputDate
-
-    if (formatPreservesAllInformation) {
-      Right(getZonedDateTimeForIcuCalendar(parsedDateTime))
-    } else {
-      Left("Value does not match expected UTS-35 format")
+      if (formatPreservesAllInformation) {
+        Right(getZonedDateTimeForIcuCalendar(parsedDateTime))
+      } else {
+        Left("Value does not match expected UTS-35 format")
+      }
+    } catch {
+      case e => Left(e.getMessage)
     }
   }
 
@@ -242,7 +254,7 @@ case class DateFormat(format: Option[String], dataType: String) {
             case e => Left(e.getMessage)
           }
         } else {
-          Left("Does not match expected format")
+          Left(s"Does not match expected format '${format.getOrElse("")}'")
         }
       }
       case (None, _) =>

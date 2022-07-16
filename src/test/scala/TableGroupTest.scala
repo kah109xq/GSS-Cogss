@@ -1,4 +1,5 @@
 package CSVValidation
+import CSVValidation.ConfiguredObjectMapper.objectMapper
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.{
   ArrayNode,
@@ -8,7 +9,6 @@ import com.fasterxml.jackson.databind.node.{
 import org.scalatest.FunSuite
 
 class TableGroupTest extends FunSuite {
-  val objectMapper = new ObjectMapper()
   test("should create table group object from pre parsed metadata") {
     val json =
       """

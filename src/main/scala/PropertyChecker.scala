@@ -136,7 +136,11 @@ object PropertyChecker {
         (newValue, warnings, PropertyType.Annotation)
       } catch {
         case e: Exception => {
-          (value, Array[String]("invalid_property"), PropertyType.Undefined)
+          (
+            value,
+            Array[String](s"invalid_property ${e.getMessage}"),
+            PropertyType.Undefined
+          )
         }
       }
     }
@@ -230,8 +234,14 @@ object PropertyChecker {
       throw new MetadataError(
         "common property with @value has both @language and @type"
       )
-      // Add this exception condition
-      // raise Csvlint::Csvw::MetadataError.new(), "common property with @value has properties other than @language or @type" unless value.except("@type").except("@language").except("@value").empty?
+    }
+    var fieldNames = Array.from(valueCopy.fieldNames().asScala)
+    fieldNames = fieldNames.filter(!_.contains("@type"))
+    fieldNames = fieldNames.filter(!_.contains("@language"))
+    if (fieldNames.length > 1) {
+      throw new MetadataError(
+        "common property with @value has properties other than @language or @type"
+      )
     }
   }
 
@@ -243,7 +253,7 @@ object PropertyChecker {
       throw new MetadataError("common property with @language lacks a @value")
     }
     val matcher = Bcp47Language.r.pattern.matcher(v.asText())
-    if (!matcher.matches() && !v.isEmpty) {
+    if (!matcher.matches() || v.isEmpty) {
       throw new MetadataError(
         s"common property has invalid @language (${v.asText()})"
       )
@@ -563,11 +573,11 @@ object PropertyChecker {
         .deepCopy()
         .asInstanceOf[JsonNode]
       valueCopy match {
-        case v: ObjectNode => {
-          val datatypeNode = v.asInstanceOf[ObjectNode]
+        case datatypeNode: ObjectNode => {
           if (!datatypeNode.path("@id").isMissingNode) {
             val idValue = datatypeNode.get("@id").asText()
-            if (BuiltInDataTypes.types.contains(idValue)) {
+            val builtInDataTypeValues = BuiltInDataTypes.types.values.toList
+            if (builtInDataTypeValues.contains(idValue)) {
               throw new MetadataError(
                 s"datatype @id must not be the id of a built-in datatype ($idValue)"
               )
@@ -920,7 +930,7 @@ object PropertyChecker {
         val (newSchemaBaseUrl, newSchemaLang) =
           fetchSchemaBaseUrlAndLangAndRemoveContext(
             schemaJson,
-            schemaBaseUrl,
+            schemaUrl,
             schemaLang
           )
         schemaBaseUrl = newSchemaBaseUrl
@@ -938,7 +948,7 @@ object PropertyChecker {
       var warnings = Array[String]()
       val fieldsAndValues = Array.from(schemaJson.fields.asScala)
       for (fieldAndValue <- fieldsAndValues) {
-        warnings = validateObjectAndUpdateSchemaJson(
+        warnings ++= validateObjectAndUpdateSchemaJson(
           schemaJson,
           schemaBaseUrl,
           schemaLang,
@@ -957,7 +967,7 @@ object PropertyChecker {
       schemaLang: String,
       property: String,
       value: JsonNode
-  ): (Array[String]) = {
+  ): Array[String] = {
     var warnings = Array[String]()
     if (property == "@id") {
       val matcher =
@@ -972,6 +982,7 @@ object PropertyChecker {
     } else {
       val (validatedV, warningsForP, propertyType) =
         checkProperty(property, value, schemaBaseUrl.toString, schemaLang)
+      warnings ++= warningsForP
       if (
         (propertyType == PropertyType.Schema || propertyType == PropertyType.Inherited) && warningsForP.isEmpty
       ) {
@@ -981,7 +992,7 @@ object PropertyChecker {
         if (
           propertyType != PropertyType.Schema && propertyType != PropertyType.Inherited
         ) {
-          warnings = warnings :+ "invalid_property"
+          warnings :+= "invalid_property"
         }
       }
     }
@@ -1211,7 +1222,7 @@ object PropertyChecker {
           val returnObject = JsonNodeFactory.instance.objectNode()
           val arrayNode = JsonNodeFactory.instance.arrayNode()
           arrayNode.add(s.asText())
-          returnObject.set("lang", arrayNode)
+          returnObject.set(lang, arrayNode)
           (returnObject, Array[String](), csvwPropertyType)
         }
         case a: ArrayNode => {
@@ -1230,7 +1241,7 @@ object PropertyChecker {
           val returnObject = JsonNodeFactory.instance.objectNode()
           val arrayNode: ArrayNode =
             PropertyChecker.mapper.valueToTree(validTitles)
-          returnObject.set("lang", arrayNode)
+          returnObject.set(lang, arrayNode)
           (returnObject, warnings, csvwPropertyType)
         }
         case o: ObjectNode => {
@@ -1487,7 +1498,7 @@ object PropertyChecker {
       PropertyType.Value
   ) = { (value, baseUrl, _) =>
     {
-      val url = baseUrl + value.asText()
+      val url = new URL(new URL(baseUrl), value.asText()).toString
       // Don't know how to place a URI object in JsonNode, keeping the text value as of now
       (new TextNode(url), Array[String](), csvwPropertyType)
     }

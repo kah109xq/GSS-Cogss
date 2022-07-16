@@ -1,4 +1,5 @@
 package CSVValidation
+import CSVValidation.ConfiguredObjectMapper.objectMapper
 import CSVValidation.traits.JavaIteratorExtensions.IteratorHasAsScalaArray
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.{
@@ -12,7 +13,6 @@ import java.time.{ZoneId, ZonedDateTime}
 import scala.collection.mutable.Map
 
 class TableTest extends FunSuite {
-  val objectMapper = new ObjectMapper()
   test("should create a table from pre-parsed CSV-W metadata") {
     val json =
       """{

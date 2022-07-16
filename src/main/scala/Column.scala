@@ -9,6 +9,7 @@ import CSVValidation.Column.{
   xmlSchema
 }
 import CSVValidation.traits.ObjectNodeExtentions.IteratorHasGetKeysAndValues
+import CSVValidation.traits.ObjectNodeExtentions.ObjectNodeGetMaybeNode
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.{
   ArrayNode,
@@ -22,6 +23,7 @@ import errors.ErrorWithoutContext
 import java.lang
 import java.math.BigInteger
 import java.time.ZonedDateTime
+import scala.collection.mutable
 import scala.collection.mutable.Map
 import scala.jdk.CollectionConverters.IteratorHasAsScala
 import scala.math.BigInt.javaBigInteger2bigInt
@@ -179,19 +181,16 @@ object Column {
 
   def getTitleValues(
       titles: Option[JsonNode]
-  ): Array[String] = {
-    var validHeaders = Array[String]()
+  ): Map[String, Array[String]] = {
+    val langToTitles = Map[String, Array[String]]()
     titles match {
       case Some(titles) => {
-        for ((_, v) <- titles.asInstanceOf[ObjectNode].getKeysAndValues) {
-          val titlesArray = Array.from(v.elements().asScala)
-          for (title <- titlesArray) {
-            validHeaders :+= title.asText()
-          }
+        for ((l, v) <- titles.asInstanceOf[ObjectNode].getKeysAndValues) {
+          langToTitles(l) = Array.from(v.elements().asScala.map(_.asText()))
         }
-        validHeaders
+        langToTitles
       }
-      case _ => validHeaders
+      case _ => langToTitles
     }
   }
 
@@ -286,19 +285,37 @@ object Column {
       if (datatype.path("length").isMissingNode) None
       else Some(datatype.get("length").asText().toInt)
 
+    val minInclusive: Option[BigDecimal] =
+      if (datatype.path("minInclusive").isMissingNode) None
+      else Some(BigDecimal(datatype.get("minInclusive").asText))
+    val maxInclusive: Option[BigDecimal] =
+      if (datatype.path("maxInclusive").isMissingNode) None
+      else Some(BigDecimal(datatype.get("maxInclusive").asText))
+    val minExclusive: Option[BigDecimal] =
+      if (datatype.path("minExclusive").isMissingNode) None
+      else Some(BigDecimal(datatype.get("minExclusive").asText))
+    val maxExclusive: Option[BigDecimal] =
+      if (datatype.path("maxExclusive").isMissingNode) None
+      else Some(BigDecimal(datatype.get("maxExclusive").asText))
+
     val newLang = getLangOrDefault(inheritedPropertiesCopy)
 
-    val formatNode = columnDesc.path("format")
+    val name = getName(columnProperties, lang)
+    val formatNode = datatype.path("format")
 
     val titles = columnProperties.get("titles")
 
     val column = new Column(
       columnOrdinal = columnOrdinal,
-      name = getName(columnProperties, lang),
+      name = name,
       id = getId(columnProperties),
       minLength = minLength,
       maxLength = maxLength,
       length = length,
+      minInclusive = minInclusive,
+      maxInclusive = maxInclusive,
+      minExclusive = minExclusive,
+      maxExclusive = maxExclusive,
       baseDataType = getBaseDataType(datatype),
       lang = newLang,
       nullParam = getNullParam(inheritedPropertiesCopy),
@@ -333,11 +350,8 @@ object Column {
               node: ObjectNode,
               propertyName: String
           ): Option[String] = {
-            if (node.isMissingNode) {
-              None
-            } else {
-              Some(node.get(propertyName).asText())
-            }
+            if (node.isMissingNode) None
+            else node.getMaybeNode(propertyName).map(_.asText())
           }
 
           val pattern = getMaybeValueFromNode(formatObjectNode, "pattern")
@@ -390,6 +404,10 @@ case class Column private (
     minLength: Option[Int],
     maxLength: Option[Int],
     length: Option[Int],
+    minInclusive: Option[BigDecimal],
+    maxInclusive: Option[BigDecimal],
+    minExclusive: Option[BigDecimal],
+    maxExclusive: Option[BigDecimal],
     baseDataType: String,
     default: String,
     lang: String,
@@ -400,12 +418,17 @@ case class Column private (
     separator: Option[String],
     suppressOutput: Boolean,
     textDirection: String,
-    titleValues: Array[String],
+    titleValues: mutable.Map[String, Array[String]],
     valueUrl: Option[String],
     virtual: Boolean,
     format: Option[Format],
     annotations: Map[String, JsonNode]
 ) {
+  lazy val minInclusiveInt: Option[BigInt] = minInclusive.map(_.toBigInt)
+  lazy val maxInclusiveInt: Option[BigInt] = maxInclusive.map(_.toBigInt)
+  lazy val minExclusiveInt: Option[BigInt] = minExclusive.map(_.toBigInt)
+  lazy val maxExclusiveInt: Option[BigInt] = maxExclusive.map(_.toBigInt)
+
   val datatypeParser: Map[String, String => Either[
     ErrorWithoutContext,
     Any
@@ -1108,7 +1131,7 @@ case class Column private (
       var errors = Array[ErrorWithoutContext]()
       var lengthOfValue = value.length
       if (baseDataType == s"${xmlSchema}base64Binary") {
-        lengthOfValue = value.replaceAll("==?$", "").length * (3 / 4)
+        lengthOfValue = value.replaceAll("==?$", "").length * 3 / 4
       } else if (baseDataType == s"${xmlSchema}hexBinary") {
         lengthOfValue = value.length / 2
       }
@@ -1132,6 +1155,92 @@ case class Column private (
       }
       errors
     }
+  }
+
+  def validateValue(value: Any): Array[ErrorWithoutContext] =
+    value match {
+      case numericValue: Number => {
+        validateNumericValue(numericValue)
+      }
+      case s: String        => Array[ErrorWithoutContext]()
+      case d: ZonedDateTime => Array[ErrorWithoutContext]()
+      case b: Boolean       => Array[ErrorWithoutContext]()
+      case _ =>
+        throw new IllegalArgumentException(
+          s"Have not mapped ${value.getClass} yet."
+        )
+    }
+
+  private def validateNumericValue(
+      numericValue: Number
+  ): Array[ErrorWithoutContext] = {
+    numericValue match {
+      case _: java.lang.Long | _: Integer | _: java.lang.Short |
+          _: java.lang.Float | _: java.lang.Double | _: java.lang.Byte =>
+        checkNumericValueRangeConstraints[Long](
+          numericValue.longValue(),
+          longValue => minInclusive.exists(longValue < _),
+          longValue => minExclusive.exists(longValue <= _),
+          longValue => maxInclusive.exists(longValue > _),
+          longValue => maxExclusive.exists(longValue >= _)
+        )
+      case bd: BigDecimal =>
+        checkNumericValueRangeConstraints[BigDecimal](
+          bd,
+          bigDecimalValue => minInclusive.exists(bigDecimalValue < _),
+          bigDecimalValue => minExclusive.exists(bigDecimalValue <= _),
+          bigDecimalValue => maxInclusive.exists(bigDecimalValue > _),
+          bigDecimalValue => maxExclusive.exists(bigDecimalValue >= _)
+        )
+      case bi: BigInteger => {
+        checkNumericValueRangeConstraints[BigInt](
+          BigInt(bi),
+          bigIntValue => minInclusiveInt.exists(bigIntValue < _),
+          bigIntValue => minExclusiveInt.exists(bigIntValue <= _),
+          bigIntValue => maxInclusiveInt.exists(bigIntValue > _),
+          bigIntValue => maxExclusiveInt.exists(bigIntValue >= _)
+        )
+      }
+      case _ =>
+        throw new IllegalArgumentException(
+          s"Unmatched numeric type ${numericValue.getClass}"
+        )
+    }
+  }
+
+  def checkNumericValueRangeConstraints[T](
+      value: T,
+      lessThanMinInclusive: T => Boolean,
+      lessThanEqualToMinExclusive: T => Boolean,
+      greaterThanMaxInclusive: T => Boolean,
+      greaterThanEqualToMaxExclusive: T => Boolean
+  ): Array[ErrorWithoutContext] = {
+    var errors = Array[ErrorWithoutContext]()
+    if (lessThanMinInclusive(value)) {
+      errors = errors :+ ErrorWithoutContext(
+        "minInclusive",
+        s"value '$value' less than minInclusive value '${minInclusive.get}'"
+      )
+    }
+    if (greaterThanMaxInclusive(value)) {
+      errors = errors :+ ErrorWithoutContext(
+        "maxInclusive",
+        s"value '$value' greater than maxInclusive value '${maxInclusive.get}'"
+      )
+    }
+    if (lessThanEqualToMinExclusive(value)) {
+      errors = errors :+ ErrorWithoutContext(
+        "minExclusive",
+        s"value '$value' less than or equal to minExclusive value '${minExclusive.get}'"
+      )
+    }
+    if (greaterThanEqualToMaxExclusive(value)) {
+      errors = errors :+ ErrorWithoutContext(
+        "maxExclusive",
+        s"value '$value' greater than or equal to maxExclusive value '${maxExclusive.get}'"
+      )
+    }
+    errors
   }
 
   def validate(
@@ -1164,6 +1273,7 @@ case class Column private (
             errors =
               errors ++
                 validateLength(s.toString) ++
+                validateValue(s) ++
                 Array(
                   addErrorIfRequiredValueAndValueEmpty(s.toString),
                   validateFormat(s.toString)
@@ -1181,24 +1291,22 @@ case class Column private (
 
   def validateHeader(columnName: String): WarningsAndErrors = {
     var errors = Array[ErrorWithCsvContext]()
-    if (titleValues.nonEmpty) {
-      var validHeaders = Array[String]()
-      for (title <- titleValues) {
-        if (Column.languagesMatch(title, lang)) {
-          validHeaders :+= title
-        }
+    var validHeaders = Array[String]()
+    for (titleLanguage <- titleValues.keys) {
+      if (Column.languagesMatch(titleLanguage, lang)) {
+        validHeaders ++= titleValues(titleLanguage)
       }
-      if (!validHeaders.contains(columnName)) {
-        errors :+= ErrorWithCsvContext(
-          "Invalid Header",
-          "Schema",
-          "1",
-          columnOrdinal.toString,
-          columnName,
-          titleValues.mkString(",")
-        )
-      }
-      WarningsAndErrors(Array(), errors)
-    } else WarningsAndErrors(Array(), Array())
+    }
+    if (!validHeaders.contains(columnName)) {
+      errors :+= ErrorWithCsvContext(
+        "Invalid Header",
+        "Schema",
+        "1",
+        columnOrdinal.toString,
+        columnName,
+        titleValues.mkString(",")
+      )
+    }
+    WarningsAndErrors(Array(), errors)
   }
 }

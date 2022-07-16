@@ -1,15 +1,13 @@
 package CSVValidation
 
 import CSVValidation.WarningsAndErrors.Warnings
+import ConfiguredObjectMapper.objectMapper
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.fasterxml.jackson.databind.node.ObjectNode
 
 import java.io.{File, PrintWriter, StringWriter}
 import java.net.URI
-import java.nio.file.Paths
 object Schema {
-  val objectMapper = new ObjectMapper()
-
   def loadMetadataAndValidate(
       schemaUri: URI
   ): Either[String, (TableGroup, Array[WarningWithCsvContext])] = {

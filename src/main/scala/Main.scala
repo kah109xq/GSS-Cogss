@@ -1,22 +1,33 @@
 import CSVValidation.{MessageWithCsvContext, Validator}
 import com.typesafe.scalalogging.Logger
+import scopt.OParser
 
 import java.io.File
 import java.net.URI
-case class Config(inputSchema: String = "")
+case class Config(
+    inputSchema: Option[String] = None,
+    csvPath: Option[String] = None
+)
 object Main extends App {
   val logger = Logger("Root")
-  val parser = new scopt.OptionParser[Config]("csvwvalidation") {
-    head("CSVW-Validation", "1.0")
-    arg[String]("<schemaFilePath>")
-      .action { (x, c) => c.copy(inputSchema = x) }
-      .text("filename of schema")
-      .optional()
+  val builder = OParser.builder[Config]
+  val parser = {
+    import builder._
+    OParser.sequence(
+      programName("CSVW-Validation"),
+      head("CSVW-Validation", "1.0"),
+      opt[String]('s', "schema")
+        .action((x, c) => c.copy(inputSchema = Some(x)))
+        .text("filename of Schema/metadata file"),
+      opt[String]('c', "csv")
+        .action((x, c) => c.copy(csvPath = Some(x)))
+        .text("filename of CSV file")
+    )
   }
 
-  parser.parse(args, Config()) match {
+  OParser.parse(parser, args, Config()) match {
     case Some(config) =>
-      val validator = new Validator(getAbsoluteSchemaUri(config.inputSchema))
+      val validator = new Validator(config.inputSchema)
       val errorsAndWarnings = validator.validate()
       if (errorsAndWarnings.warnings.nonEmpty) {
         println(Console.YELLOW + "Warnings")
@@ -34,18 +45,8 @@ object Main extends App {
       }
       println((Console.GREEN + "Result"))
       println("Valid CSV-W")
-    case None =>
-  }
-
-  print(Console.RESET + "")
-
-  private def getAbsoluteSchemaUri(schemaPath: String): URI = {
-    val inputSchemaUri = new URI(schemaPath)
-    if (inputSchemaUri.getScheme == null) {
-      new URI(s"file://${new File(schemaPath).getAbsolutePath}")
-    } else {
-      inputSchemaUri
-    }
+      print(Console.RESET + "")
+    case _ => throw new Exception("Invalid arguments")
   }
 
   private def getDescriptionForMessage(
