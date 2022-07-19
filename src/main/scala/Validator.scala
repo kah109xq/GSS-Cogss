@@ -30,14 +30,26 @@ class Validator(var schemaUri: Option[String], sourceUri: String = "") {
     val absoluteSchemaUri = getAbsoluteSchemaUri(schemaUri.get)
     Schema.loadMetadataAndValidate(absoluteSchemaUri) match {
       case Right((tableGroup, warnings)) => {
-        if (sourceUri.isEmpty) {
+        if (sourceUri.nonEmpty && !tableGroup.tables.contains(sourceUri)) {
+          WarningsAndErrors(
+            warnings,
+            Array(
+              ErrorWithCsvContext(
+                "source_url_mismatch",
+                "CSV supplied not found in metadata",
+                "",
+                "",
+                "",
+                ""
+              )
+            )
+          )
+        } else {
           val warningsAndErrors = validateSchemaTables(tableGroup)
           WarningsAndErrors(
             warningsAndErrors.warnings ++ warnings,
             warningsAndErrors.errors
           )
-        } else {
-          throw new NotImplementedError()
         }
       }
       case Left(errorMessage) => {
