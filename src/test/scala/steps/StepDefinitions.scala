@@ -16,6 +16,7 @@ class StepDefinitions extends ScalaDsl with EN {
   private var warningsAndErrors: WarningsAndErrors = WarningsAndErrors()
   private var link = ""
   private var csv: String = ""
+  private var metadataFilePath: String = ""
   private var metadata: String = ""
   private var content: String = ""
   private var schemaUrl: Option[String] = None
@@ -64,8 +65,8 @@ class StepDefinitions extends ScalaDsl with EN {
   }
 
   Given("""^I have a metadata file called "([^"]*)"$""") { filename: String =>
-    val filePath = fixturesPath + filename
-    metadata = Source.fromFile(filePath).getLines.mkString
+    metadataFilePath = fixturesPath + filename
+    metadata = Source.fromFile(metadataFilePath).getLines.mkString
   }
 
   And("""^the (schema|metadata) is stored at the url "(.*?)"$""") {

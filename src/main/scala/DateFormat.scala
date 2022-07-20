@@ -2,6 +2,7 @@ package CSVValidation
 
 import CSVValidation.DateFormat.{
   RegExGroups,
+  dateTimeFormatEndingWithX,
   mapDataTypeToDefaultValueRegExGroups
 }
 import com.ibm.icu.text.SimpleDateFormat
@@ -19,6 +20,7 @@ import java.time.{
 }
 import java.util.TimeZone
 import java.util.regex.Matcher
+import scala.util.matching.Regex
 
 object DateFormat {
   private val xmlSchemaBaseUrl = "http://www.w3.org/2001/XMLSchema#"
@@ -75,6 +77,8 @@ object DateFormat {
     s"${xmlSchemaBaseUrl}gYearMonth" -> s"^$yearGrp-$monthGrp($timeZone)?$$".r,
     s"${xmlSchemaBaseUrl}time" -> s"^($hourGrp:$minuteGrp:$secondGrp|$endOfDay)($timeZone)?$$".r
   )
+
+  val dateTimeFormatEndingWithX: Regex = ".*[^X][Xx]$".r
 
   /**
     * Each XSD date/time datatype has a default format. `mapDataTypeToDefaultValueRegEx` contains regular expressions
@@ -209,8 +213,20 @@ case class DateFormat(format: Option[String], dataType: String) {
     formatter.setTimeZone(parsedDateTime.getTimeZone)
     try {
       val formattedDate = formatter.format(parsedDateTime.getTime)
-      val formatPreservesAllInformation = formattedDate == inputDate
-
+      var formatPreservesAllInformation = formattedDate == inputDate
+      if (
+        format.isDefined && dateTimeFormatEndingWithX.pattern
+          .matcher(format.get)
+          .matches()
+      ) {
+        // getRawOffset method returns milli seconds. It is divided by 3600000 to get offset in hours
+        val offset = parsedDateTime.getTimeZone.getRawOffset.toFloat
+        formatPreservesAllInformation = if ((offset / 3600000).isValidInt) {
+          formattedDate == inputDate || s"${formattedDate}00" == inputDate
+        } else {
+          formattedDate == inputDate
+        }
+      }
       if (formatPreservesAllInformation) {
         Right(getZonedDateTimeForIcuCalendar(parsedDateTime))
       } else {
