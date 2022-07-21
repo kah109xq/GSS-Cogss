@@ -27,6 +27,7 @@ import scala.collection.mutable
 import scala.collection.mutable.Map
 import scala.jdk.CollectionConverters.IteratorHasAsScala
 import scala.math.BigInt.javaBigInteger2bigInt
+import scala.util.matching.Regex
 
 object Column {
   val xmlSchema = "http://www.w3.org/2001/XMLSchema#"
@@ -44,6 +45,13 @@ object Column {
   val validIntegerRegex = "[\\-+]?[0-9]+".r
 
   val validLongDatatypeRegex = "[\\-+]?[0-9]+".r
+
+  val validDurationRegex: Regex =
+    "-?P((([0-9]+Y([0-9]+M)?([0-9]+D)?|([0-9]+M)([0-9]+D)?|([0-9]+D))(T(([0-9]+H)([0-9]+M)?([0-9]+(\\.[0-9]+)?S)?|([0-9]+M)([0-9]+(\\.[0-9]+)?S)?|([0-9]+(\\.[0-9]+)?S)))?)|(T(([0-9]+H)([0-9]+M)?([0-9]+(\\.[0-9]+)?S)?|([0-9]+M)([0-9]+(\\.[0-9]+)?S)?|([0-9]+(\\.[0-9]+)?S))))".r
+  val validDayTimeDurationRegex: Regex =
+    "-?P(([0-9]+D(T(([0-9]+H)([0-9]+M)?([0-9]+(\\.[0-9]+)?S)?|([0-9]+M)([0-9]+(\\.[0-9]+)?S)?|([0-9]+(\\.[0-9]+)?S)))?)|(T(([0-9]+H)([0-9]+M)?([0-9]+(\\.[0-9]+)?S)?|([0-9]+M)([0-9]+(\\.[0-9]+)?S)?|([0-9]+(\\.[0-9]+)?S))))".r
+  val validYearMonthDurationRegex: Regex =
+    """-?P([0-9]+Y([0-9]+M)?|([0-9]+M))""".r
 
   val unsignedLongMaxValue: BigInt = BigInt("18446744073709551615")
 
@@ -474,7 +482,10 @@ case class Column private (
       s"${xmlSchema}gMonthDay" -> processGMonthDay _,
       s"${xmlSchema}gYear" -> processGYear _,
       s"${xmlSchema}gYearMonth" -> processGYearMonth _,
-      s"${xmlSchema}time" -> processTime _
+      s"${xmlSchema}time" -> processTime _,
+      s"${xmlSchema}duration" -> processDuration _,
+      s"${xmlSchema}dayTimeDuration" -> processDayTimeDuration _,
+      s"${xmlSchema}yearMonthDuration" -> processYearMonthDuration _
     )
 
   val datatypeFormatValidation = Map(
@@ -1094,6 +1105,45 @@ case class Column private (
       case Right(value) => Right(value)
       case Left(error)  => Left(ErrorWithoutContext(warning, error))
     }
+  }
+
+  def processDuration(
+      value: String
+  ): Either[ErrorWithoutContext, String] = {
+    if (!Column.validDurationRegex.pattern.matcher(value).matches()) {
+      Left(
+        ErrorWithoutContext(
+          "invalid_duration",
+          "Does not match expected duration format"
+        )
+      )
+    } else Right(value)
+  }
+
+  def processDayTimeDuration(
+      value: String
+  ): Either[ErrorWithoutContext, String] = {
+    if (!Column.validDayTimeDurationRegex.pattern.matcher(value).matches()) {
+      Left(
+        ErrorWithoutContext(
+          "invalid_dayTimeDuration",
+          "Does not match expected dayTimeDuration format"
+        )
+      )
+    } else Right(value)
+  }
+
+  def processYearMonthDuration(
+      value: String
+  ): Either[ErrorWithoutContext, String] = {
+    if (!Column.validYearMonthDurationRegex.pattern.matcher(value).matches()) {
+      Left(
+        ErrorWithoutContext(
+          "invalid_yearMonthDuration",
+          "Does not match expected yearMonthDuration format"
+        )
+      )
+    } else Right(value)
   }
 
   def addErrorIfRequiredValueAndValueEmpty(
