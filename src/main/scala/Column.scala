@@ -113,7 +113,7 @@ object Column {
     val name = columnProperties.get("name")
     val titles = columnProperties.get("titles")
 
-    if (name.isDefined) {
+    if (name.isDefined && !name.get.isNull) {
       Some(name.get.asInstanceOf[TextNode].asText())
     } else if (titles.isDefined && titles.get.path(lang).isMissingNode) {
       val langArray = Array.from(
