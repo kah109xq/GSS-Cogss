@@ -1298,7 +1298,8 @@ case class Column private (
   ): (Array[ErrorWithoutContext], Array[Any]) = {
     var errors = Array[ErrorWithoutContext]()
     if (nullParam.contains(value)) {
-      val errorWithoutContext = addErrorIfRequiredValueAndValueEmpty(value)
+      // Since the cell value is among the null values specified for this CSV-W, it can be considered as the default null value which is ""
+      val errorWithoutContext = addErrorIfRequiredValueAndValueEmpty("")
       if (errorWithoutContext.isDefined) {
         errors :+= errorWithoutContext.get
       }

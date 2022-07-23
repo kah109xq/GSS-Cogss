@@ -7,7 +7,7 @@ import scala.jdk.CollectionConverters._
 import scala.util.matching.Regex
 
 object PropertyChecker {
-  val startsWithUnderscore = "^_:.*".r
+  val startsWithUnderscore = "^_:.*$".r
   val containsColon = ".*:.*".r
   val mapper = new ObjectMapper
   val invalidValueWarning = "invalid_value"
@@ -165,6 +165,14 @@ object PropertyChecker {
             case "@type" => processCommonPropertyType(valueCopy, p, v)
             case "@id" => {
               if (!baseUrl.isBlank) {
+                val matcher =
+                  PropertyChecker.startsWithUnderscore.pattern
+                    .matcher(v.asText())
+                if (matcher.matches) {
+                  throw new MetadataError(
+                    s"@id must not start with '_:'  -  ${v.asText()}"
+                  )
+                }
                 try {
                   val newValue = new URL(new URL(baseUrl), v.asText())
                   v = new TextNode(newValue.toString)
@@ -306,11 +314,10 @@ object PropertyChecker {
                   s"common property has invalid @type (${typeElement.asText})"
                 )
             } catch {
-              case e: Exception => {
+              case e: Exception =>
                 throw new MetadataError(
                   s"common property has invalid @type (${typeElement.asText})"
                 )
-              }
             }
           }
         }
