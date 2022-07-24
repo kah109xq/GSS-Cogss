@@ -29,7 +29,7 @@ class StepDefinitions extends ScalaDsl with EN {
   // Assume we use sttp as http client.
   // Call this funciton and set the testing backend object. Pass the backend object into validator function
   // Stubbing for sttp is done as given in their docs at https://sttp.softwaremill.com/en/latest/testing.html
-  def setTestingBackend() = {
+  def setTestingBackend(): Unit = {
     var testingBackend = SttpBackendStub.synchronous
       .whenRequestMatchesPartial({
         case r if r.uri.path.startsWith(List(fileUrl)) =>
@@ -80,9 +80,7 @@ class StepDefinitions extends ScalaDsl with EN {
 
   And("""^I have a file called "(.*?)" at the url "(.*?)"$""") {
     (fileName: String, url: String) =>
-      val filePath = fixturesPath + fileName
-      content = Source.fromFile(filePath).getLines.mkString
-      fileUrl = url
+      if (url.endsWith(".json")) schemaUrl = Some(url)
   }
 
   When("I carry out CSVW validation") { () =>

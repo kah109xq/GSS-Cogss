@@ -31,18 +31,17 @@ class Validator(var schemaUri: Option[String], sourceUri: String = "") {
     Schema.loadMetadataAndValidate(absoluteSchemaUri) match {
       case Right((tableGroup, warnings)) => {
         if (sourceUri.nonEmpty && !tableGroup.tables.contains(sourceUri)) {
+          val newWarnings = warnings :+ WarningWithCsvContext(
+            "source_url_mismatch",
+            "CSV supplied not found in metadata",
+            "",
+            "",
+            "",
+            ""
+          )
           WarningsAndErrors(
-            warnings,
-            Array(
-              ErrorWithCsvContext(
-                "source_url_mismatch",
-                "CSV supplied not found in metadata",
-                "",
-                "",
-                "",
-                ""
-              )
-            )
+            newWarnings,
+            Array()
           )
         } else {
           val warningsAndErrors = validateSchemaTables(tableGroup)
