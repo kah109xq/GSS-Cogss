@@ -331,11 +331,8 @@ object PropertyChecker {
       datatype: String
   ): Array[String] = {
     if (!value.path(property).isMissingNode) {
-      if (PropertyCheckerConstants.DateFormatDataTypes.contains(datatype)) {
-        throw new NotImplementedError(
-          "To be implemented after implementing DateFormat class"
-        )
-      } else if (
+      if (
+        PropertyCheckerConstants.DateFormatDataTypes.contains(datatype) ||
         PropertyCheckerConstants.NumericFormatDataTypes.contains(datatype)
       ) {
         return Array[String]()

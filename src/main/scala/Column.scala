@@ -293,18 +293,18 @@ object Column {
       if (datatype.path("length").isMissingNode) None
       else Some(datatype.get("length").asText().toInt)
 
-    val minInclusive: Option[BigDecimal] =
+    val minInclusive: Option[String] =
       if (datatype.path("minInclusive").isMissingNode) None
-      else Some(BigDecimal(datatype.get("minInclusive").asText))
-    val maxInclusive: Option[BigDecimal] =
+      else Some(datatype.get("minInclusive").asText)
+    val maxInclusive: Option[String] =
       if (datatype.path("maxInclusive").isMissingNode) None
-      else Some(BigDecimal(datatype.get("maxInclusive").asText))
-    val minExclusive: Option[BigDecimal] =
+      else Some(datatype.get("maxInclusive").asText)
+    val minExclusive: Option[String] =
       if (datatype.path("minExclusive").isMissingNode) None
-      else Some(BigDecimal(datatype.get("minExclusive").asText))
-    val maxExclusive: Option[BigDecimal] =
+      else Some(datatype.get("minExclusive").asText)
+    val maxExclusive: Option[String] =
       if (datatype.path("maxExclusive").isMissingNode) None
-      else Some(BigDecimal(datatype.get("maxExclusive").asText))
+      else Some(datatype.get("maxExclusive").asText)
 
     val newLang = getLangOrDefault(inheritedPropertiesCopy)
 
@@ -412,10 +412,10 @@ case class Column private (
     minLength: Option[Int],
     maxLength: Option[Int],
     length: Option[Int],
-    minInclusive: Option[BigDecimal],
-    maxInclusive: Option[BigDecimal],
-    minExclusive: Option[BigDecimal],
-    maxExclusive: Option[BigDecimal],
+    minInclusive: Option[String],
+    maxInclusive: Option[String],
+    minExclusive: Option[String],
+    maxExclusive: Option[String],
     baseDataType: String,
     default: String,
     lang: String,
@@ -432,10 +432,26 @@ case class Column private (
     format: Option[Format],
     annotations: Map[String, JsonNode]
 ) {
-  lazy val minInclusiveInt: Option[BigInt] = minInclusive.map(_.toBigInt)
-  lazy val maxInclusiveInt: Option[BigInt] = maxInclusive.map(_.toBigInt)
-  lazy val minExclusiveInt: Option[BigInt] = minExclusive.map(_.toBigInt)
-  lazy val maxExclusiveInt: Option[BigInt] = maxExclusive.map(_.toBigInt)
+  lazy val minInclusiveNumeric: Option[BigDecimal] =
+    minInclusive.map(BigDecimal(_))
+  lazy val maxInclusiveNumeric: Option[BigDecimal] =
+    maxInclusive.map(BigDecimal(_))
+  lazy val minExclusiveNumeric: Option[BigDecimal] =
+    minExclusive.map(BigDecimal(_))
+  lazy val maxExclusiveNumeric: Option[BigDecimal] =
+    maxExclusive.map(BigDecimal(_))
+
+  lazy val minInclusiveInt: Option[BigInt] = minInclusiveNumeric.map(_.toBigInt)
+  lazy val maxInclusiveInt: Option[BigInt] = maxInclusiveNumeric.map(_.toBigInt)
+  lazy val minExclusiveInt: Option[BigInt] = minExclusiveNumeric.map(_.toBigInt)
+  lazy val maxExclusiveInt: Option[BigInt] = maxExclusiveNumeric.map(_.toBigInt)
+
+  lazy val numberFormat: NumberFormat =
+    NumberFormat(
+      format.flatMap(f => f.pattern),
+      format.flatMap(f => f.groupChar),
+      format.flatMap(f => f.decimalChar)
+    )
 
   val datatypeParser: Map[String, String => Either[
     ErrorWithoutContext,
@@ -588,7 +604,11 @@ case class Column private (
   def processDecimalDatatype(
       value: String
   ): Either[ErrorWithoutContext, BigDecimal] = {
-    if (!validDecimalDatatypeRegex.pattern.matcher(value).matches()) {
+    if (
+      patternIsEmpty() && !validDecimalDatatypeRegex.pattern
+        .matcher(value)
+        .matches()
+    ) {
       Left(
         ErrorWithoutContext(
           "invalid_decimal",
@@ -611,13 +631,26 @@ case class Column private (
   def processDoubleDatatype(
       value: String
   ): Either[ErrorWithoutContext, Double] = {
-    if (!validDoubleDatatypeRegex.pattern.matcher(value).matches()) {
-      Left(
-        ErrorWithoutContext(
-          "invalid_double",
-          "Does not match expected Double format"
+    if (patternIsEmpty()) {
+      if (
+        validDoubleDatatypeRegex.pattern
+          .matcher(value)
+          .matches()
+      ) {
+        try {
+          Right(value.toDouble)
+        } catch {
+          case e: Throwable =>
+            Left(ErrorWithoutContext("invalid_double", e.getMessage))
+        }
+      } else {
+        Left(
+          ErrorWithoutContext(
+            "invalid_double",
+            "Does not match expected Double format"
+          )
         )
-      )
+      }
     } else {
       numericParser(value) match {
         case Left(w)            => Left(ErrorWithoutContext("invalid_double", w))
@@ -629,7 +662,11 @@ case class Column private (
   def processFloatDatatype(
       value: String
   ): Either[ErrorWithoutContext, Float] = {
-    if (!Column.validFloatDatatypeRegex.pattern.matcher(value).matches()) {
+    if (
+      patternIsEmpty() && !Column.validFloatDatatypeRegex.pattern
+        .matcher(value)
+        .matches()
+    ) {
       Left(
         ErrorWithoutContext(
           "invalid_float",
@@ -644,16 +681,34 @@ case class Column private (
     }
   }
 
+  private def patternIsEmpty(): Boolean =
+    format
+      .flatMap(_.pattern)
+      .isEmpty
+
   def processIntegerDatatype(
       value: String
   ): Either[ErrorWithoutContext, BigInteger] = {
-    if (!Column.validIntegerRegex.pattern.matcher(value).matches()) {
-      Left(
-        ErrorWithoutContext(
-          "invalid_integer",
-          "Does not match expected integer format"
+    if (patternIsEmpty()) {
+      if (
+        Column.validIntegerRegex.pattern
+          .matcher(value)
+          .matches()
+      ) {
+        try {
+          Right(new BigInteger(value))
+        } catch {
+          case e: Throwable =>
+            Left(ErrorWithoutContext("invalid_integer", e.getMessage))
+        }
+      } else {
+        Left(
+          ErrorWithoutContext(
+            "invalid_integer",
+            "Does not match expected integer format"
+          )
         )
-      )
+      }
     } else {
       numericParser(value) match {
         case Right(parsedValue) => convertToBigIntegerValue(parsedValue)
@@ -687,13 +742,27 @@ case class Column private (
   def processLongDatatype(
       value: String
   ): Either[ErrorWithoutContext, Long] = {
-    if (!Column.validLongDatatypeRegex.pattern.matcher(value).matches()) {
-      Left(
-        ErrorWithoutContext(
-          "invalid_long",
-          "Does not match expected long format"
+
+    if (patternIsEmpty()) {
+      if (
+        Column.validLongDatatypeRegex.pattern
+          .matcher(value)
+          .matches()
+      ) {
+        try {
+          Right(value.toLong)
+        } catch {
+          case e: Throwable =>
+            Left(ErrorWithoutContext("invalid_long", e.getMessage))
+        }
+      } else {
+        Left(
+          ErrorWithoutContext(
+            "invalid_long",
+            "Does not match expected long format"
+          )
         )
-      )
+      }
     } else {
       numericParser(value) match {
         case Left(w) => Left(ErrorWithoutContext("invalid_long", w))
@@ -718,13 +787,26 @@ case class Column private (
   def processIntDatatype(
       value: String
   ): Either[ErrorWithoutContext, Int] = {
-    if (!Column.validIntegerRegex.pattern.matcher(value).matches()) {
-      Left(
-        ErrorWithoutContext(
-          "invalid_int",
-          "Does not match expected integer format"
+    if (patternIsEmpty()) {
+      if (
+        Column.validIntegerRegex.pattern
+          .matcher(value)
+          .matches()
+      ) {
+        try {
+          Right(value.toInt)
+        } catch {
+          case e: Throwable =>
+            Left(ErrorWithoutContext("invalid_int", e.getMessage))
+        }
+      } else {
+        Left(
+          ErrorWithoutContext(
+            "invalid_int",
+            "Does not match expected int format"
+          )
         )
-      )
+      }
     } else {
       numericParser(value) match {
         case Left(w) => Left(ErrorWithoutContext("invalid_int", w))
@@ -758,13 +840,26 @@ case class Column private (
   def processShortDatatype(
       value: String
   ): Either[ErrorWithoutContext, Short] = {
-    if (!Column.validIntegerRegex.pattern.matcher(value).matches()) {
-      Left(
-        ErrorWithoutContext(
-          "invalid_short",
-          "Does not match expected short format"
+    if (patternIsEmpty()) {
+      if (
+        Column.validIntegerRegex.pattern
+          .matcher(value)
+          .matches()
+      ) {
+        try {
+          Right(value.toShort)
+        } catch {
+          case e: Throwable =>
+            Left(ErrorWithoutContext("invalid_short", e.getMessage))
+        }
+      } else {
+        Left(
+          ErrorWithoutContext(
+            "invalid_short",
+            "Does not match expected short format"
+          )
         )
-      )
+      }
     } else {
       numericParser(value) match {
         case Left(w) => Left(ErrorWithoutContext("invalid_short", w))
@@ -798,13 +893,26 @@ case class Column private (
   def processByteDatatype(
       value: String
   ): Either[ErrorWithoutContext, Byte] = {
-    if (!Column.validIntegerRegex.pattern.matcher(value).matches()) {
-      Left(
-        ErrorWithoutContext(
-          "invalid_byte",
-          "Does not match expected byte format"
+    if (patternIsEmpty()) {
+      if (
+        Column.validIntegerRegex.pattern
+          .matcher(value)
+          .matches()
+      ) {
+        try {
+          Right(value.toByte)
+        } catch {
+          case e: Throwable =>
+            Left(ErrorWithoutContext("invalid_byte", e.getMessage))
+        }
+      } else {
+        Left(
+          ErrorWithoutContext(
+            "invalid_byte",
+            "Does not match expected byte format"
+          )
         )
-      )
+      }
     } else {
       numericParser(value) match {
         case Left(w) => Left(ErrorWithoutContext("invalid_byte", w))
@@ -990,20 +1098,205 @@ case class Column private (
     }
   }
 
+//  val df = new DecimalFormat()
+//  df.applyPattern("-0")
+//  df.setParseStrict(true)
+//  val parsedValue = df.parse("-1")
+//  df.format(parsedValue)
   def numericParser(
       value: String
   ): Either[String, Number] = {
-    val numberFormatObject =
-      NumberFormat(
-        format.flatMap(f => f.pattern),
-        format.flatMap(f => f.groupChar),
-        format.flatMap(f => f.decimalChar)
-      )
     try {
-      Right(numberFormatObject.parse(value))
+      val normalised = normalizeForInsanity(value)
+      val parsedNumber = numberFormat.parse(normalised)
+      val paredNumberInString = numberFormat.format(parsedNumber)
+////      val newValue = normalizeNumericSign(numberFormat, value)
+      val originalValueWithoutPlusesOrMinuses = stripUnquotedPlusMinus(value)
+      val parsedNumberWithoutPlusesOrMinuses = stripUnquotedPlusMinus(
+        paredNumberInString
+      )
+      if (
+        originalValueWithoutPlusesOrMinuses != parsedNumberWithoutPlusesOrMinuses
+      )
+        Left("Value does not match expected UTS-35 format")
+      else Right(parsedNumber)
     } catch {
-      case e: NumberFormatError => Left(e.getMessage)
+      case e: Throwable => Left(e.getMessage)
     }
+  }
+
+//  def unquotedSignPresent(format: String): Boolean = {
+//
+//    hasUnquotedPlus || hasUnquotedMinus
+//  }
+
+//  def normalizeNumericSign(
+//      numberFormatObject: NumberFormat,
+//      value: String
+//  ): String = {
+//    // £####0 £+34242 +£34242 -£23123
+//    // Add unit test
+//    // if there is unquoted +/- do nothing
+//    // else do the normalization
+//    if (!numberFormatObject.pattern.isDefined) {
+//      value
+//    } else if (numberFormatObject.getHasUnquotedPlusMinusSign) {
+//      value
+//    } else {
+//      var insideQuotes = false
+//      var hasUnquotedPlus = false
+//      var hasUnquotedMinus = false
+//      var filteredValue = new StringBuilder()
+//
+//      /**
+//        * -35 ===(Remove all unquoted plusses)===> (35, hasUnquotedPlus, hasUnquotedMinus)
+//        * "An explicit "plus" format can be formed, so as to show a visible + sign when formatting a non-negative number"
+//        * +#0 => (#0, hasUnquotedPlus, hasUnquotedMinus) ...
+//        * -#0 => (#0, hasUnquotedPlus, hasUnquotedMinus) ... ?
+//        * 35
+//        *
+//        * (formatedValue == inputValueWithoutSign) && (
+//        *      (format.hasUnquotedPlus && (value.hasUnquotedPlus || value.hasUnquotedMinus))
+//        *      || (format.hasUnquotedMinus && value.hasUnquotedMinus)
+//        *      )
+//        */
+//
+//      for (char <- value) {
+//        if (char == '\'') insideQuotes = !insideQuotes
+//        if (char == '+' && !insideQuotes) {
+//          if (hasUnquotedPlus) {
+//            throw new IllegalArgumentException(
+//              "Not sure how to process this scenario"
+//            )
+//          }
+//          hasUnquotedPlus = true
+//        } else if (char == '-' && !insideQuotes) {
+//          if (hasUnquotedMinus) {
+//            throw new IllegalArgumentException(
+//              "Not sure how to process this scenario"
+//            )
+//          }
+//          hasUnquotedMinus = true
+//        } else filteredValue.append(char)
+//      }
+//      if (hasUnquotedMinus)
+//        "-" + filteredValue.toString()
+//
+//      filteredValue.toString()
+//    }
+//
+//    /**
+//      * '+'000
+//      * # If there is a + or - (that is not in quotation marks) specificing the +/- position in the format/pattern, do nothing.
+//      * If !numberFormatObject.signAlwaysShownForFormat # there isn't +/- or the +/- is in quotes in the format string:
+//      *    if the input number has a plus (that is not in quotation marks), strip it out.
+//      *    if the input number has a minus (that is not in quotation marks), strip it out and stick the minus at the very beginning.
+//      *
+//      *    We shall call this numeric sign normalisation.
+//      */
+//
+//    /**
+//      * 'h'+'e'2312312312.0234234
+//      *
+//      * var insideQuotes = false
+//      * var filteredChars = Array()
+//      * for (char in string) {
+//      *    if (char == "'") {
+//      *      insideQuotes = !insideQuotes
+//      *    }
+//      *    if (char == "+") and !insideQuotes) {
+//      *      if (hasUnoquotedPlus)
+//      *      {
+//      *        raise Exception("WTF are you doing?")
+//      *        }
+//      *      hasUnquotedPlus = true
+//      *    } else if (char == "-" and !insideQuotes) {
+//      *      if (hasUnoquotedMinus)
+//      *      {
+//      *        raise Exception("WTF are you doing?")
+//      *        }
+//      *      hasUnquotedMinus = true
+//      *    } else {
+//      *      filterChars += char
+//      *    }
+//      * }
+//      * value = String(filtersChars)
+//      * if (hasUnquotedMinus) {
+//      *   value = "-" + value
+//      * }
+//      */
+//  }
+
+  private def normalizeForInsanity(value: String): String = {
+    var v = value
+
+    val numberFormatContainsUnquotedPluses =
+      numberFormat.pattern.exists(f => containsUnquotedChar(f, '+'))
+    val numberFormatContainsUnquotedMinuses =
+      numberFormat.pattern.exists(f => containsUnquotedChar(f, '-'))
+    val thingyRegex = "^[^0-9+-]".r
+    val formatStartsWithNonNumericChar =
+      numberFormat.pattern.exists(f => thingyRegex.pattern.matcher(f).find())
+    if (
+      !(numberFormatContainsUnquotedPluses || numberFormatContainsUnquotedMinuses) && formatStartsWithNonNumericChar
+    ) {
+      if (containsUnquotedChar(v, '-')) {
+        v = "-" + stripUnquotedPlusMinus(v, removeUnquotedPluses = false)
+      }
+    }
+
+    if (
+      containsUnquotedChar(
+        v,
+        '+'
+      ) && !numberFormatContainsUnquotedPluses
+    ) {
+
+      v = stripUnquotedPlusMinus(
+        v,
+        removeUnquotedMinuses = false
+      )
+    }
+
+    v
+  }
+
+  def containsUnquotedChar(value: String, char: Char): Boolean = {
+    var insideQuotes = false
+
+    for (c <- value) {
+      if (c == '\'') {
+        insideQuotes = !insideQuotes
+      } else if (c == char && !insideQuotes) {
+        return true
+      }
+    }
+    false
+  }
+
+  def stripUnquotedPlusMinus(
+      value: String,
+      removeUnquotedPluses: Boolean = true,
+      removeUnquotedMinuses: Boolean = true
+  ): String = {
+    var insideQuotes = false
+    val filteredChars = new StringBuilder()
+    for (char <- value) {
+      if (char == '\'') {
+        insideQuotes = !insideQuotes
+      } else if (char == '+' && !insideQuotes) {
+        if (!removeUnquotedPluses) {
+          filteredChars.append(char)
+        }
+      } else if (char == '-' && !insideQuotes) {
+        if (!removeUnquotedMinuses) {
+          filteredChars.append(char)
+        }
+      } else {
+        filteredChars.append(char)
+      }
+    }
+    filteredChars.toString()
   }
 
   def processDateDatatype(
@@ -1229,18 +1522,18 @@ case class Column private (
           _: java.lang.Float | _: java.lang.Double | _: java.lang.Byte =>
         checkNumericValueRangeConstraints[Long](
           numericValue.longValue(),
-          longValue => minInclusive.exists(longValue < _),
-          longValue => minExclusive.exists(longValue <= _),
-          longValue => maxInclusive.exists(longValue > _),
-          longValue => maxExclusive.exists(longValue >= _)
+          longValue => minInclusiveNumeric.exists(longValue < _),
+          longValue => minExclusiveNumeric.exists(longValue <= _),
+          longValue => maxInclusiveNumeric.exists(longValue > _),
+          longValue => maxExclusiveNumeric.exists(longValue >= _)
         )
       case bd: BigDecimal =>
         checkNumericValueRangeConstraints[BigDecimal](
           bd,
-          bigDecimalValue => minInclusive.exists(bigDecimalValue < _),
-          bigDecimalValue => minExclusive.exists(bigDecimalValue <= _),
-          bigDecimalValue => maxInclusive.exists(bigDecimalValue > _),
-          bigDecimalValue => maxExclusive.exists(bigDecimalValue >= _)
+          bigDecimalValue => minInclusiveNumeric.exists(bigDecimalValue < _),
+          bigDecimalValue => minExclusiveNumeric.exists(bigDecimalValue <= _),
+          bigDecimalValue => maxInclusiveNumeric.exists(bigDecimalValue > _),
+          bigDecimalValue => maxExclusiveNumeric.exists(bigDecimalValue >= _)
         )
       case bi: BigInteger => {
         checkNumericValueRangeConstraints[BigInt](
@@ -1316,7 +1609,7 @@ case class Column private (
           case Left(errorMessageContent) => {
             errors = errors :+ ErrorWithoutContext(
               errorMessageContent.`type`,
-              s"'$v' - ${errorMessageContent.content}"
+              s"'$v' - ${errorMessageContent.content} (${format.flatMap(_.pattern).getOrElse("no format provided")})"
             )
             valuesArrayToReturn = valuesArrayToReturn :+ s"invalid - $v"
           }
