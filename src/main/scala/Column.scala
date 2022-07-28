@@ -19,10 +19,11 @@ import com.fasterxml.jackson.databind.node.{
 }
 import com.ibm.icu
 import errors.ErrorWithoutContext
+import org.joda.time.{DateTime, DateTimeZone}
 
 import java.lang
 import java.math.BigInteger
-import java.time.ZonedDateTime
+import java.time.{LocalDateTime, Month, ZoneId, ZonedDateTime}
 import scala.collection.mutable
 import scala.collection.mutable.Map
 import scala.jdk.CollectionConverters.IteratorHasAsScala
@@ -446,12 +447,39 @@ case class Column private (
   lazy val minExclusiveInt: Option[BigInt] = minExclusiveNumeric.map(_.toBigInt)
   lazy val maxExclusiveInt: Option[BigInt] = maxExclusiveNumeric.map(_.toBigInt)
 
+  DateTimeZone.setDefault(DateTimeZone.UTC)
+
+  lazy val minInclusiveDateTime: Option[ZonedDateTime] =
+    minInclusive.map(v => mapJodaDateTimeToZonedDateTime(DateTime.parse(v)))
+
+  lazy val maxInclusiveDateTime: Option[ZonedDateTime] =
+    maxInclusive.map(v => mapJodaDateTimeToZonedDateTime(DateTime.parse(v)))
+  lazy val minExclusiveDateTime: Option[ZonedDateTime] =
+    minExclusive.map(v => mapJodaDateTimeToZonedDateTime(DateTime.parse(v)))
+  lazy val maxExclusiveDateTime: Option[ZonedDateTime] =
+    maxExclusive.map(v => mapJodaDateTimeToZonedDateTime(DateTime.parse(v)))
+
   lazy val numberFormat: NumberFormat =
     NumberFormat(
       format.flatMap(f => f.pattern),
       format.flatMap(f => f.groupChar),
       format.flatMap(f => f.decimalChar)
     )
+
+  private def mapJodaDateTimeToZonedDateTime(jDt: DateTime) = {
+    val zoneId: ZoneId = jDt.getZone.toTimeZone.toZoneId
+    val localDateTime: LocalDateTime =
+      LocalDateTime.of(
+        jDt.getYear,
+        Month.of(jDt.getMonthOfYear),
+        jDt.getDayOfMonth,
+        jDt.getHourOfDay,
+        jDt.getMinuteOfHour,
+        jDt.getSecondOfMinute,
+        (jDt.getMillisOfSecond * 1000).toInt
+      )
+    ZonedDateTime.of(localDateTime, zoneId)
+  }
 
   val datatypeParser: Map[String, String => Either[
     ErrorWithoutContext,
@@ -1502,17 +1530,26 @@ case class Column private (
 
   def validateValue(value: Any): Array[ErrorWithoutContext] =
     value match {
-      case numericValue: Number => {
-        validateNumericValue(numericValue)
-      }
-      case s: String        => Array[ErrorWithoutContext]()
-      case d: ZonedDateTime => Array[ErrorWithoutContext]()
-      case b: Boolean       => Array[ErrorWithoutContext]()
+      case numericValue: Number    => validateNumericValue(numericValue)
+      case s: String               => Array[ErrorWithoutContext]()
+      case datetime: ZonedDateTime => validateDateTimeValue(datetime)
+      case b: Boolean              => Array[ErrorWithoutContext]()
       case _ =>
         throw new IllegalArgumentException(
           s"Have not mapped ${value.getClass} yet."
         )
     }
+
+  private def validateDateTimeValue(
+      datetime: ZonedDateTime
+  ): Array[ErrorWithoutContext] =
+    checkValueRangeConstraints[ZonedDateTime](
+      datetime,
+      dtValue => minInclusiveDateTime.exists(dtValue.compareTo(_) < 0),
+      dtValue => minExclusiveDateTime.exists(dtValue.compareTo(_) <= 0),
+      dtValue => maxInclusiveDateTime.exists(v => dtValue.compareTo(v) > 0),
+      dtValue => maxExclusiveDateTime.exists(dtValue.compareTo(_) >= 0)
+    )
 
   private def validateNumericValue(
       numericValue: Number
@@ -1520,7 +1557,7 @@ case class Column private (
     numericValue match {
       case _: java.lang.Long | _: Integer | _: java.lang.Short |
           _: java.lang.Float | _: java.lang.Double | _: java.lang.Byte =>
-        checkNumericValueRangeConstraints[Long](
+        checkValueRangeConstraints[Long](
           numericValue.longValue(),
           longValue => minInclusiveNumeric.exists(longValue < _),
           longValue => minExclusiveNumeric.exists(longValue <= _),
@@ -1528,7 +1565,7 @@ case class Column private (
           longValue => maxExclusiveNumeric.exists(longValue >= _)
         )
       case bd: BigDecimal =>
-        checkNumericValueRangeConstraints[BigDecimal](
+        checkValueRangeConstraints[BigDecimal](
           bd,
           bigDecimalValue => minInclusiveNumeric.exists(bigDecimalValue < _),
           bigDecimalValue => minExclusiveNumeric.exists(bigDecimalValue <= _),
@@ -1536,7 +1573,7 @@ case class Column private (
           bigDecimalValue => maxExclusiveNumeric.exists(bigDecimalValue >= _)
         )
       case bi: BigInteger => {
-        checkNumericValueRangeConstraints[BigInt](
+        checkValueRangeConstraints[BigInt](
           BigInt(bi),
           bigIntValue => minInclusiveInt.exists(bigIntValue < _),
           bigIntValue => minExclusiveInt.exists(bigIntValue <= _),
@@ -1551,7 +1588,7 @@ case class Column private (
     }
   }
 
-  def checkNumericValueRangeConstraints[T](
+  def checkValueRangeConstraints[T](
       value: T,
       lessThanMinInclusive: T => Boolean,
       lessThanEqualToMinExclusive: T => Boolean,
