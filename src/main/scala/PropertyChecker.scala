@@ -847,6 +847,8 @@ object PropertyChecker {
             .map(rangeConstraint => rangeConstraint.asText())
         case rangeConstraint: TextNode =>
           Some(rangeConstraint.asText())
+        case rangeConstraint: IntNode =>
+          Some(rangeConstraint.asText())
       }
   }
 
