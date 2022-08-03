@@ -600,7 +600,7 @@ case class Column private (
   ): Either[ErrorWithoutContext, Boolean] = {
     format.flatMap(f => f.pattern) match {
       case Some(pattern) => {
-        var patternValues = pattern.split("""\|""")
+        val patternValues = pattern.split("""\|""")
         if (patternValues(0) == value) {
           Right(true)
         } else if (patternValues(1) == value) {

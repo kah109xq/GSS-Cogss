@@ -806,7 +806,11 @@ object PropertyChecker {
               datatypeNode.remove("format")
               warnings = warnings :+ "invalid_boolean_format"
             }
-          } // Do we want to cope with an array node here? Do we not at least want a warning if it isn't textual or doesn't exist?
+          } else {
+            // Boolean formats should always be textual
+            datatypeNode.remove("format")
+            warnings = warnings :+ "invalid_boolean_format"
+          }
         } else if (
           PropertyCheckerConstants.DateFormatDataTypes.contains(baseValue)
         ) {
