@@ -878,7 +878,10 @@ object PropertyChecker {
       } else {
         Some(format.get("decimalChar").asText.charAt(0))
       }
-      NumberFormat(Some(format.get("pattern").asText()), groupChar, decimalChar)
+      val patternNode = format.path("pattern")
+      val patternString: Option[String] =
+        if (patternNode.isMissingNode) None else Some(patternNode.asText())
+      NumberFormat(patternString, groupChar, decimalChar)
     } catch {
       case e: NumberFormatError => {
         format.asInstanceOf[ObjectNode].remove("pattern")

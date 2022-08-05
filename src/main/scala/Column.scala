@@ -629,29 +629,68 @@ case class Column private (
     }
   }
 
+  def standardisedDecimalValue(value: String): String = {
+    val lastChar = value.takeRight(1)
+    var newValue =
+      if (lastChar == "%" || lastChar == "‰")
+        value.substring(0, value.length - 1)
+      else value
+    newValue = groupChar match {
+      case Some(groupChar) =>
+        s"(?<=[0-9])$groupChar(?=[0-9])".r.replaceAllIn(newValue, "")
+      case None => newValue
+    }
+
+    newValue = decimalChar match {
+      case Some(decimalChar) =>
+        s"(?<=[0-9])$decimalChar(?=[0-9])".r.replaceAllIn(newValue, ".")
+      case None => newValue
+    }
+    newValue
+  }
+
+  def groupChar: Option[Char] = {
+    format.flatMap(_.groupChar)
+  }
+
+  def decimalChar: Option[Char] = {
+    format.flatMap(_.decimalChar)
+  }
+
   def processDecimalDatatype(
       value: String
   ): Either[ErrorWithoutContext, BigDecimal] = {
-    if (
-      patternIsEmpty() && !validDecimalDatatypeRegex.pattern
-        .matcher(value)
-        .matches()
-    ) {
-      Left(
-        ErrorWithoutContext(
-          "invalid_decimal",
-          "Does not match expected Decimal format"
+    if (patternIsEmpty()) {
+      val newValue = standardisedDecimalValue(value)
+      if (
+        Column.validDecimalDatatypeRegex.pattern
+          .matcher(newValue)
+          .matches()
+      ) {
+        try {
+          Right(BigDecimal(newValue))
+        } catch {
+          case e: Throwable =>
+            Left(ErrorWithoutContext("invalid_decimal", e.getMessage))
+        }
+      } else {
+        Left(
+          ErrorWithoutContext(
+            "invalid_decimal",
+            "Does not match expected decimal format"
+          )
         )
-      )
+      }
     } else {
       numericParser(value) match {
-        case Left(w) => Left(ErrorWithoutContext("invalid_decimal", w))
-        case Right(parsedValue) => {
+        case Right(parsedValue) =>
           parsedValue match {
             case bigD: icu.math.BigDecimal => Right(bigD.toBigDecimal)
             case _                         => Right(BigDecimal(parsedValue.longValue()))
           }
-        }
+
+        case Left(warning) =>
+          Left(ErrorWithoutContext("invalid_decimal", warning))
       }
     }
   }
