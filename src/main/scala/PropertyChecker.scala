@@ -428,20 +428,18 @@ object PropertyChecker {
       if (value.isArray) {
         val arrayValue = value.asInstanceOf[ArrayNode]
         val elements = Array.from(arrayValue.elements().asScala)
-        if (elements forall (_.isTextual())) {
 
-          /**
-            * [(1,2), (3,4), (5,6)] => ([1,3,5], [2,4,6])
-            */
-          val (values, warnings) = Array
-            .from(elements.map(x => checkCommonPropertyValue(x, baseUrl, lang)))
-            .unzip
-          // warnings at this point will be of type Array[Array[String]]
-          var newWarnings = Array[String]()
-          for (w <- warnings) { newWarnings = Array.concat(newWarnings, w) }
-          val arrayNode: ArrayNode = PropertyChecker.mapper.valueToTree(values)
-          return (arrayNode, newWarnings, csvwPropertyType)
-        }
+        /**
+          * [(1,2), (3,4), (5,6)] => ([1,3,5], [2,4,6])
+          */
+        val (values, warnings) = Array
+          .from(elements.map(x => checkCommonPropertyValue(x, baseUrl, lang)))
+          .unzip
+        // warnings at this point will be of type Array[Array[String]]
+        var newWarnings = Array[String]()
+        for (w <- warnings) { newWarnings = Array.concat(newWarnings, w) }
+        val arrayNode: ArrayNode = PropertyChecker.mapper.valueToTree(values)
+        return (arrayNode, newWarnings, csvwPropertyType)
       }
       (
         JsonNodeFactory.instance.arrayNode(),
@@ -449,7 +447,7 @@ object PropertyChecker {
         csvwPropertyType
       )
     }
-    return notesPropertyInternal
+    notesPropertyInternal
   }
 
   def nullProperty(
