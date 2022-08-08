@@ -13,8 +13,7 @@ object Schema {
   ): Either[String, (TableGroup, Array[WarningWithCsvContext])] = {
     try {
       val jsonNode = if (schemaUri.getScheme == "file") {
-        val f = new File(schemaUri)
-        objectMapper.readTree(f)
+        objectMapper.readTree(new File(schemaUri))
       } else {
         objectMapper.readTree(schemaUri.toURL)
       }
@@ -25,9 +24,7 @@ object Schema {
         )
       )
     } catch {
-      case metadataError: MetadataError => {
-        Left(metadataError.getMessage)
-      }
+      case metadataError: MetadataError => Left(metadataError.getMessage)
       case e: Throwable => {
         val sw = new StringWriter
         e.printStackTrace(new PrintWriter(sw))
@@ -36,7 +33,7 @@ object Schema {
     }
   }
 
-  private def fromCsvwMetadata(
+  def fromCsvwMetadata(
       uri: String,
       json: ObjectNode
   ): (TableGroup, Array[WarningWithCsvContext]) = {

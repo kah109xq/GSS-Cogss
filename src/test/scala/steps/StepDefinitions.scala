@@ -21,7 +21,7 @@ class StepDefinitions extends ScalaDsl with EN {
   private var content: String = ""
   private var schemaUrl: Option[String] = None
   private var fileUrl = ""
-  private var contextUrl: String = ""
+  private var csvUrl: Option[String] = None
   private var testingBackend = None
   private var notFoundStartsWith = List[String]()
   private var notFountEndsWith = List[String]()
@@ -36,7 +36,7 @@ class StepDefinitions extends ScalaDsl with EN {
           Response.ok(content)
         case r if r.uri.path.startsWith(List(schemaUrl)) =>
           Response.ok(metadata)
-        case r if r.uri.path.startsWith(List(contextUrl)) =>
+        case r if r.uri.path.startsWith(List(csvUrl)) =>
           Response.ok(csv)
         case r if r.uri.path.endsWith(notFountEndsWith) =>
           Response("Not found", StatusCode.NotFound)
@@ -50,7 +50,7 @@ class StepDefinitions extends ScalaDsl with EN {
   }
 
   Given("""^it is stored at the url "(.*?)"$""") { (url: String) =>
-    contextUrl = url
+    csvUrl = Some(url)
     // notFoundEndsWith is a list which holds all the url endwith strings for which a 404 should be returned.
     // This list is later used in setTestingBackend function to mock http calls
     notFountEndsWith = "/.well-known/csvm" :: notFountEndsWith
@@ -81,10 +81,11 @@ class StepDefinitions extends ScalaDsl with EN {
   And("""^I have a file called "(.*?)" at the url "(.*?)"$""") {
     (fileName: String, url: String) =>
       if (url.endsWith(".json")) schemaUrl = Some(url)
+      if (url.endsWith(".csv")) csvUrl = Some(url)
   }
 
   When("I carry out CSVW validation") { () =>
-    val validator = new Validator(schemaUrl, contextUrl)
+    val validator = new Validator(schemaUrl, csvUrl)
     warningsAndErrors = validator.validate()
   }
 
