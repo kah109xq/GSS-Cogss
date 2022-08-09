@@ -10,7 +10,7 @@ import java.net.URI
 object Schema {
   def loadMetadataAndValidate(
       schemaUri: URI
-  ): Either[String, (TableGroup, Array[WarningWithCsvContext])] = {
+  ): Either[String, (TableGroup, WarningsAndErrors)] = {
     try {
       val jsonNode = if (schemaUri.getScheme == "file") {
         objectMapper.readTree(new File(schemaUri))
@@ -36,7 +36,7 @@ object Schema {
   def fromCsvwMetadata(
       uri: String,
       json: ObjectNode
-  ): (TableGroup, Array[WarningWithCsvContext]) = {
+  ): (TableGroup, WarningsAndErrors) = {
     TableGroup.fromJson(json, uri)
   }
 

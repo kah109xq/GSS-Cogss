@@ -222,7 +222,7 @@ class TableGroupTest extends FunSuite {
         |}
         |""".stripMargin
     val jsonNode = objectMapper.readTree(json)
-    val (tableGroup, warnings) = TableGroup.fromJson(
+    val (tableGroup, warningsAndErrors) = TableGroup.fromJson(
       jsonNode.asInstanceOf[ObjectNode],
       "http://w3c.github.io/csvw/tests/test040-metadata.json"
     )
@@ -230,7 +230,7 @@ class TableGroupTest extends FunSuite {
       tableGroup.tables("http://w3c.github.io/csvw/tests/test040.csv")
 
     assert(tableGroup.annotations.size === 0)
-    assert(warnings.length === 0)
+    assert(warningsAndErrors.warnings.length === 0)
     assert(tableGroup.tables.size === 1)
     assert(table.columns.length === 10)
     assert(

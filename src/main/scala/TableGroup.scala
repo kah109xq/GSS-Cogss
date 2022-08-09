@@ -27,8 +27,9 @@ object TableGroup {
   def fromJson(
       tableGroupNodeIn: ObjectNode,
       baseUri: String
-  ): (TableGroup, Array[WarningWithCsvContext]) = {
+  ): (TableGroup, WarningsAndErrors) = {
     var baseUrl = baseUri.trim
+    var errors = Array[ErrorWithCsvContext]()
     var warnings = Array[WarningWithCsvContext]()
     val matcher = containsWhitespaces.pattern.matcher(baseUrl)
     if (matcher.matches()) {
@@ -54,14 +55,15 @@ object TableGroup {
     val id = getId(commonProperties)
     ensureTypeofTableGroup(tableGroupNode)
 
-    val (tables, w2) = createTableObjectsAndSetWarnings(
+    val (tables, warningsAndErrors) = createTableObjectsAndSetWarnings(
       tableGroupNode,
       baseUrl,
       lang,
       commonProperties,
       inheritedProperties
     )
-    warnings = warnings.concat(w2)
+    warnings = warnings.concat(warningsAndErrors.warnings)
+    errors = errors.concat(warningsAndErrors.errors)
 
     findForeignKeysLinkToReferencedTables(baseUrl, tables)
 
@@ -72,7 +74,7 @@ object TableGroup {
       commonProperties.get("notes"),
       annotations
     )
-    (tableGroup, warnings)
+    (tableGroup, WarningsAndErrors(warnings = warnings, errors = errors))
   }
 
   private def restructureIfNodeIsSingleTable(
@@ -363,7 +365,7 @@ object TableGroup {
       lang: String,
       commonProperties: mutable.Map[String, JsonNode],
       inheritedProperties: mutable.Map[String, JsonNode]
-  ): (mutable.Map[String, Table], Array[WarningWithCsvContext]) = {
+  ): (mutable.Map[String, Table], WarningsAndErrors) = {
     tableGroupNode.path("tables") match {
       case t: ArrayNode if t.isEmpty() =>
         throw MetadataError("Empty tables property")
@@ -386,15 +388,16 @@ object TableGroup {
       lang: String,
       commonProperties: Map[String, JsonNode],
       inheritedProperties: Map[String, JsonNode]
-  ): (mutable.Map[String, Table], Array[WarningWithCsvContext]) = {
+  ): (mutable.Map[String, Table], WarningsAndErrors) = {
     var warnings = Array[WarningWithCsvContext]()
+    var errors = Array[ErrorWithCsvContext]()
     val tables = Map[String, Table]()
     for (tableElement <- tablesArrayNode.elements().asScalaArray) {
       tableElement match {
         case tableElementObject: ObjectNode => {
           var tableUrl = tableElement.get("url")
           if (!tableUrl.isTextual) {
-            warnings = warnings :+ WarningWithCsvContext(
+            errors = errors :+ ErrorWithCsvContext(
               "invalid_url",
               "metadata",
               "",
@@ -430,7 +433,7 @@ object TableGroup {
         }
       }
     }
-    (tables, warnings)
+    (tables, WarningsAndErrors(errors = errors, warnings = warnings))
   }
 
   private def getId(commonProperties: Map[String, JsonNode]) = {

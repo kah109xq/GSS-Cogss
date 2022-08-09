@@ -1,16 +1,15 @@
 package CSVValidation
 
+import CSVValidation.ConfiguredObjectMapper.objectMapper
 import CSVValidation.WarningsAndErrors.{Errors, Warnings}
 import CSVValidation.traits.OptionExtensions.OptionIfDefined
-import org.apache.commons.csv.{CSVFormat, CSVParser, CSVRecord, QuoteMode}
-import ConfiguredObjectMapper.objectMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.typesafe.scalalogging.Logger
+import org.apache.commons.csv.{CSVFormat, CSVParser, CSVRecord}
 
 import java.io.File
-import java.net.{URI, URL}
+import java.net.URI
 import java.nio.charset.Charset
-import java.time.ZonedDateTime
 import scala.collection.mutable
 import scala.collection.mutable.{Map, Set}
 import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsScala}
@@ -23,6 +22,7 @@ class Validator(
 ) {
   private val logger = Logger(this.getClass.getName)
   val mapAvailableCharsets = Charset.availableCharsets().asScala
+
   private def getAbsoluteSchemaUri(schemaPath: String): URI = {
     val inputSchemaUri = new URI(schemaPath)
     if (inputSchemaUri.getScheme == null) {
@@ -32,52 +32,82 @@ class Validator(
     }
   }
 
-  /**
-    *
-    * BaseReturnMessage
-    * FileNotFoundReturnMessage extends BaseReturnMessage
-    * OtherErrorReturnMessage extends BaseReturnMessage
-    *
-    */
-
   private def attemptToFindMatchingTableGroup(
       maybeCsvUri: Option[URI],
       possibleSchemaUri: URI
-  ): Either[CsvwLoadError, (TableGroup, Array[WarningWithCsvContext])] = {
+  ): Either[CsvwLoadError, (TableGroup, WarningsAndErrors)] = {
     try {
       val jsonNode = if (possibleSchemaUri.getScheme == "file") {
         objectMapper.readTree(new File(possibleSchemaUri))
       } else {
         objectMapper.readTree(possibleSchemaUri.toURL)
       }
-      val (tableGroup, warnings) =
+      val (tableGroup, warningsAndErrors) =
         Schema.fromCsvwMetadata(
           possibleSchemaUri.toString,
           jsonNode.asInstanceOf[ObjectNode]
         )
 
+      // http://example.com/imports-data-as-csv?year=1010
+
+      val workingWithUserSpecifiedMetadata =
+        if (schemaUri.isDefined && possibleSchemaUri.toString == schemaUri.get)
+          true
+        else false
       maybeCsvUri
         .map(csvUri => {
-          if (tableGroup.tables.contains(csvUri.toString))
-            // todo: We need to be able to try both relative & absolute CSVURIs here.
-            Right((tableGroup, warnings))
+          if (
+            tableGroupContainsCsv(
+              tableGroup,
+              csvUri
+            ) || warningsAndErrors.errors.nonEmpty || workingWithUserSpecifiedMetadata
+          ) // the last 2 or cases are required. See tests 104 and 121 respectively
+            Right((tableGroup, warningsAndErrors))
           else {
             val message =
               s"Schema file does not contain a definition for ${maybeCsvUri}"
             Left(
-              CascadeToOtherFilesError(new IllegalArgumentException(message))
+              SchemaDoesNotContainCsvError(
+                new IllegalArgumentException(message)
+              )
             )
           }
 
         })
-        .getOrElse(Right((tableGroup, warnings)))
+        .getOrElse(Right((tableGroup, warningsAndErrors)))
 
     } catch {
       case metadataError: MetadataError =>
         Left(GeneralCsvwLoadError(metadataError))
       // todo: Find out what the appropriate exceptions to catch are for FileNotFound and where the URL doesn't exist as well.
       case e: java.io.FileNotFoundException => Left(CascadeToOtherFilesError(e))
-      case e: Throwable                     => Left(GeneralCsvwLoadError(e))
+      case e: Throwable => {
+        Left(GeneralCsvwLoadError(e))
+      }
+    }
+  }
+
+  private def tableGroupContainsCsv(
+      tableGroup: TableGroup,
+      csvUri: URI
+  ): Boolean = {
+    val csvUrl = csvUri.toString
+    val tables = tableGroup.tables
+
+    val csvUrlWithoutQueryString = getUriWithoutQueryString(csvUri).toString
+
+    // todo: We need to be able to try both relative & absolute CSVURIs here.
+
+    tables.contains(csvUrl) || tables.contains(csvUrlWithoutQueryString)
+  }
+
+  private def getUriWithoutQueryString(csvUri: URI): URI = {
+    if (csvUri.getRawQuery == null)
+      csvUri
+    else {
+      val queryStringLength = csvUri.getRawQuery.length
+      val url = csvUri.toString
+      new URI(url.substring(0, url.length - (queryStringLength + 1)))
     }
   }
 
@@ -86,8 +116,8 @@ class Validator(
     // Change this (returning empty warnings and errors when schemaUri is blank) when that feature is implemented
 
     // csvlint ajay.csv => metadata?????
-    if (schemaUri.isEmpty) return WarningsAndErrors()
-    val absoluteSchemaUri = getAbsoluteSchemaUri(schemaUri.get)
+//    if (schemaUri.isEmpty) return WarningsAndErrors()
+    val absoluteSchemaUri = schemaUri.map(getAbsoluteSchemaUri)
 
     val maybeCsvUri = csvUri.map(new URI(_))
 
@@ -95,11 +125,13 @@ class Validator(
       .map(csvUri =>
         Array(
           absoluteSchemaUri,
-          new URI(s"$csvUri-metadata.json"),
-          csvUri.resolve("csv-metadata.json")
+          Some(new URI(s"${getUriWithoutQueryString(csvUri)}-metadata.json")),
+          Some(csvUri.resolve("csv-metadata.json"))
         )
       )
       .getOrElse(Array(absoluteSchemaUri))
+      .flatten
+      .distinct
 
     findAndValidateCsvwSchemaFileForCsv(maybeCsvUri, schemaUrisToCheck)
   }
@@ -110,28 +142,17 @@ class Validator(
   ): WarningsAndErrors = {
     schemaUrisToCheck match {
       case Seq() =>
-        WarningsAndErrors(
-          Array(
-            WarningWithCsvContext(
-              "source_url_mismatch",
-              s"CSV supplied not found in metadata",
-              "",
-              "",
-              "",
-              ""
-            )
-          )
-        )
+        WarningsAndErrors()
       case Seq(uri, uris @ _*) =>
         attemptToFindMatchingTableGroup(
           maybeCsvUri,
           uri
         ) match {
-          case Right((tableGroup, warnings)) => {
+          case Right((tableGroup, wAndE)) => {
             val warningsAndErrors = validateSchemaTables(tableGroup)
             WarningsAndErrors(
-              warningsAndErrors.warnings ++ warnings,
-              warningsAndErrors.errors
+              warningsAndErrors.warnings ++ wAndE.warnings,
+              warningsAndErrors.errors ++ wAndE.errors
             )
           }
           case Left(GeneralCsvwLoadError(err)) => {
@@ -147,10 +168,29 @@ class Validator(
             logger.debug(err.getStackTrace.mkString("\n"))
             WarningsAndErrors(errors = Array(error))
           }
+          case Left(SchemaDoesNotContainCsvError(err)) => {
+            logger.debug(err.getMessage)
+            logger.debug(err.getStackTrace.mkString("\n"))
+            val errorsAndWarnings =
+              findAndValidateCsvwSchemaFileForCsv(maybeCsvUri, uris)
+
+            val warnings =
+              errorsAndWarnings.warnings :+ WarningWithCsvContext(
+                "source_url_mismatch",
+                s"CSV supplied not found in metadata $uri",
+                "",
+                "",
+                "",
+                ""
+              )
+            WarningsAndErrors(warnings, errorsAndWarnings.errors)
+          }
           case Left(CascadeToOtherFilesError(err)) => {
             logger.debug(err.getMessage)
             logger.debug(err.getStackTrace.mkString("\n"))
-            findAndValidateCsvwSchemaFileForCsv(maybeCsvUri, uris)
+            val errorsAndWarnings =
+              findAndValidateCsvwSchemaFileForCsv(maybeCsvUri, uris)
+            errorsAndWarnings
           }
 
         }

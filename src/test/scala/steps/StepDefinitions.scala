@@ -80,8 +80,10 @@ class StepDefinitions extends ScalaDsl with EN {
 
   And("""^I have a file called "(.*?)" at the url "(.*?)"$""") {
     (fileName: String, url: String) =>
-      if (url.endsWith(".json")) schemaUrl = Some(url)
-      if (url.endsWith(".csv")) csvUrl = Some(url)
+      {
+        //      if (url.endsWith(".json")) schemaUrl = Some(url)
+        //      if (url.endsWith(".csv")) csvUrl = Some(url)
+      }
   }
 
   When("I carry out CSVW validation") { () =>
