@@ -1,4 +1,5 @@
 package CSVValidation
+import org.apache.commons.csv.CSVRecord
 
 case class ValidateRowOutput(
     warningsAndErrors: WarningsAndErrors = WarningsAndErrors(),
@@ -7,5 +8,6 @@ case class ValidateRowOutput(
       ParentTableForeignKeyReference,
       KeyWithContext
     ] = Map(),
-    childTableForeignKeys: Map[ChildTableForeignKey, KeyWithContext] = Map()
+    childTableForeignKeys: Map[ChildTableForeignKey, KeyWithContext] = Map(),
+    row:CSVRecord
 )

@@ -3,6 +3,8 @@ package CSVValidation
 import CSVValidation.ConfiguredObjectMapper.objectMapper
 import CSVValidation.WarningsAndErrors.{Errors, Warnings}
 import CSVValidation.traits.OptionExtensions.OptionIfDefined
+import akka.NotUsed
+import akka.actor.ActorSystem
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.typesafe.scalalogging.Logger
 import org.apache.commons.csv.{CSVFormat, CSVParser, CSVRecord}
@@ -12,6 +14,10 @@ import java.net.URI
 import java.nio.charset.Charset
 import scala.collection.mutable
 import scala.collection.mutable.{Map, Set}
+import akka.stream.scaladsl.{Flow, Sink, Source, SubFlow}
+import scala.collection.immutable
+import scala.concurrent.Future
+
 import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsScala}
 import scala.util.control.NonFatal
 
@@ -20,6 +26,7 @@ class Validator(
     csvUri: Option[String] = None,
     var sourceUriUsed: Boolean = false
 ) {
+  implicit val system: ActorSystem = ActorSystem("actor-system")
   private val logger = Logger(this.getClass.getName)
   val mapAvailableCharsets = Charset.availableCharsets().asScala
 
@@ -366,6 +373,7 @@ class Validator(
     var errors: Array[ErrorWithCsvContext] = Array()
 
     val parserAfterSkippedRows = parser.asScala.drop(dialect.skipRows)
+//    val parserAfterSkippedRowsImmutable = collection.immutable.Seq(parserAfterSkippedRows: _*)
     val table =
       try {
         schema.tables(tableUri.toString)
@@ -383,35 +391,58 @@ class Validator(
       Set() // List of type Any with same values are not added again in a Set, whereas Array of Type any behaves
     // differently.
 
-    parserAfterSkippedRows
-      .map(row =>
-        (
-          row,
-          parseRow(
-            schema,
-            tableUri,
-            dialect,
-            table,
-            row
-          )
-        )
-      )
-      .foreach {
-        case (row, validateRowOutput) => {
-          errors ++= validateRowOutput.warningsAndErrors.errors
-          warnings ++= validateRowOutput.warningsAndErrors.warnings
-          setChildTableForeignKeys(
-            validateRowOutput,
-            childTableForeignKeys
-          )
-          setParentTableForeignKeyReferences(
-            validateRowOutput,
-            parentTableForeignKeyReferences
-          )
-          validatePrimaryKey(allPrimaryKeyValues, row, validateRowOutput)
-            .ifDefined(e => errors :+= e)
+    val source = Source[CSVRecord](parserAfterSkippedRows)
+//    val flow:Flow[CSVRecord, ValidateRowOutput, NotUsed] = {
+//      ParseRowInput(schema, tableUri, dialect, table, csv)
+//    }
+    source
+      .mapAsync(parallelism = 1000)(csvRow => parseRow(schema, tableUri, dialect, table, csvRow))
+      .runWith(Sink.foreach(
+        {
+          validateRowOutput =>
+            errors ++= validateRowOutput.warningsAndErrors.errors
+            warnings ++= validateRowOutput.warningsAndErrors.warnings
+            setChildTableForeignKeys(
+              validateRowOutput,
+              childTableForeignKeys
+            )
+            setParentTableForeignKeyReferences(
+              validateRowOutput,
+              parentTableForeignKeyReferences
+            )
+            validatePrimaryKey(allPrimaryKeyValues, validateRowOutput.row, validateRowOutput)
+              .ifDefined(e => errors :+= e)
         }
-      }
+
+      ))
+//    parserAfterSkippedRows
+//      .map(row =>
+//        (
+//          parseRow(
+//            schema,
+//            tableUri,
+//            dialect,
+//            table,
+//            row
+//          )
+//        )
+//      )
+//      .foreach {
+//        case (validateRowOutput) => {
+//          errors ++= validateRowOutput.warningsAndErrors.errors
+//          warnings ++= validateRowOutput.warningsAndErrors.warnings
+//          setChildTableForeignKeys(
+//            validateRowOutput,
+//            childTableForeignKeys
+//          )
+//          setParentTableForeignKeyReferences(
+//            validateRowOutput,
+//            parentTableForeignKeyReferences
+//          )
+//          validatePrimaryKey(allPrimaryKeyValues, validateRowOutput.row, validateRowOutput)
+//            .ifDefined(e => errors :+= e)
+//        }
+//      }
 
     (
       WarningsAndErrors(warnings, errors),
@@ -426,10 +457,10 @@ class Validator(
       dialect: Dialect,
       table: Table,
       row: CSVRecord
-  ): ValidateRowOutput = {
+  ): Future[ValidateRowOutput] = Future {
     if (row.getRecordNumber == 1 && dialect.header) {
       val warningsAndErrors = schema.validateHeader(row, tableUri.toString)
-      ValidateRowOutput(warningsAndErrors)
+      ValidateRowOutput(warningsAndErrors = warningsAndErrors, row = row)
     } else {
       if (row.size == 0) {
         val blankRowError = ErrorWithCsvContext(
@@ -442,7 +473,7 @@ class Validator(
         )
         val warningsAndErrors =
           WarningsAndErrors(errors = Array(blankRowError))
-        ValidateRowOutput(warningsAndErrors)
+        ValidateRowOutput(warningsAndErrors = warningsAndErrors, row = row)
       } else {
         if (table.columns.length >= row.size()) {
           table.validateRow(row)
@@ -457,7 +488,7 @@ class Validator(
           )
           val warningsAndErrors =
             WarningsAndErrors(errors = Array(raggedRowsError))
-          ValidateRowOutput(warningsAndErrors)
+          ValidateRowOutput(warningsAndErrors = warningsAndErrors, row = row)
         }
       }
     }
