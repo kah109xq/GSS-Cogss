@@ -583,7 +583,8 @@ case class Table private (
       WarningsAndErrors(Array(), errors),
       primaryKeyValues,
       getParentTableForeignKeys(foreignKeyReferenceValues, row),
-      getChildForeignKeys(foreignKeyValues, row)
+      getChildForeignKeys(foreignKeyValues, row),
+      row
     )
   }
 

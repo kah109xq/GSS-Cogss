@@ -15,10 +15,10 @@ import java.nio.charset.Charset
 import scala.collection.mutable
 import scala.collection.mutable.{Map, Set}
 import akka.stream.scaladsl.{Flow, Sink, Source, SubFlow}
-import scala.collection.immutable
-import scala.concurrent.Future
 
+import scala.concurrent.Future
 import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsScala}
+import scala.util.{Failure, Success}
 import scala.util.control.NonFatal
 
 class Validator(
@@ -368,11 +368,14 @@ class Validator(
       tableUri: URI,
       dialect: Dialect,
       parser: CSVParser
+  ): (
+      WarningsAndErrors,
+      mutable.Map[ChildTableForeignKey, mutable.Set[KeyWithContext]],
+      mutable.Map[ParentTableForeignKeyReference, mutable.Set[KeyWithContext]]
   ) = {
     var warnings: Array[WarningWithCsvContext] = Array()
     var errors: Array[ErrorWithCsvContext] = Array()
-
-    val parserAfterSkippedRows = parser.asScala.drop(dialect.skipRows)
+    val parserAfterSkippedRows = parser.asScala.drop(dialect.skipRows).iterator
 //    val parserAfterSkippedRowsImmutable = collection.immutable.Seq(parserAfterSkippedRows: _*)
     val table =
       try {
@@ -391,30 +394,46 @@ class Validator(
       Set() // List of type Any with same values are not added again in a Set, whereas Array of Type any behaves
     // differently.
 
-    val source = Source[CSVRecord](parserAfterSkippedRows)
+//    val rows:scala.collection.Iterator[CSVRecord] = for (row <- parserAfterSkippedRows)
+//      yield row
+
+    val source = Source.fromIterator(() => parserAfterSkippedRows)
 //    val flow:Flow[CSVRecord, ValidateRowOutput, NotUsed] = {
 //      ParseRowInput(schema, tableUri, dialect, table, csv)
 //    }
-    source
-      .mapAsync(parallelism = 1000)(csvRow => parseRow(schema, tableUri, dialect, table, csvRow))
-      .runWith(Sink.foreach(
-        {
-          validateRowOutput =>
-            errors ++= validateRowOutput.warningsAndErrors.errors
-            warnings ++= validateRowOutput.warningsAndErrors.warnings
-            setChildTableForeignKeys(
-              validateRowOutput,
-              childTableForeignKeys
-            )
-            setParentTableForeignKeyReferences(
-              validateRowOutput,
-              parentTableForeignKeyReferences
-            )
-            validatePrimaryKey(allPrimaryKeyValues, validateRowOutput.row, validateRowOutput)
-              .ifDefined(e => errors :+= e)
-        }
 
-      ))
+    def something(validateRowOutput: ValidateRowOutput): Unit = {
+      errors ++= validateRowOutput.warningsAndErrors.errors
+      warnings ++= validateRowOutput.warningsAndErrors.warnings
+      setChildTableForeignKeys(
+        validateRowOutput,
+        childTableForeignKeys
+      )
+      setParentTableForeignKeyReferences(
+        validateRowOutput,
+        parentTableForeignKeyReferences
+      )
+      validatePrimaryKey(
+        allPrimaryKeyValues,
+        validateRowOutput.row,
+        validateRowOutput
+      ).ifDefined(e => errors :+= e)
+    }
+
+    source
+      .mapAsync(parallelism = 4)(csvRow =>
+        parseRow(schema, tableUri, dialect, table, csvRow)
+      )
+      //      .watchTermination()(
+      //        (prevMatValue, future) =>
+      //          // this function will be run when the stream terminates
+      //          // the Future provided as a second parameter indicates whether the stream completed successfully or failed
+      //          future.onComplete {
+      //            case Failure(exception) => println(exception.getMessage)
+      //            case Success(_)         => println(s"The stream materialized $prevMatValue")
+      //          })
+      .runWith(Sink.foreach(something))
+      .onComplete { _ => system.terminate() }
 //    parserAfterSkippedRows
 //      .map(row =>
 //        (
@@ -443,43 +462,31 @@ class Validator(
 //            .ifDefined(e => errors :+= e)
 //        }
 //      }
-
     (
       WarningsAndErrors(warnings, errors),
       childTableForeignKeys,
       parentTableForeignKeyReferences
     )
+
   }
 
+  implicit val ec: scala.concurrent.ExecutionContext =
+    scala.concurrent.ExecutionContext.global
   private def parseRow(
       schema: TableGroup,
       tableUri: URI,
       dialect: Dialect,
       table: Table,
       row: CSVRecord
-  ): Future[ValidateRowOutput] = Future {
-    if (row.getRecordNumber == 1 && dialect.header) {
-      val warningsAndErrors = schema.validateHeader(row, tableUri.toString)
-      ValidateRowOutput(warningsAndErrors = warningsAndErrors, row = row)
-    } else {
-      if (row.size == 0) {
-        val blankRowError = ErrorWithCsvContext(
-          "Blank rows",
-          "structure",
-          row.getRecordNumber.toString,
-          "",
-          "",
-          ""
-        )
-        val warningsAndErrors =
-          WarningsAndErrors(errors = Array(blankRowError))
+  ): Future[ValidateRowOutput] =
+    Future {
+      if (row.getRecordNumber == 1 && dialect.header) {
+        val warningsAndErrors = schema.validateHeader(row, tableUri.toString)
         ValidateRowOutput(warningsAndErrors = warningsAndErrors, row = row)
       } else {
-        if (table.columns.length >= row.size()) {
-          table.validateRow(row)
-        } else {
-          val raggedRowsError = ErrorWithCsvContext(
-            "ragged_rows",
+        if (row.size == 0) {
+          val blankRowError = ErrorWithCsvContext(
+            "Blank rows",
             "structure",
             row.getRecordNumber.toString,
             "",
@@ -487,12 +494,27 @@ class Validator(
             ""
           )
           val warningsAndErrors =
-            WarningsAndErrors(errors = Array(raggedRowsError))
+            WarningsAndErrors(errors = Array(blankRowError))
           ValidateRowOutput(warningsAndErrors = warningsAndErrors, row = row)
+        } else {
+          if (table.columns.length >= row.size()) {
+            table.validateRow(row)
+          } else {
+            val raggedRowsError = ErrorWithCsvContext(
+              "ragged_rows",
+              "structure",
+              row.getRecordNumber.toString,
+              "",
+              "",
+              ""
+            )
+            val warningsAndErrors =
+              WarningsAndErrors(errors = Array(raggedRowsError))
+            ValidateRowOutput(warningsAndErrors = warningsAndErrors, row = row)
+          }
         }
       }
     }
-  }
 
   private def validatePrimaryKey(
       existingPrimaryKeyValues: mutable.Set[List[Any]],
