@@ -16,7 +16,7 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsScala}
 import scala.util.control.NonFatal
 
 class Validator(
-    var schemaUri: Option[String],
+    val schemaUri: Option[String],
     csvUri: Option[String] = None,
     var sourceUriUsed: Boolean = false
 ) {
@@ -111,11 +111,6 @@ class Validator(
   }
 
   def validate(): WarningsAndErrors = {
-    // When CSV is fetched from web and the associated schema is in the header, this wont work.
-    // Change this (returning empty warnings and errors when schemaUri is blank) when that feature is implemented
-
-    // csvlint ajay.csv => metadata?????
-//    if (schemaUri.isEmpty) return WarningsAndErrors()
     val absoluteSchemaUri = schemaUri.map(getAbsoluteSchemaUri)
 
     val maybeCsvUri = csvUri.map(new URI(_))
@@ -140,8 +135,19 @@ class Validator(
       schemaUrisToCheck: Seq[URI]
   ): WarningsAndErrors = {
     schemaUrisToCheck match {
-      case Seq() =>
-        WarningsAndErrors()
+      case Seq() => {
+        if (schemaUri.isDefined) {
+          val error = ErrorWithCsvContext(
+            "metadata",
+            "cannot locate schema",
+            "",
+            "",
+            s"${schemaUri.get} not found",
+            ""
+          )
+          WarningsAndErrors(errors = Array[ErrorWithCsvContext](error))
+        } else WarningsAndErrors()
+      }
       case Seq(uri, uris @ _*) =>
         attemptToFindMatchingTableGroup(
           maybeCsvUri,

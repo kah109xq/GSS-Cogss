@@ -43,7 +43,7 @@ object Main extends App {
         print(Console.RESET + "")
         sys.exit(1)
       }
-      println((Console.GREEN + "Result"))
+      println(Console.GREEN + "Result")
       println("Valid CSV-W")
       print(Console.RESET + "")
     case _ => throw new Exception("Invalid arguments")
