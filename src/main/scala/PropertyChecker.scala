@@ -851,6 +851,10 @@ object PropertyChecker {
           Some(rangeConstraint.asText())
         case rangeConstraint: IntNode =>
           Some(rangeConstraint.asText())
+        case rangeConstraint: DecimalNode =>
+          Some(rangeConstraint.asText())
+        case rangeConstraint: LongNode =>
+          Some(rangeConstraint.asText())
       }
   }
 

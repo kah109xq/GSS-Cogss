@@ -457,7 +457,7 @@ class PropertyCheckerTest extends FunSuite {
       PropertyChecker.checkProperty("datatype", jsonNode, "", "und")
     }
     assert(
-      thrown.getMessage === "datatype minInclusive (10) cannot be more than maxInclusive (9)"
+      thrown.getMessage === "datatype minInclusive (10) cannot be greater than maxInclusive (9)"
     )
   }
 
@@ -1040,42 +1040,44 @@ class PropertyCheckerTest extends FunSuite {
   test(
     "should insert pattern key under format if format is textual for Numeric format datatypes"
   ) {
-    val json =
-      """
-        |{
-        | "base": "decimal",
-        | "format": "0.###E0"
-        |}
-        |""".stripMargin
-
-    val jsonNode = objectMapper.readTree(json)
-    val (values, warnings, _) =
-      PropertyChecker.checkProperty("datatype", jsonNode, "", "und")
-
-    // format object should contain the key pattern
-    assert(!values.path("format").get("pattern").isMissingNode)
+    // Update: Not validating numeric data-types with formats
+//    val json =
+//      """
+//        |{
+//        | "base": "decimal",
+//        | "format": "0.###E0"
+//        |}
+//        |""".stripMargin
+//
+//    val jsonNode = objectMapper.readTree(json)
+//    val (values, warnings, _) =
+//      PropertyChecker.checkProperty("datatype", jsonNode, "", "und")
+//
+//    // format object should contain the key pattern
+//    assert(!values.path("format").get("pattern").isMissingNode)
   }
 
   test("should populate warnings for invalid number format datatypes") {
-    val json =
-      """
-        |{
-        | "base": "decimal",
-        | "format": "0.#00#"
-        |}
-        |""".stripMargin
-
-    val jsonNode = objectMapper.readTree(json)
-    val (values, warnings, _) =
-      PropertyChecker.checkProperty("datatype", jsonNode, "", "und")
-
-    assert(values.path("format").path("pattern").isMissingNode)
-    assert(warnings.contains("invalid_number_format"))
-    assert(
-      warnings.contains(
-        "Malformed pattern for ICU DecimalFormat: \"0.#00#\": 0 cannot follow # after decimal point at position 3"
-      )
-    )
+    // Update: Not validating numeric data-types with formats
+//    val json =
+//      """
+//        |{
+//        | "base": "decimal",
+//        | "format": "0.#00#"
+//        |}
+//        |""".stripMargin
+//
+//    val jsonNode = objectMapper.readTree(json)
+//    val (values, warnings, _) =
+//      PropertyChecker.checkProperty("datatype", jsonNode, "", "und")
+//
+//    assert(values.path("format").path("pattern").isMissingNode)
+//    assert(warnings.contains("invalid_number_format"))
+//    assert(
+//      warnings.contains(
+//        "Malformed pattern for ICU DecimalFormat: \"0.#00#\": 0 cannot follow # after decimal point at position 3"
+//      )
+//    )
   }
 
   test(

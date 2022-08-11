@@ -79,7 +79,6 @@ class Validator(
     } catch {
       case metadataError: MetadataError =>
         Left(GeneralCsvwLoadError(metadataError))
-      // todo: Find out what the appropriate exceptions to catch are for FileNotFound and where the URL doesn't exist as well.
       case e: java.io.FileNotFoundException => Left(CascadeToOtherFilesError(e))
       case e: Throwable => {
         Left(GeneralCsvwLoadError(e))

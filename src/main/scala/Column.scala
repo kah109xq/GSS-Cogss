@@ -695,6 +695,12 @@ case class Column private (
     }
   }
 
+  /**
+    * Scala Double does not recognise INF as infinity
+    */
+  def replaceInfWithInfinity(value: String): String =
+    value.replace("INF", "Infinity")
+
   def processDoubleDatatype(
       value: String
   ): Either[ErrorWithoutContext, Double] = {
@@ -705,7 +711,7 @@ case class Column private (
           .matches()
       ) {
         try {
-          Right(value.toDouble)
+          Right(replaceInfWithInfinity(value).toDouble)
         } catch {
           case e: Throwable =>
             Left(ErrorWithoutContext("invalid_double", e.getMessage))
@@ -729,17 +735,17 @@ case class Column private (
   def processFloatDatatype(
       value: String
   ): Either[ErrorWithoutContext, Float] = {
-    if (
-      patternIsEmpty() && !Column.validFloatDatatypeRegex.pattern
-        .matcher(value)
-        .matches()
-    ) {
-      Left(
-        ErrorWithoutContext(
-          "invalid_float",
-          "Does not match expected Float format"
+    if (patternIsEmpty()) {
+      if (Column.validFloatDatatypeRegex.pattern.matcher(value).matches()) {
+        Right(value.toFloat)
+      } else {
+        Left(
+          ErrorWithoutContext(
+            "invalid_float",
+            "Does not match expected Float format"
+          )
         )
-      )
+      }
     } else {
       numericParser(value) match {
         case Left(w)            => Left(ErrorWithoutContext("invalid_float", w))
@@ -1165,11 +1171,6 @@ case class Column private (
     }
   }
 
-//  val df = new DecimalFormat()
-//  df.applyPattern("-0")
-//  df.setParseStrict(true)
-//  val parsedValue = df.parse("-1")
-//  df.format(parsedValue)
   def numericParser(
       value: String
   ): Either[String, Number] = {
@@ -1177,7 +1178,6 @@ case class Column private (
       val normalised = normalizeForInsanity(value)
       val parsedNumber = numberFormat.parse(normalised)
       val paredNumberInString = numberFormat.format(parsedNumber)
-////      val newValue = normalizeNumericSign(numberFormat, value)
       val originalValueWithoutPlusesOrMinuses = stripUnquotedPlusMinus(value)
       val parsedNumberWithoutPlusesOrMinuses = stripUnquotedPlusMinus(
         paredNumberInString
@@ -1191,108 +1191,6 @@ case class Column private (
       case e: Throwable => Left(e.getMessage)
     }
   }
-
-//  def unquotedSignPresent(format: String): Boolean = {
-//
-//    hasUnquotedPlus || hasUnquotedMinus
-//  }
-
-//  def normalizeNumericSign(
-//      numberFormatObject: NumberFormat,
-//      value: String
-//  ): String = {
-//    // £####0 £+34242 +£34242 -£23123
-//    // Add unit test
-//    // if there is unquoted +/- do nothing
-//    // else do the normalization
-//    if (!numberFormatObject.pattern.isDefined) {
-//      value
-//    } else if (numberFormatObject.getHasUnquotedPlusMinusSign) {
-//      value
-//    } else {
-//      var insideQuotes = false
-//      var hasUnquotedPlus = false
-//      var hasUnquotedMinus = false
-//      var filteredValue = new StringBuilder()
-//
-//      /**
-//        * -35 ===(Remove all unquoted plusses)===> (35, hasUnquotedPlus, hasUnquotedMinus)
-//        * "An explicit "plus" format can be formed, so as to show a visible + sign when formatting a non-negative number"
-//        * +#0 => (#0, hasUnquotedPlus, hasUnquotedMinus) ...
-//        * -#0 => (#0, hasUnquotedPlus, hasUnquotedMinus) ... ?
-//        * 35
-//        *
-//        * (formatedValue == inputValueWithoutSign) && (
-//        *      (format.hasUnquotedPlus && (value.hasUnquotedPlus || value.hasUnquotedMinus))
-//        *      || (format.hasUnquotedMinus && value.hasUnquotedMinus)
-//        *      )
-//        */
-//
-//      for (char <- value) {
-//        if (char == '\'') insideQuotes = !insideQuotes
-//        if (char == '+' && !insideQuotes) {
-//          if (hasUnquotedPlus) {
-//            throw new IllegalArgumentException(
-//              "Not sure how to process this scenario"
-//            )
-//          }
-//          hasUnquotedPlus = true
-//        } else if (char == '-' && !insideQuotes) {
-//          if (hasUnquotedMinus) {
-//            throw new IllegalArgumentException(
-//              "Not sure how to process this scenario"
-//            )
-//          }
-//          hasUnquotedMinus = true
-//        } else filteredValue.append(char)
-//      }
-//      if (hasUnquotedMinus)
-//        "-" + filteredValue.toString()
-//
-//      filteredValue.toString()
-//    }
-//
-//    /**
-//      * '+'000
-//      * # If there is a + or - (that is not in quotation marks) specificing the +/- position in the format/pattern, do nothing.
-//      * If !numberFormatObject.signAlwaysShownForFormat # there isn't +/- or the +/- is in quotes in the format string:
-//      *    if the input number has a plus (that is not in quotation marks), strip it out.
-//      *    if the input number has a minus (that is not in quotation marks), strip it out and stick the minus at the very beginning.
-//      *
-//      *    We shall call this numeric sign normalisation.
-//      */
-//
-//    /**
-//      * 'h'+'e'2312312312.0234234
-//      *
-//      * var insideQuotes = false
-//      * var filteredChars = Array()
-//      * for (char in string) {
-//      *    if (char == "'") {
-//      *      insideQuotes = !insideQuotes
-//      *    }
-//      *    if (char == "+") and !insideQuotes) {
-//      *      if (hasUnoquotedPlus)
-//      *      {
-//      *        raise Exception("WTF are you doing?")
-//      *        }
-//      *      hasUnquotedPlus = true
-//      *    } else if (char == "-" and !insideQuotes) {
-//      *      if (hasUnoquotedMinus)
-//      *      {
-//      *        raise Exception("WTF are you doing?")
-//      *        }
-//      *      hasUnquotedMinus = true
-//      *    } else {
-//      *      filterChars += char
-//      *    }
-//      * }
-//      * value = String(filtersChars)
-//      * if (hasUnquotedMinus) {
-//      *   value = "-" + value
-//      * }
-//      */
-//  }
 
   private def normalizeForInsanity(value: String): String = {
     var v = value

@@ -65,8 +65,8 @@ class StepDefinitions extends ScalaDsl with EN {
   }
 
   Given("""^I have a metadata file called "([^"]*)"$""") { filename: String =>
-    metadataFilePath = fixturesPath + filename
-    metadata = Source.fromFile(metadataFilePath).getLines.mkString
+//    metadataFilePath = fixturesPath + filename
+//    metadata = Source.fromFile(metadataFilePath).getLines.mkString
   }
 
   And("""^the (schema|metadata) is stored at the url "(.*?)"$""") {
