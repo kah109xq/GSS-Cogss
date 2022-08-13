@@ -3,8 +3,8 @@ package CSVValidation
 import CSVValidation.ConfiguredObjectMapper.objectMapper
 import CSVValidation.WarningsAndErrors.{Errors, Warnings}
 import CSVValidation.traits.OptionExtensions.OptionIfDefined
-import akka.NotUsed
 import akka.actor.ActorSystem
+import akka.stream.scaladsl.{Sink, Source}
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.typesafe.scalalogging.Logger
 import org.apache.commons.csv.{CSVFormat, CSVParser, CSVRecord}
@@ -14,12 +14,12 @@ import java.net.URI
 import java.nio.charset.Charset
 import scala.collection.mutable
 import scala.collection.mutable.{Map, Set}
-import akka.stream.scaladsl.{Flow, Sink, Source, SubFlow}
-
-import scala.concurrent.Future
+import scala.concurrent.duration.{Duration, DurationInt}
+import scala.concurrent.{Await, Future}
 import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsScala}
-import scala.util.{Failure, Success}
+import scala.language.postfixOps
 import scala.util.control.NonFatal
+import scala.util.{Failure, Success}
 
 class Validator(
     val schemaUri: Option[String],
@@ -329,7 +329,11 @@ class Validator(
     getParser(tableUri, dialect, format) match {
       case Right(parser) =>
         try {
-          readAndValidateWithParser(schema, tableUri, dialect, parser)
+          Await.result(
+            readAndValidateWithParser(schema, tableUri, dialect, parser),
+            1000000 millis
+          )
+
         } catch {
           case NonFatal(_) => {
             val warnings = Array(
@@ -368,107 +372,83 @@ class Validator(
       tableUri: URI,
       dialect: Dialect,
       parser: CSVParser
-  ): (
-      WarningsAndErrors,
-      mutable.Map[ChildTableForeignKey, mutable.Set[KeyWithContext]],
-      mutable.Map[ParentTableForeignKeyReference, mutable.Set[KeyWithContext]]
-  ) = {
-    var warnings: Array[WarningWithCsvContext] = Array()
-    var errors: Array[ErrorWithCsvContext] = Array()
-    val parserAfterSkippedRows = parser.asScala.drop(dialect.skipRows).iterator
-//    val parserAfterSkippedRowsImmutable = collection.immutable.Seq(parserAfterSkippedRows: _*)
-    val table =
-      try {
-        schema.tables(tableUri.toString)
-      } catch {
-        case NonFatal(_) =>
-          throw MetadataError(
-            "Metadata does not contain requested tabular data file"
-          )
+  ): Future[
+    (
+        WarningsAndErrors,
+        mutable.Map[ChildTableForeignKey, mutable.Set[KeyWithContext]],
+        mutable.Map[ParentTableForeignKeyReference, mutable.Set[KeyWithContext]]
+    )
+  ] =
+    Future {
+      var warnings: Array[WarningWithCsvContext] = Array()
+      var errors: Array[ErrorWithCsvContext] = Array()
+      val parserAfterSkippedRows =
+        parser.asScala.drop(dialect.skipRows).iterator
+      val table =
+        try {
+          schema.tables(tableUri.toString)
+        } catch {
+          case NonFatal(_) =>
+            throw MetadataError(
+              "Metadata does not contain requested tabular data file"
+            )
+        }
+      val childTableForeignKeys =
+        Map[ChildTableForeignKey, mutable.Set[KeyWithContext]]()
+      val parentTableForeignKeyReferences =
+        Map[ParentTableForeignKeyReference, mutable.Set[KeyWithContext]]()
+      val allPrimaryKeyValues: mutable.Set[List[Any]] =
+        Set() // List of type Any with same values are not added again in a Set, whereas Array of Type any behaves
+      // differently.
+
+      val source = Source.fromIterator(() => parserAfterSkippedRows)
+
+      def accumulateErrorsWarningsAndKeys(
+          validateRowOutput: ValidateRowOutput
+      ): Unit = {
+        errors ++= validateRowOutput.warningsAndErrors.errors
+        warnings ++= validateRowOutput.warningsAndErrors.warnings
+        setChildTableForeignKeys(
+          validateRowOutput,
+          childTableForeignKeys
+        )
+        setParentTableForeignKeyReferences(
+          validateRowOutput,
+          parentTableForeignKeyReferences
+        )
+        validatePrimaryKey(
+          allPrimaryKeyValues,
+          validateRowOutput.row,
+          validateRowOutput
+        ).ifDefined(e => errors :+= e)
       }
-    val childTableForeignKeys =
-      Map[ChildTableForeignKey, mutable.Set[KeyWithContext]]()
-    val parentTableForeignKeyReferences =
-      Map[ParentTableForeignKeyReference, mutable.Set[KeyWithContext]]()
-    val allPrimaryKeyValues: mutable.Set[List[Any]] =
-      Set() // List of type Any with same values are not added again in a Set, whereas Array of Type any behaves
-    // differently.
-
-//    val rows:scala.collection.Iterator[CSVRecord] = for (row <- parserAfterSkippedRows)
-//      yield row
-
-    val source = Source.fromIterator(() => parserAfterSkippedRows)
-//    val flow:Flow[CSVRecord, ValidateRowOutput, NotUsed] = {
-//      ParseRowInput(schema, tableUri, dialect, table, csv)
-//    }
-
-    def something(validateRowOutput: ValidateRowOutput): Unit = {
-      errors ++= validateRowOutput.warningsAndErrors.errors
-      warnings ++= validateRowOutput.warningsAndErrors.warnings
-      setChildTableForeignKeys(
-        validateRowOutput,
-        childTableForeignKeys
-      )
-      setParentTableForeignKeyReferences(
-        validateRowOutput,
+      val asyncProcessResult = source
+        .mapAsync(parallelism = 4)(csvRow =>
+          parseRow(schema, tableUri, dialect, table, csvRow)
+        )
+      val finalStreamResult: Future[List[ValidateRowOutput]] =
+        asyncProcessResult.runWith(
+          Sink.collection[ValidateRowOutput, List[ValidateRowOutput]]
+        )
+      val completedFinalStreamResult: Future[List[ValidateRowOutput]] =
+        Await.ready(finalStreamResult, Duration.Inf)
+      completedFinalStreamResult.value match {
+        case Some(Success(listOfValidateRowOutputs)) =>
+          listOfValidateRowOutputs.foreach(x =>
+            accumulateErrorsWarningsAndKeys(x)
+          )
+        case Some(Failure(exception)) =>
+          throw new Exception(
+            s"Stream processing failed ${exception.getMessage}"
+          )
+        case None => throw new Exception("Stream processing failed")
+      }
+      (
+        WarningsAndErrors(warnings, errors),
+        childTableForeignKeys,
         parentTableForeignKeyReferences
       )
-      validatePrimaryKey(
-        allPrimaryKeyValues,
-        validateRowOutput.row,
-        validateRowOutput
-      ).ifDefined(e => errors :+= e)
     }
-
-    source
-      .mapAsync(parallelism = 4)(csvRow =>
-        parseRow(schema, tableUri, dialect, table, csvRow)
-      )
-      //      .watchTermination()(
-      //        (prevMatValue, future) =>
-      //          // this function will be run when the stream terminates
-      //          // the Future provided as a second parameter indicates whether the stream completed successfully or failed
-      //          future.onComplete {
-      //            case Failure(exception) => println(exception.getMessage)
-      //            case Success(_)         => println(s"The stream materialized $prevMatValue")
-      //          })
-      .runWith(Sink.foreach(something))
-      .onComplete { _ => system.terminate() }
-//    parserAfterSkippedRows
-//      .map(row =>
-//        (
-//          parseRow(
-//            schema,
-//            tableUri,
-//            dialect,
-//            table,
-//            row
-//          )
-//        )
-//      )
-//      .foreach {
-//        case (validateRowOutput) => {
-//          errors ++= validateRowOutput.warningsAndErrors.errors
-//          warnings ++= validateRowOutput.warningsAndErrors.warnings
-//          setChildTableForeignKeys(
-//            validateRowOutput,
-//            childTableForeignKeys
-//          )
-//          setParentTableForeignKeyReferences(
-//            validateRowOutput,
-//            parentTableForeignKeyReferences
-//          )
-//          validatePrimaryKey(allPrimaryKeyValues, validateRowOutput.row, validateRowOutput)
-//            .ifDefined(e => errors :+= e)
-//        }
-//      }
-    (
-      WarningsAndErrors(warnings, errors),
-      childTableForeignKeys,
-      parentTableForeignKeyReferences
-    )
-
-  }
 
   implicit val ec: scala.concurrent.ExecutionContext =
     scala.concurrent.ExecutionContext.global
