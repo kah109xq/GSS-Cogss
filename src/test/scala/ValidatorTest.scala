@@ -1,10 +1,7 @@
 package CSVValidation
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.node.ObjectNode
 import org.scalatest.FunSuite
 
 import java.io.File
-import java.net.URI
 import java.time.{ZoneId, ZonedDateTime}
 import scala.collection.mutable
 

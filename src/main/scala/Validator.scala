@@ -423,26 +423,28 @@ class Validator(
         ).ifDefined(e => errors :+= e)
       }
       val asyncProcessResult = source
-        .mapAsync(parallelism = 4)(csvRow =>
+        .mapAsync(parallelism = 8)(csvRow =>
           parseRow(schema, tableUri, dialect, table, csvRow)
         )
       val finalStreamResult: Future[List[ValidateRowOutput]] =
-        asyncProcessResult.runWith(
-          Sink.collection[ValidateRowOutput, List[ValidateRowOutput]]
-        )
+        asyncProcessResult
+          .runWith(
+            Sink.collection[ValidateRowOutput, List[ValidateRowOutput]]
+          )
       val completedFinalStreamResult: Future[List[ValidateRowOutput]] =
         Await.ready(finalStreamResult, Duration.Inf)
       completedFinalStreamResult.value match {
         case Some(Success(listOfValidateRowOutputs)) =>
-          listOfValidateRowOutputs.foreach(x =>
-            accumulateErrorsWarningsAndKeys(x)
-          )
+          listOfValidateRowOutputs
+            .foreach(x => accumulateErrorsWarningsAndKeys(x))
         case Some(Failure(exception)) =>
           throw new Exception(
             s"Stream processing failed ${exception.getMessage}"
           )
         case None => throw new Exception("Stream processing failed")
       }
+
+      system.terminate()
       (
         WarningsAndErrors(warnings, errors),
         childTableForeignKeys,
