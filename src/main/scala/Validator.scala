@@ -26,7 +26,6 @@ class Validator(
     csvUri: Option[String] = None,
     var sourceUriUsed: Boolean = false
 ) {
-  implicit val system: ActorSystem = ActorSystem("actor-system")
   private val logger = Logger(this.getClass.getName)
   val mapAvailableCharsets = Charset.availableCharsets().asScala
 
@@ -380,6 +379,7 @@ class Validator(
     )
   ] =
     Future {
+      implicit val system: ActorSystem = ActorSystem("actor-system")
       var warnings: Array[WarningWithCsvContext] = Array()
       var errors: Array[ErrorWithCsvContext] = Array()
       val parserAfterSkippedRows =
