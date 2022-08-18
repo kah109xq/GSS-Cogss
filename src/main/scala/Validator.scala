@@ -3,8 +3,9 @@ package CSVValidation
 import CSVValidation.ConfiguredObjectMapper.objectMapper
 import CSVValidation.WarningsAndErrors.{Errors, Warnings}
 import CSVValidation.traits.OptionExtensions.OptionIfDefined
+import akka.NotUsed
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.{Sink, Source}
+import akka.stream.scaladsl.{Flow, Merge, Sink, Source}
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.typesafe.scalalogging.Logger
 import org.apache.commons.csv.{CSVFormat, CSVParser, CSVRecord}
@@ -12,6 +13,7 @@ import org.apache.commons.csv.{CSVFormat, CSVParser, CSVRecord}
 import java.io.File
 import java.net.URI
 import java.nio.charset.Charset
+import scala.::
 import scala.collection.mutable
 import scala.collection.mutable.{Map, Set}
 import scala.concurrent.duration.{Duration, DurationInt}
@@ -28,6 +30,14 @@ class Validator(
 ) {
   private val logger = Logger(this.getClass.getName)
   val mapAvailableCharsets = Charset.availableCharsets().asScala
+
+  type ForeignKeys = Map[ChildTableForeignKey, Set[KeyWithContext]]
+  type ForeignKeyReferences =
+    Map[ParentTableForeignKeyReference, Set[KeyWithContext]]
+  type MapTableToForeignKeys = Map[Table, ForeignKeys]
+  type MapTableToForeignKeyReferences = Map[Table, ForeignKeyReferences]
+  type DataToAccumulate =
+    (WarningsAndErrors, MapTableToForeignKeys, MapTableToForeignKeyReferences)
 
   private def getAbsoluteSchemaUri(schemaPath: String): URI = {
     val inputSchemaUri = new URI(schemaPath)
@@ -116,7 +126,7 @@ class Validator(
     }
   }
 
-  def validate(): WarningsAndErrors = {
+  def validate(): Source[WarningsAndErrors, NotUsed] = {
     val absoluteSchemaUri = schemaUri.map(getAbsoluteSchemaUri)
 
     val maybeCsvUri = csvUri.map(new URI(_))
@@ -139,7 +149,7 @@ class Validator(
   private def findAndValidateCsvwSchemaFileForCsv(
       maybeCsvUri: Option[URI],
       schemaUrisToCheck: Seq[URI]
-  ): WarningsAndErrors = {
+  ): Source[WarningsAndErrors, NotUsed] = {
     schemaUrisToCheck match {
       case Seq() => {
         if (schemaUri.isDefined) {
@@ -151,21 +161,32 @@ class Validator(
             s"${schemaUri.get} not found",
             ""
           )
-          WarningsAndErrors(errors = Array[ErrorWithCsvContext](error))
-        } else WarningsAndErrors()
+          val warningsAndErrorsToReturn = List(
+            WarningsAndErrors(errors = Array[ErrorWithCsvContext](error))
+          )
+          Source(warningsAndErrorsToReturn)
+//          WarningsAndErrors(errors = Array[ErrorWithCsvContext](error))
+        } else Source(List(WarningsAndErrors()))
       }
       case Seq(uri, uris @ _*) =>
         attemptToFindMatchingTableGroup(
           maybeCsvUri,
           uri
         ) match {
-          case Right((tableGroup, wAndE)) => {
-            val warningsAndErrors = validateSchemaTables(tableGroup)
-            WarningsAndErrors(
-              warningsAndErrors.warnings ++ wAndE.warnings,
-              warningsAndErrors.errors ++ wAndE.errors
-            )
-          }
+          case Right((tableGroup, wAndE)) =>
+//            val warningsAndErrors = validateSchemaTables(tableGroup)
+//            WarningsAndErrors(
+//              warningsAndErrors.warnings ++ wAndE.warnings,
+//              warningsAndErrors.errors ++ wAndE.errors
+//            )
+
+            validateSchemaTables(tableGroup).map { wAndE2 =>
+              WarningsAndErrors(
+                wAndE2.warnings ++ wAndE.warnings,
+                wAndE2.errors ++ wAndE.errors
+              )
+            }
+
           case Left(GeneralCsvwLoadError(err)) => {
             val error = ErrorWithCsvContext(
               "metadata",
@@ -177,24 +198,36 @@ class Validator(
             )
             logger.debug(err.getMessage)
             logger.debug(err.getStackTrace.mkString("\n"))
-            WarningsAndErrors(errors = Array(error))
+            Source(List(WarningsAndErrors(errors = Array(error))))
           }
           case Left(SchemaDoesNotContainCsvError(err)) => {
             logger.debug(err.getMessage)
             logger.debug(err.getStackTrace.mkString("\n"))
-            val errorsAndWarnings =
-              findAndValidateCsvwSchemaFileForCsv(maybeCsvUri, uris)
-
-            val warnings =
-              errorsAndWarnings.warnings :+ WarningWithCsvContext(
-                "source_url_mismatch",
-                s"CSV supplied not found in metadata $uri",
-                "",
-                "",
-                "",
-                ""
+//            val errorsAndWarnings =
+//              findAndValidateCsvwSchemaFileForCsv(maybeCsvUri, uris)
+//
+//            val warnings =
+//              errorsAndWarnings.warnings :+ WarningWithCsvContext(
+//                "source_url_mismatch",
+//                s"CSV supplied not found in metadata $uri",
+//                "",
+//                "",
+//                "",
+//                ""
+//              )
+//            WarningsAndErrors(warnings, errorsAndWarnings.errors)
+            findAndValidateCsvwSchemaFileForCsv(maybeCsvUri, uris).map(x => {
+              WarningsAndErrors(
+                x.warnings :+ WarningWithCsvContext(
+                  "source_url_mismatch",
+                  s"CSV supplied not found in metadata $uri",
+                  "",
+                  "",
+                  "",
+                  ""
+                )
               )
-            WarningsAndErrors(warnings, errorsAndWarnings.errors)
+            })
           }
           case Left(CascadeToOtherFilesError(err)) => {
             logger.debug(err.getMessage)
@@ -208,34 +241,69 @@ class Validator(
     }
   }
 
-  def validateSchemaTables(schema: TableGroup): WarningsAndErrors = {
-    val allForeignKeyValues =
-      Map[Table, Map[ChildTableForeignKey, Set[KeyWithContext]]]()
-    val allForeignKeyReferenceValues =
-      Map[Table, Map[ParentTableForeignKeyReference, Set[KeyWithContext]]]()
-    var warnings: Warnings = Array()
-    var errors: Errors = Array()
+  def validateSchemaTables(
+      schema: TableGroup
+  ): Source[WarningsAndErrors, NotUsed] = {
+    Source
+      .fromIterator(() => schema.tables.keys.iterator)
+      .flatMapMerge(
+        8,
+        tableUrl => {
+          val table = schema.tables(tableUrl)
+          val tableUri = new URI(tableUrl)
+          val dialect = table.dialect.getOrElse(Dialect())
+          val format = getCsvFormat(dialect)
 
-    for (tableUrl <- schema.tables.keys) {
-      val table = schema.tables(tableUrl)
-      val tableUri = new URI(tableUrl)
-      val dialect = table.dialect.getOrElse(Dialect())
-      val format = getCsvFormat(dialect)
-      val (warningsAndErrors, foreignKeys, foreignKeyReferences) =
-        readAndValidateCsv(schema, tableUri, format, dialect)
-
-      warnings ++= warningsAndErrors.warnings
-      errors ++= warningsAndErrors.errors
-      allForeignKeyValues(table) = foreignKeys
-      allForeignKeyReferenceValues(table) = foreignKeyReferences
-    }
-
-    errors ++= validateForeignKeyReferences(
-      allForeignKeyValues,
-      allForeignKeyReferenceValues
-    )
-
-    WarningsAndErrors(warnings, errors)
+          readAndValidateCsv(schema, tableUri, format, dialect).map {
+            case (wAndE, fk, fkRef) =>
+              (wAndE, fk, fkRef, table)
+          }
+        }
+      )
+      .fold[DataToAccumulate](
+        (
+          WarningsAndErrors(),
+          Map(),
+          Map()
+        )
+      ) {
+        case (
+              (
+                warningsAndErrorsAccumulator,
+                foreignKeysAccumulator,
+                foreignKeyReferencesAccumulator
+              ),
+              (
+                warningsAndErrorsSource,
+                foreignKeysSource,
+                foreignKeyReferencesSource,
+                table
+              )
+            ) => {
+          val wAndE = WarningsAndErrors(
+            warningsAndErrorsAccumulator.warnings ++ warningsAndErrorsSource.warnings,
+            warningsAndErrorsAccumulator.errors ++ warningsAndErrorsSource.errors
+          )
+          foreignKeysAccumulator(table) = foreignKeysSource
+          foreignKeyReferencesAccumulator(table) = foreignKeyReferencesSource
+          (
+            wAndE,
+            foreignKeysAccumulator,
+            foreignKeyReferencesAccumulator
+          )
+        }
+      }
+      .map {
+        case (warningsAndErrors, allForeignKeys, allForeignKeyReferences) =>
+          val foreignKeyErrors = validateForeignKeyReferences(
+            allForeignKeys,
+            allForeignKeyReferences
+          )
+          WarningsAndErrors(
+            errors = warningsAndErrors.errors ++ foreignKeyErrors,
+            warnings = warningsAndErrors.warnings
+          )
+      }
   }
 
   def getCsvFormat(dialect: Dialect): CSVFormat = {
@@ -320,140 +388,160 @@ class Validator(
       tableUri: URI,
       format: CSVFormat,
       dialect: Dialect
-  ): (
-      WarningsAndErrors,
-      Map[ChildTableForeignKey, Set[KeyWithContext]],
-      Map[ParentTableForeignKeyReference, Set[KeyWithContext]]
-  ) = {
+  ): Source[
+    (
+        WarningsAndErrors,
+        ForeignKeys,
+        ForeignKeyReferences
+    ),
+    NotUsed
+  ] = {
     getParser(tableUri, dialect, format) match {
       case Right(parser) =>
-        try {
-          Await.result(
-            readAndValidateWithParser(schema, tableUri, dialect, parser),
-            1000000 millis
-          )
-
-        } catch {
-          case NonFatal(_) => {
-            val warnings = Array(
-              WarningWithCsvContext(
-                "source_url_mismatch",
-                "CSV requested not found in metadata",
-                "",
-                "",
-                "",
-                ""
+        readAndValidateWithParser(schema, tableUri, dialect, parser)
+          .recover {
+            case NonFatal(err) => {
+              logger.debug(err.getMessage)
+              logger.debug(err.getStackTrace.mkString("\n"))
+              val warnings = Array(
+                WarningWithCsvContext(
+                  "source_url_mismatch",
+                  "CSV requested not found in metadata",
+                  "",
+                  "",
+                  "",
+                  ""
+                )
               )
-            )
-            (
-              WarningsAndErrors(warnings, Array()),
-              mutable.Map(),
-              mutable.Map()
-            )
+
+              (
+                WarningsAndErrors(warnings = warnings),
+                Map(),
+                Map()
+              )
+            }
           }
-        }
-      case Left(warningsAndErrors) => {
+      case Left(warningsAndErrors) =>
         if (tableUri.toString != csvUri && !sourceUriUsed) {
           sourceUriUsed = true
-          readAndValidateCsv(schema, new URI(csvUri.get), format, dialect)
+          readAndValidateCsv(
+            schema,
+            new URI(csvUri.get),
+            format,
+            dialect
+          )
         }
         // AND tableUri != sourceUri
         // THEN we re-try readAndValidate using the sourceUri as the tableUri
         // AND THEN we set a flag on Validator to say we had to use the sourceUri
-        (warningsAndErrors, Map(), Map())
-      }
-    }
 
+        val collection = List(
+          (
+            warningsAndErrors,
+            Map[ChildTableForeignKey, Set[KeyWithContext]](),
+            Map[ParentTableForeignKeyReference, Set[KeyWithContext]]()
+          )
+        )
+        Source(collection)
+    }
   }
+  implicit val ec: scala.concurrent.ExecutionContext =
+    scala.concurrent.ExecutionContext.global
 
   private def readAndValidateWithParser(
       schema: TableGroup,
       tableUri: URI,
       dialect: Dialect,
       parser: CSVParser
-  ): Future[
+  ): Source[
     (
         WarningsAndErrors,
         mutable.Map[ChildTableForeignKey, mutable.Set[KeyWithContext]],
-        mutable.Map[ParentTableForeignKeyReference, mutable.Set[KeyWithContext]]
-    )
-  ] =
-    Future {
-      implicit val system: ActorSystem = ActorSystem("actor-system")
-      var warnings: Array[WarningWithCsvContext] = Array()
-      var errors: Array[ErrorWithCsvContext] = Array()
-      val parserAfterSkippedRows =
-        parser.asScala.drop(dialect.skipRows).iterator
-      val table =
-        try {
-          schema.tables(tableUri.toString)
-        } catch {
-          case NonFatal(_) =>
-            throw MetadataError(
-              "Metadata does not contain requested tabular data file"
-            )
-        }
-      val childTableForeignKeys =
-        Map[ChildTableForeignKey, mutable.Set[KeyWithContext]]()
-      val parentTableForeignKeyReferences =
-        Map[ParentTableForeignKeyReference, mutable.Set[KeyWithContext]]()
-      val allPrimaryKeyValues: mutable.Set[List[Any]] =
-        Set() // List of type Any with same values are not added again in a Set, whereas Array of Type any behaves
-      // differently.
+        mutable.Map[ParentTableForeignKeyReference, mutable.Set[
+          KeyWithContext
+        ]]
+    ),
+    NotUsed
+  ] = {
 
-      val source = Source.fromIterator(() => parserAfterSkippedRows)
+    /**
+      * Source(Array([Tuple("first-table.csv", "my-favourite-csvw.csv-metadata.json"), Tuple("second-table.csv", "my-favourite-csvw.csv-metadata.json", dialect, parser)])).flatMap(x => readAndValidateWithParser(x))
+      */
 
-      def accumulateErrorsWarningsAndKeys(
-          validateRowOutput: ValidateRowOutput
-      ): Unit = {
-        errors ++= validateRowOutput.warningsAndErrors.errors
-        warnings ++= validateRowOutput.warningsAndErrors.warnings
-        setChildTableForeignKeys(
-          validateRowOutput,
-          childTableForeignKeys
-        )
-        setParentTableForeignKeyReferences(
-          validateRowOutput,
-          parentTableForeignKeyReferences
-        )
-        validatePrimaryKey(
-          allPrimaryKeyValues,
-          validateRowOutput.row,
-          validateRowOutput
-        ).ifDefined(e => errors :+= e)
-      }
-      val asyncProcessResult = source
-        .mapAsync(parallelism = 8)(csvRow =>
-          parseRow(schema, tableUri, dialect, table, csvRow)
-        )
-      val finalStreamResult: Future[List[ValidateRowOutput]] =
-        asyncProcessResult
-          .runWith(
-            Sink.collection[ValidateRowOutput, List[ValidateRowOutput]]
+    var warnings: Array[WarningWithCsvContext] = Array()
+    var errors: Array[ErrorWithCsvContext] = Array()
+    val parserAfterSkippedRows =
+      parser.asScala.drop(dialect.skipRows).iterator
+    val table =
+      try {
+        schema.tables(tableUri.toString)
+      } catch {
+        case NonFatal(_) =>
+          throw MetadataError(
+            "Metadata does not contain requested tabular data file"
           )
-      val completedFinalStreamResult: Future[List[ValidateRowOutput]] =
-        Await.ready(finalStreamResult, Duration.Inf)
-      completedFinalStreamResult.value match {
-        case Some(Success(listOfValidateRowOutputs)) =>
-          listOfValidateRowOutputs
-            .foreach(x => accumulateErrorsWarningsAndKeys(x))
-        case Some(Failure(exception)) =>
-          throw new Exception(
-            s"Stream processing failed ${exception.getMessage}"
-          )
-        case None => throw new Exception("Stream processing failed")
       }
+    val childTableForeignKeys =
+      Map[ChildTableForeignKey, mutable.Set[KeyWithContext]]()
+    val parentTableForeignKeyReferences =
+      Map[ParentTableForeignKeyReference, mutable.Set[KeyWithContext]]()
+    val allPrimaryKeyValues: mutable.Set[List[Any]] =
+      Set() // List of type Any with same values are not added again in a Set, whereas Array of Type any behaves
+    // differently.
 
-      system.terminate()
-      (
-        WarningsAndErrors(warnings, errors),
-        childTableForeignKeys,
+    def accumulateErrorsWarningsAndKeys(
+        validateRowOutput: ValidateRowOutput
+    ): Unit = {
+      errors ++= validateRowOutput.warningsAndErrors.errors
+      warnings ++= validateRowOutput.warningsAndErrors.warnings
+      setChildTableForeignKeys(
+        validateRowOutput,
+        childTableForeignKeys
+      )
+      setParentTableForeignKeyReferences(
+        validateRowOutput,
         parentTableForeignKeyReferences
       )
+      validatePrimaryKey(
+        allPrimaryKeyValues,
+        validateRowOutput.row,
+        validateRowOutput
+      ).ifDefined(e => errors :+= e)
     }
 
-  implicit val ec: scala.concurrent.ExecutionContext =
-    scala.concurrent.ExecutionContext.global
+    /**
+      * #
+      * #
+      * #
+      * #
+      *
+      * #, #, #, #
+      */
+
+    Source
+      .fromIterator(() => parserAfterSkippedRows)
+      .mapAsyncUnordered(8)(csvRow =>
+        parseRow(schema, tableUri, dialect, table, csvRow)
+      )
+      // x :: y :: Nil
+      // Nil
+      .fold[List[ValidateRowOutput]](Nil)(
+        (acc: List[ValidateRowOutput], v: ValidateRowOutput) => v :: acc
+      )
+      .map(listOfValidateRowOutputs => {
+        listOfValidateRowOutputs
+          .foreach(x => accumulateErrorsWarningsAndKeys(x))
+
+        (
+          WarningsAndErrors(warnings, errors),
+          childTableForeignKeys,
+          parentTableForeignKeyReferences
+        )
+      })
+  }
+
+//  implicit val ec: scala.concurrent.ExecutionContext =
+//    scala.concurrent.ExecutionContext.global
   private def parseRow(
       schema: TableGroup,
       tableUri: URI,

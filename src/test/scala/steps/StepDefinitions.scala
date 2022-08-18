@@ -1,4 +1,7 @@
 import CSVValidation.{Validator, WarningsAndErrors}
+import Main.{getDescriptionForMessage, logger}
+import akka.actor.ActorSystem
+import akka.stream.scaladsl.Sink
 import io.cucumber.scala.{EN, ScalaDsl}
 
 import scala.io.Source
@@ -6,6 +9,9 @@ import org.slf4j.LoggerFactory
 import sttp.client3._
 import sttp.model._
 import sttp.client3.testing._
+
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
 
 class StepDefinitions extends ScalaDsl with EN {
   // Definitions for steps in scenarios given in csvw_validation_tests.feature
@@ -87,8 +93,11 @@ class StepDefinitions extends ScalaDsl with EN {
   }
 
   When("I carry out CSVW validation") { () =>
+    implicit val system: ActorSystem = ActorSystem("actor-system")
     val validator = new Validator(schemaUrl, csvUrl)
-    warningsAndErrors = validator.validate()
+    val akkaStream =
+      validator.validate().map(wAndE => warningsAndErrors = wAndE)
+    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
   }
 
   Then("there should not be errors") { () =>

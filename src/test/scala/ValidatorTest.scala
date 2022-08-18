@@ -1,19 +1,27 @@
 package CSVValidation
+import akka.actor.ActorSystem
+import akka.stream.scaladsl.Sink
 import org.scalatest.FunSuite
 
 import java.io.File
 import java.time.{ZoneId, ZonedDateTime}
 import scala.collection.mutable
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
 
 class ValidatorTest extends FunSuite {
   val csvwExamplesBaseDir = "src/test/resources/csvwExamples/"
+  implicit val system: ActorSystem = ActorSystem("actor-system")
   test("set warning when title is empty for a column") {
     val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}observations_missing_headers.csv-metadata.json").getAbsolutePath}"
     val validator = new Validator(Some(uri))
-    val warningsAndErros = validator.validate()
-    assert(warningsAndErros.warnings.length === 1)
-    val warning = warningsAndErros.warnings(0)
+    var warningsAndErrors = WarningsAndErrors()
+    val akkaStream =
+      validator.validate().map(wAndE => warningsAndErrors = wAndE)
+    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
+    assert(warningsAndErrors.warnings.length === 1)
+    val warning = warningsAndErrors.warnings(0)
     assert(warning.`type` === "Empty column name")
     assert(warning.column === "2")
     assert(warning.category === "Schema")
@@ -25,7 +33,10 @@ class ValidatorTest extends FunSuite {
     val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}observations_missing_headers.csv-metadata.json").getAbsolutePath}"
     val validator = new Validator(Some(uri))
-    val warningsAndErrors = validator.validate()
+    var warningsAndErrors = WarningsAndErrors()
+    val akkaStream =
+      validator.validate().map(wAndE => warningsAndErrors = wAndE)
+    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
     assert(warningsAndErrors.errors.length === 1)
     val error = warningsAndErrors.errors(0)
     assert(error.`type` === "Invalid Header")
@@ -39,7 +50,10 @@ class ValidatorTest extends FunSuite {
     val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}observations_duplicate_headers.csv-metadata.json").getAbsolutePath}"
     val validator = new Validator(Some(uri))
-    val warningsAndErrors = validator.validate()
+    var warningsAndErrors = WarningsAndErrors()
+    val akkaStream =
+      validator.validate().map(wAndE => warningsAndErrors = wAndE)
+    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
     assert(warningsAndErrors.warnings.length === 1)
     val warning = warningsAndErrors.warnings(0)
     assert(warning.`type` === "Duplicate column name")
@@ -53,7 +67,10 @@ class ValidatorTest extends FunSuite {
     val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}observations_duplicate_headers.csv-metadata.json").getAbsolutePath}"
     val validator = new Validator(Some(uri))
-    val warningsAndErrors = validator.validate()
+    var warningsAndErrors = WarningsAndErrors()
+    val akkaStream =
+      validator.validate().map(wAndE => warningsAndErrors = wAndE)
+    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
     assert(warningsAndErrors.errors.length === 1)
     val error = warningsAndErrors.errors(0)
     assert(error.`type` === "Invalid Header")
@@ -65,7 +82,10 @@ class ValidatorTest extends FunSuite {
     val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}observations_duplicate_primary_key.csv-metadata.json").getAbsolutePath}"
     val validator = new Validator(Some(uri))
-    val warningsAndErrors = validator.validate()
+    var warningsAndErrors = WarningsAndErrors()
+    val akkaStream =
+      validator.validate().map(wAndE => warningsAndErrors = wAndE)
+    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
     assert(warningsAndErrors.errors.length === 1)
     val error = warningsAndErrors.errors(0)
     assert(error.`type` === "duplicate_key")
@@ -81,7 +101,10 @@ class ValidatorTest extends FunSuite {
     val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}observations_primary_key_datetime.csv-metadata.json").getAbsolutePath}"
     val validator = new Validator(Some(uri))
-    val warningsAndErrors = validator.validate()
+    var warningsAndErrors = WarningsAndErrors()
+    val akkaStream =
+      validator.validate().map(wAndE => warningsAndErrors = wAndE)
+    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
     assert(warningsAndErrors.errors.length === 0)
   }
 
@@ -91,7 +114,10 @@ class ValidatorTest extends FunSuite {
     val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}observations_primary_key_datetime_violation.csv-metadata.json").getAbsolutePath}"
     val validator = new Validator(Some(uri))
-    val warningsAndErrors = validator.validate()
+    var warningsAndErrors = WarningsAndErrors()
+    val akkaStream =
+      validator.validate().map(wAndE => warningsAndErrors = wAndE)
+    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
     assert(warningsAndErrors.errors.length === 1)
     val error = warningsAndErrors.errors(0)
     assert(
@@ -105,7 +131,10 @@ class ValidatorTest extends FunSuite {
     val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}obs_decimal_primary_key_vio.csv-metadata.json").getAbsolutePath}"
     val validator = new Validator(Some(uri))
-    val warningsAndErrors = validator.validate()
+    var warningsAndErrors = WarningsAndErrors()
+    val akkaStream =
+      validator.validate().map(wAndE => warningsAndErrors = wAndE)
+    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
     assert(warningsAndErrors.errors.length === 1)
     val error = warningsAndErrors.errors(0)
     assert(error.`type` === "duplicate_key")
@@ -121,7 +150,10 @@ class ValidatorTest extends FunSuite {
     val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}foreignKeyValidationTest.csv-metadata.json").getAbsolutePath}"
     val validator = new Validator(Some(uri))
-    val warningsAndErrors = validator.validate()
+    var warningsAndErrors = WarningsAndErrors()
+    val akkaStream =
+      validator.validate().map(wAndE => warningsAndErrors = wAndE)
+    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
     assert(warningsAndErrors.errors.length === 0)
   }
 
@@ -131,7 +163,10 @@ class ValidatorTest extends FunSuite {
     val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}foreignKeyViolationTest.csv-metadata.json").getAbsolutePath}"
     val validator = new Validator(Some(uri))
-    val warningsAndErrors = validator.validate()
+    var warningsAndErrors = WarningsAndErrors()
+    val akkaStream =
+      validator.validate().map(wAndE => warningsAndErrors = wAndE)
+    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
     val errors = warningsAndErrors.errors
     assert(errors.length === 1)
     assert(errors(0).`type` === "unmatched_foreign_key_reference")
@@ -144,11 +179,14 @@ class ValidatorTest extends FunSuite {
     val uri =
       s"file://${new File(s"${csvwExamplesBaseDir}foreignKeyValidationTestmultiple_parent_rows_matched.csv-metadata.json").getAbsolutePath}"
     val validator = new Validator(Some(uri))
-    val warningsAndErrors = validator.validate()
+    var warningsAndErrors = WarningsAndErrors()
+    val akkaStream =
+      validator.validate().map(wAndE => warningsAndErrors = wAndE)
+    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
     val errors = warningsAndErrors.errors
     assert(errors.length === 1)
     assert(errors(0).`type` === "multiple_matched_rows")
-    assert(errors(0).row === "5")
+    assert(errors(0).row === "4")
   }
 
   // Scala Sets are used to check for duplicates in PrimaryKeys. PrimaryKey columns received back in the Validator class will be a collection of Any type.
