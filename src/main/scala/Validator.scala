@@ -247,7 +247,7 @@ class Validator(
     Source
       .fromIterator(() => schema.tables.keys.iterator)
       .flatMapMerge(
-        8,
+        4,
         tableUrl => {
           val table = schema.tables(tableUrl)
           val tableUri = new URI(tableUrl)
@@ -520,13 +520,17 @@ class Validator(
 
     Source
       .fromIterator(() => parserAfterSkippedRows)
-      .mapAsyncUnordered(8)(csvRow =>
-        parseRow(schema, tableUri, dialect, table, csvRow)
+      .grouped(1000)
+      .mapAsyncUnordered(8)(csvRows =>
+        Future {
+          csvRows.map(parseRow(schema, tableUri, dialect, table, _))
+        }
       )
       // x :: y :: Nil
       // Nil
       .fold[List[ValidateRowOutput]](Nil)(
-        (acc: List[ValidateRowOutput], v: ValidateRowOutput) => v :: acc
+        (acc: List[ValidateRowOutput], v: Seq[ValidateRowOutput]) =>
+          List.from(v) ++ acc
       )
       .map(listOfValidateRowOutputs => {
         listOfValidateRowOutputs
@@ -548,15 +552,29 @@ class Validator(
       dialect: Dialect,
       table: Table,
       row: CSVRecord
-  ): Future[ValidateRowOutput] =
-    Future {
-      if (row.getRecordNumber == 1 && dialect.header) {
-        val warningsAndErrors = schema.validateHeader(row, tableUri.toString)
+  ): ValidateRowOutput = {
+    if (row.getRecordNumber == 1 && dialect.header) {
+      val warningsAndErrors = schema.validateHeader(row, tableUri.toString)
+      ValidateRowOutput(warningsAndErrors = warningsAndErrors, row = row)
+    } else {
+      if (row.size == 0) {
+        val blankRowError = ErrorWithCsvContext(
+          "Blank rows",
+          "structure",
+          row.getRecordNumber.toString,
+          "",
+          "",
+          ""
+        )
+        val warningsAndErrors =
+          WarningsAndErrors(errors = Array(blankRowError))
         ValidateRowOutput(warningsAndErrors = warningsAndErrors, row = row)
       } else {
-        if (row.size == 0) {
-          val blankRowError = ErrorWithCsvContext(
-            "Blank rows",
+        if (table.columns.length >= row.size()) {
+          table.validateRow(row)
+        } else {
+          val raggedRowsError = ErrorWithCsvContext(
+            "ragged_rows",
             "structure",
             row.getRecordNumber.toString,
             "",
@@ -564,27 +582,12 @@ class Validator(
             ""
           )
           val warningsAndErrors =
-            WarningsAndErrors(errors = Array(blankRowError))
+            WarningsAndErrors(errors = Array(raggedRowsError))
           ValidateRowOutput(warningsAndErrors = warningsAndErrors, row = row)
-        } else {
-          if (table.columns.length >= row.size()) {
-            table.validateRow(row)
-          } else {
-            val raggedRowsError = ErrorWithCsvContext(
-              "ragged_rows",
-              "structure",
-              row.getRecordNumber.toString,
-              "",
-              "",
-              ""
-            )
-            val warningsAndErrors =
-              WarningsAndErrors(errors = Array(raggedRowsError))
-            ValidateRowOutput(warningsAndErrors = warningsAndErrors, row = row)
-          }
         }
       }
     }
+  }
 
   private def validatePrimaryKey(
       existingPrimaryKeyValues: mutable.Set[List[Any]],
