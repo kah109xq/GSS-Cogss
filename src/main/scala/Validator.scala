@@ -518,10 +518,18 @@ class Validator(
       * #, #, #, #
       */
 
+    val rowGrouping: Int = sys.env.get("row_grouping") match {
+      case Some(value) => value.toInt
+      case None        => 1000
+    }
+    val parallelism: Int = sys.env.get("parallelism") match {
+      case Some(value) => value.toInt
+      case None        => 8
+    }
     Source
       .fromIterator(() => parserAfterSkippedRows)
-      .grouped(1000)
-      .mapAsyncUnordered(8)(csvRows =>
+      .grouped(rowGrouping)
+      .mapAsyncUnordered(parallelism)(csvRows =>
         Future {
           csvRows.map(parseRow(schema, tableUri, dialect, table, _))
         }

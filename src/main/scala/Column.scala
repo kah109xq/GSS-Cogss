@@ -1572,7 +1572,7 @@ case class Column private (
       }
       (errors, Array())
     } else {
-      var valuesArrayToReturn = Array[Any]()
+      var valuesArrayToReturn = List[Any]()
       val values = separator match {
         case Some(separator) => value.split(separator)
         case None            => Array[String](value)
@@ -1603,7 +1603,7 @@ case class Column private (
           }
         }
       }
-      (errors, valuesArrayToReturn)
+      (errors, valuesArrayToReturn.toArray)
     }
   }
 
