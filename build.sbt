@@ -9,6 +9,9 @@ autoCompilerPlugins := true
 // Want to use a published library in your project?
 // You can define other libraries as dependencies in your build like this:
 
+enablePlugins(DockerPlugin)
+dockerBaseImage := "openjdk:11"
+
 libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.2"
 
 libraryDependencies += "io.cucumber" %% "cucumber-scala" % "6.8.2" % Test
