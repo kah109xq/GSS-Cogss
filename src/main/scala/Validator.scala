@@ -13,7 +13,9 @@ import org.apache.commons.csv.{CSVFormat, CSVParser, CSVRecord}
 import java.io.File
 import java.net.URI
 import java.nio.charset.Charset
+import java.util.Calendar
 import scala.::
+import scala.collection.IterableOnce.iterableOnceExtensionMethods
 import scala.collection.mutable
 import scala.collection.mutable.{Map, Set}
 import scala.concurrent.duration.{Duration, DurationInt}
@@ -470,8 +472,6 @@ class Validator(
 
     var warnings: Array[WarningWithCsvContext] = Array()
     var errors: Array[ErrorWithCsvContext] = Array()
-    val parserAfterSkippedRows =
-      parser.asScala.drop(dialect.skipRows).iterator
     val table =
       try {
         schema.tables(tableUri.toString)
@@ -524,10 +524,16 @@ class Validator(
     }
     val parallelism: Int = sys.env.get("parallelism") match {
       case Some(value) => value.toInt
-      case None        => 8
+      case None        => Runtime.getRuntime.availableProcessors()
     }
+    var i = 0;
+    while (i < dialect.skipRows) {
+      parser.iterator().next()
+      i += 1
+    }
+
     Source
-      .fromIterator(() => parserAfterSkippedRows)
+      .fromIterator(() => parser.asScala.iterator)
       .grouped(rowGrouping)
       .mapAsyncUnordered(parallelism)(csvRows =>
         Future {
