@@ -1,13 +1,11 @@
-import CSVValidation.{MessageWithCsvContext, Validator, WarningsAndErrors}
+import CSVValidation.{MessageWithCsvContext, Validator}
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.Sink
 import com.typesafe.scalalogging.Logger
 import scopt.OParser
 
-import java.io.File
-import java.net.URI
+import scala.concurrent.Await
 import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future}
 case class Config(
     inputSchema: Option[String] = None,
     csvPath: Option[String] = None

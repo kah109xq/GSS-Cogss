@@ -1,10 +1,7 @@
 package CSVValidation
 
 import CSVValidation.traits.JavaIteratorExtensions.IteratorHasAsScalaArray
-import CSVValidation.traits.ObjectNodeExtentions.{
-  IteratorHasGetKeysAndValues,
-  ObjectNodeGetMaybeNode
-}
+import CSVValidation.traits.ObjectNodeExtentions.IteratorHasGetKeysAndValues
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.{
   ArrayNode,

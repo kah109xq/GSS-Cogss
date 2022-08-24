@@ -1,11 +1,10 @@
 package CSVValidation
 
 import CSVValidation.ConfiguredObjectMapper.objectMapper
-import CSVValidation.WarningsAndErrors.{Errors, Warnings}
+import CSVValidation.WarningsAndErrors.Errors
 import CSVValidation.traits.OptionExtensions.OptionIfDefined
 import akka.NotUsed
-import akka.actor.ActorSystem
-import akka.stream.scaladsl.{Flow, Merge, Sink, Source}
+import akka.stream.scaladsl.Source
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.typesafe.scalalogging.Logger
 import org.apache.commons.csv.{CSVFormat, CSVParser, CSVRecord}
@@ -13,17 +12,12 @@ import org.apache.commons.csv.{CSVFormat, CSVParser, CSVRecord}
 import java.io.File
 import java.net.URI
 import java.nio.charset.Charset
-import java.util.Calendar
-import scala.::
-import scala.collection.IterableOnce.iterableOnceExtensionMethods
 import scala.collection.mutable
-import scala.collection.mutable.{Map, Set}
-import scala.concurrent.duration.{Duration, DurationInt}
-import scala.concurrent.{Await, Future}
+import scala.collection.mutable.{ArrayBuffer, Map, Set}
+import scala.concurrent.Future
 import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsScala}
 import scala.language.postfixOps
 import scala.util.control.NonFatal
-import scala.util.{Failure, Success}
 
 class Validator(
     val schemaUri: Option[String],
@@ -167,7 +161,6 @@ class Validator(
             WarningsAndErrors(errors = Array[ErrorWithCsvContext](error))
           )
           Source(warningsAndErrorsToReturn)
-//          WarningsAndErrors(errors = Array[ErrorWithCsvContext](error))
         } else Source(List(WarningsAndErrors()))
       }
       case Seq(uri, uris @ _*) =>
@@ -176,12 +169,6 @@ class Validator(
           uri
         ) match {
           case Right((tableGroup, wAndE)) =>
-//            val warningsAndErrors = validateSchemaTables(tableGroup)
-//            WarningsAndErrors(
-//              warningsAndErrors.warnings ++ wAndE.warnings,
-//              warningsAndErrors.errors ++ wAndE.errors
-//            )
-
             validateSchemaTables(tableGroup).map { wAndE2 =>
               WarningsAndErrors(
                 wAndE2.warnings ++ wAndE.warnings,
@@ -205,19 +192,6 @@ class Validator(
           case Left(SchemaDoesNotContainCsvError(err)) => {
             logger.debug(err.getMessage)
             logger.debug(err.getStackTrace.mkString("\n"))
-//            val errorsAndWarnings =
-//              findAndValidateCsvwSchemaFileForCsv(maybeCsvUri, uris)
-//
-//            val warnings =
-//              errorsAndWarnings.warnings :+ WarningWithCsvContext(
-//                "source_url_mismatch",
-//                s"CSV supplied not found in metadata $uri",
-//                "",
-//                "",
-//                "",
-//                ""
-//              )
-//            WarningsAndErrors(warnings, errorsAndWarnings.errors)
             findAndValidateCsvwSchemaFileForCsv(maybeCsvUri, uris).map(x => {
               WarningsAndErrors(
                 x.warnings :+ WarningWithCsvContext(
@@ -504,7 +478,6 @@ class Validator(
       )
       validatePrimaryKey(
         allPrimaryKeyValues,
-        validateRowOutput.row,
         validateRowOutput
       ).ifDefined(e => errors :+= e)
     }
@@ -540,11 +513,10 @@ class Validator(
           csvRows.map(parseRow(schema, tableUri, dialect, table, _))
         }
       )
-      // x :: y :: Nil
-      // Nil
-      .fold[List[ValidateRowOutput]](Nil)(
-        (acc: List[ValidateRowOutput], v: Seq[ValidateRowOutput]) =>
-          List.from(v) ++ acc
+      .fold[ArrayBuffer[ValidateRowOutput]](
+        ArrayBuffer.empty[ValidateRowOutput]
+      )((acc: ArrayBuffer[ValidateRowOutput], v: Seq[ValidateRowOutput]) =>
+        acc.addAll(v)
       )
       .map(listOfValidateRowOutputs => {
         listOfValidateRowOutputs
@@ -558,8 +530,6 @@ class Validator(
       })
   }
 
-//  implicit val ec: scala.concurrent.ExecutionContext =
-//    scala.concurrent.ExecutionContext.global
   private def parseRow(
       schema: TableGroup,
       tableUri: URI,
@@ -569,7 +539,7 @@ class Validator(
   ): ValidateRowOutput = {
     if (row.getRecordNumber == 1 && dialect.header) {
       val warningsAndErrors = schema.validateHeader(row, tableUri.toString)
-      ValidateRowOutput(warningsAndErrors = warningsAndErrors, row = row)
+      ValidateRowOutput(warningsAndErrors = warningsAndErrors)
     } else {
       if (row.size == 0) {
         val blankRowError = ErrorWithCsvContext(
@@ -582,7 +552,7 @@ class Validator(
         )
         val warningsAndErrors =
           WarningsAndErrors(errors = Array(blankRowError))
-        ValidateRowOutput(warningsAndErrors = warningsAndErrors, row = row)
+        ValidateRowOutput(warningsAndErrors = warningsAndErrors)
       } else {
         if (table.columns.length >= row.size()) {
           table.validateRow(row)
@@ -597,7 +567,7 @@ class Validator(
           )
           val warningsAndErrors =
             WarningsAndErrors(errors = Array(raggedRowsError))
-          ValidateRowOutput(warningsAndErrors = warningsAndErrors, row = row)
+          ValidateRowOutput(warningsAndErrors = warningsAndErrors)
         }
       }
     }
@@ -605,7 +575,6 @@ class Validator(
 
   private def validatePrimaryKey(
       existingPrimaryKeyValues: mutable.Set[List[Any]],
-      row: CSVRecord,
       validateRowOutput: ValidateRowOutput
   ): Option[ErrorWithCsvContext] = {
     val primaryKeyValues = validateRowOutput.primaryKeyValues
@@ -618,7 +587,7 @@ class Validator(
         ErrorWithCsvContext(
           "duplicate_key",
           "schema",
-          row.toString,
+          "",
           "",
           s"key already present - ${getListStringValue(primaryKeyValues)}",
           ""

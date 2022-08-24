@@ -1,15 +1,15 @@
 package CSVValidation
 
 import CSVValidation.Column.{
-  datatypeDefaultValue,
   rdfSyntaxNs,
   unsignedLongMaxValue,
-  validDecimalDatatypeRegex,
   validDoubleDatatypeRegex,
   xmlSchema
 }
-import CSVValidation.traits.ObjectNodeExtentions.IteratorHasGetKeysAndValues
-import CSVValidation.traits.ObjectNodeExtentions.ObjectNodeGetMaybeNode
+import CSVValidation.traits.ObjectNodeExtentions.{
+  IteratorHasGetKeysAndValues,
+  ObjectNodeGetMaybeNode
+}
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.{
   ArrayNode,
@@ -21,7 +21,6 @@ import com.ibm.icu
 import errors.ErrorWithoutContext
 import org.joda.time.{DateTime, DateTimeZone}
 
-import java.lang
 import java.math.BigInteger
 import java.time.{LocalDateTime, Month, ZoneId, ZonedDateTime}
 import scala.collection.mutable
@@ -1434,9 +1433,9 @@ case class Column private (
       value: String
   ): Array[ErrorWithoutContext] = {
     if (length.isEmpty && minLength.isEmpty && maxLength.isEmpty) {
-      Array()
+      Array.ofDim(0)
     } else {
-      var errors = Array[ErrorWithoutContext]()
+      var errors = Array.ofDim[ErrorWithoutContext](0)
       var lengthOfValue = value.length
       if (baseDataType == s"${xmlSchema}base64Binary") {
         lengthOfValue = value.replaceAll("==?$", "").length * 3 / 4

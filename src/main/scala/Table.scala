@@ -2,8 +2,6 @@ package CSVValidation
 
 import CSVValidation.traits.JavaIteratorExtensions.IteratorHasAsScalaArray
 import CSVValidation.traits.ObjectNodeExtentions.IteratorHasGetKeysAndValues
-import CSVValidation.traits.ObjectNodeExtentions.ObjectNodeGetMaybeNode
-
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.{
   ArrayNode,
@@ -13,7 +11,7 @@ import com.fasterxml.jackson.databind.node.{
 }
 import org.apache.commons.csv.CSVRecord
 
-import scala.collection.mutable.Map
+import scala.collection.mutable.{ArrayBuffer, Map}
 object Table {
 
   def fromJson(
@@ -535,15 +533,16 @@ case class Table private (
 
   def validateRow(row: CSVRecord): ValidateRowOutput = {
     var errors = Array[ErrorWithCsvContext]()
-    var primaryKeyValues = List[Any]()
-    var foreignKeyReferenceValues =
-      List[
+    val primaryKeyValues = ArrayBuffer.empty[Any]
+    // arraybuffers
+    val foreignKeyReferenceValues =
+      ArrayBuffer.empty[
         (ParentTableForeignKeyReference, List[Any])
-      ]() // to store the validated referenced Table Columns values in each row
-    var foreignKeyValues =
-      List[
+      ] // to store the validated referenced Table Columns values in each row
+    val foreignKeyValues =
+      ArrayBuffer.empty[
         (ChildTableForeignKey, List[Any])
-      ]() // to store the validated foreign key values in each row
+      ] // to store the validated foreign key values in each row
     for ((value, column) <- row.iterator.asScalaArray.zip(columns)) {
       //catch any exception here, possibly outOfBounds  and set warning too many values
       val (es, v) = column.validate(value)
@@ -559,7 +558,9 @@ case class Table private (
         )
       )
       if (primaryKey.contains(column)) {
-        primaryKeyValues :+= newValue
+        primaryKeyValues.addAll(
+          ArrayBuffer.from(newValue)
+        )
       }
 
       for (foreignKeyReferenceObject <- foreignKeyReferences) {
@@ -568,23 +569,24 @@ case class Table private (
             column
           )
         ) {
-          foreignKeyReferenceValues :+= (foreignKeyReferenceObject, newValue)
+          foreignKeyReferenceValues.addOne(
+            (foreignKeyReferenceObject, newValue)
+          )
         }
       }
 
       for (foreignKeyWrapperObject <- foreignKeys) {
         if (foreignKeyWrapperObject.localColumns.contains(column)) {
-          foreignKeyValues :+= (foreignKeyWrapperObject, newValue)
+          foreignKeyValues.addOne((foreignKeyWrapperObject, newValue))
         }
       }
     }
 
     ValidateRowOutput(
       WarningsAndErrors(Array(), errors),
-      primaryKeyValues,
-      getParentTableForeignKeys(foreignKeyReferenceValues, row),
-      getChildForeignKeys(foreignKeyValues, row),
-      row
+      primaryKeyValues.toList,
+      getParentTableForeignKeys(foreignKeyReferenceValues.toList, row),
+      getChildForeignKeys(foreignKeyValues.toList, row)
     )
   }
 
