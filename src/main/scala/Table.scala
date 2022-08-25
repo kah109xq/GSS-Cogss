@@ -68,7 +68,7 @@ object Table {
       Map[String, JsonNode],
       Array[WarningWithCsvContext]
   ) = {
-    var warnings = Array[WarningWithCsvContext]()
+    val warnings = ArrayBuffer.empty[WarningWithCsvContext]
     val annotations = Map[String, JsonNode]()
     val tableProperties: Map[String, JsonNode] =
       MapHelpers.deepCloneJsonPropertiesMap(commonProperties)
@@ -89,33 +89,33 @@ object Table {
         case _ => {
           val (newValue, w, csvwPropertyType) =
             PropertyChecker.checkProperty(property, value, baseUrl, lang)
-          warnings = Array
-            .concat(
-              warnings,
-              w.map(x =>
-                WarningWithCsvContext(
-                  x,
-                  "metadata",
-                  "",
-                  "",
-                  s"$property : $value",
-                  ""
-                )
+          warnings.addAll(
+            w.map(x =>
+              WarningWithCsvContext(
+                x,
+                "metadata",
+                "",
+                "",
+                s"$property : $value",
+                ""
               )
             )
+          )
           csvwPropertyType match {
             case PropertyType.Annotation =>
               annotations += (property -> newValue)
             case PropertyType.Table | PropertyType.Common =>
               tableProperties += (property -> newValue)
             case PropertyType.Column => {
-              warnings = warnings :+ WarningWithCsvContext(
-                "invalid_property",
-                "metadata",
-                "",
-                "",
-                property,
-                ""
+              warnings.addOne(
+                WarningWithCsvContext(
+                  "invalid_property",
+                  "metadata",
+                  "",
+                  "",
+                  property,
+                  ""
+                )
               )
             }
             case _ => inheritedPropertiesCopy += (property -> newValue)
@@ -123,7 +123,7 @@ object Table {
         }
       }
     }
-    (annotations, tableProperties, inheritedPropertiesCopy, warnings)
+    (annotations, tableProperties, inheritedPropertiesCopy, warnings.toArray)
   }
 
   private def getUrlEnsureExists(
@@ -254,7 +254,7 @@ object Table {
       inheritedProperties: Map[String, JsonNode],
       tableSchemaObject: ObjectNode
   ): (Array[Column], Array[WarningWithCsvContext]) = {
-    var warnings = Array[WarningWithCsvContext]()
+    val warnings = ArrayBuffer.empty[WarningWithCsvContext]
 
     val columnObjects = tableSchemaObject
       .get("columns")
@@ -274,26 +274,30 @@ object Table {
                 lang,
                 inheritedProperties
               )
-              warnings = warnings ++ w.map(e =>
-                WarningWithCsvContext(
-                  e.`type`,
-                  "metadata",
-                  "",
-                  colNum.toString,
-                  e.content,
-                  ""
+              warnings.addAll(
+                w.map(e =>
+                  WarningWithCsvContext(
+                    e.`type`,
+                    "metadata",
+                    "",
+                    colNum.toString,
+                    e.content,
+                    ""
+                  )
                 )
               )
               Some(colDef)
             }
             case _ => {
-              warnings = warnings :+ WarningWithCsvContext(
-                "invalid_column_description",
-                "metadata",
-                "",
-                "",
-                col.toString,
-                ""
+              warnings.addOne(
+                WarningWithCsvContext(
+                  "invalid_column_description",
+                  "metadata",
+                  "",
+                  "",
+                  col.toString,
+                  ""
+                )
               )
               None
             }
@@ -305,7 +309,7 @@ object Table {
 
     ensureNoDuplicateColumnNames(columnNames)
     ensureVirtualColumnsAfterColumns(columns)
-    (columns, warnings)
+    (columns, warnings.toArray)
   }
 
   private def ensureNoDuplicateColumnNames(columnNames: Array[String]): Unit = {
@@ -338,21 +342,21 @@ object Table {
       columns: Array[Column]
   ): Array[Column] = {
     if (!tableSchemaObject.path("rowTitles").isMissingNode) {
-      var rowTitlesColumns = Array[Column]()
+      val rowTitlesColumns = ArrayBuffer.empty[Column]
       val rowTitles = tableSchemaObject.get("rowTitles")
       for (rowTitle <- rowTitles.elements().asScalaArray) {
         val maybeCol = columns.find(col =>
           col.name.isDefined && col.name.get == rowTitle.asText()
         )
         maybeCol match {
-          case Some(col) => rowTitlesColumns :+= col
+          case Some(col) => rowTitlesColumns.addOne(col)
           case None =>
             throw new MetadataError(
               s"rowTitles references non-existant column - ${rowTitle.asText()}"
             )
         }
       }
-      rowTitlesColumns
+      rowTitlesColumns.toArray
     } else {
       Array[Column]()
     }
@@ -365,11 +369,11 @@ object Table {
     if (tableSchemaObject.path("foreignKeys").isMissingNode) {
       Array()
     } else {
-      var foreignKeys = Array[ChildTableForeignKey]()
+      val foreignKeys = ArrayBuffer.empty[ChildTableForeignKey]
       val foreignKeysNode =
         tableSchemaObject.get("foreignKeys").asInstanceOf[ArrayNode]
       for (foreignKey <- foreignKeysNode.elements().asScalaArray) {
-        var foreignKeyColumns = Array[Column]()
+        val foreignKeyColumns = ArrayBuffer.empty[Column]
         for (
           reference <- foreignKey.get("columnReference").elements().asScalaArray
         ) {
@@ -377,19 +381,21 @@ object Table {
             col.name.isDefined && col.name.get == reference.asText()
           )
           maybeCol match {
-            case Some(col) => foreignKeyColumns :+= col
+            case Some(col) => foreignKeyColumns.addOne(col)
             case None =>
               throw new MetadataError(
                 s"foreignKey references non-existent column - ${reference.asText()}"
               )
           }
         }
-        foreignKeys :+= ChildTableForeignKey(
-          foreignKey.asInstanceOf[ObjectNode],
-          foreignKeyColumns
+        foreignKeys.addOne(
+          ChildTableForeignKey(
+            foreignKey.asInstanceOf[ObjectNode],
+            foreignKeyColumns.toArray
+          )
         )
       }
-      foreignKeys
+      foreignKeys.toArray
     }
   }
 
@@ -397,7 +403,7 @@ object Table {
       tableSchemaObject: ObjectNode,
       columns: Array[Column]
   ): (Array[Column], Array[WarningWithCsvContext]) = {
-    var warnings = Array[WarningWithCsvContext]()
+    val warnings = ArrayBuffer.empty[WarningWithCsvContext]
     if (!tableSchemaObject.path("primaryKey").isMissingNode) {
       var primaryKeyColumns = Array[Column]()
       val primaryKeys = tableSchemaObject.get("primaryKey")
@@ -409,13 +415,15 @@ object Table {
         maybeCol match {
           case Some(col) => primaryKeyColumns :+= col
           case None => {
-            warnings = warnings :+ WarningWithCsvContext(
-              "invalid_column_reference",
-              "metadata",
-              "",
-              "",
-              s"primaryKey: $reference",
-              ""
+            warnings.addOne(
+              WarningWithCsvContext(
+                "invalid_column_reference",
+                "metadata",
+                "",
+                "",
+                s"primaryKey: $reference",
+                ""
+              )
             )
             primaryKeyValid = false
           }
@@ -423,9 +431,9 @@ object Table {
         }
       }
       if (primaryKeyValid && primaryKeyColumns.nonEmpty)
-        return (primaryKeyColumns, warnings)
+        return (primaryKeyColumns, warnings.toArray)
     }
-    (Array[Column](), warnings)
+    (Array[Column](), warnings.toArray)
   }
 
   private def setTableSchemaInheritedProperties(

@@ -186,7 +186,7 @@ class ValidatorTest extends FunSuite {
     val errors = warningsAndErrors.errors
     assert(errors.length === 1)
     assert(errors(0).`type` === "multiple_matched_rows")
-    assert(errors(0).row === "4")
+    assert(errors(0).row === "5")
   }
 
   // Scala Sets are used to check for duplicates in PrimaryKeys. PrimaryKey columns received back in the Validator class will be a collection of Any type.

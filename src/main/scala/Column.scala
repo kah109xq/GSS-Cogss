@@ -24,7 +24,7 @@ import org.joda.time.{DateTime, DateTimeZone}
 import java.math.BigInteger
 import java.time.{LocalDateTime, Month, ZoneId, ZonedDateTime}
 import scala.collection.mutable
-import scala.collection.mutable.Map
+import scala.collection.mutable.{ArrayBuffer, Map}
 import scala.jdk.CollectionConverters.IteratorHasAsScala
 import scala.math.BigInt.javaBigInteger2bigInt
 import scala.util.matching.Regex
@@ -222,7 +222,7 @@ object Column {
       Map[String, JsonNode],
       Array[ErrorWithoutContext]
   ) = {
-    var warnings = Array[ErrorWithoutContext]()
+    val warnings = ArrayBuffer.empty[ErrorWithoutContext]
     val annotations = Map[String, JsonNode]()
     val columnProperties = Map[String, JsonNode]()
     for ((property, value) <- columnDesc.getKeysAndValues) {
@@ -235,7 +235,7 @@ object Column {
         case _ => {
           val (v, w, csvwPropertyType) =
             PropertyChecker.checkProperty(property, value, baseUrl, lang)
-          warnings = warnings.concat(
+          warnings.addAll(
             w.map(warningString =>
               ErrorWithoutContext(
                 warningString,
@@ -252,15 +252,17 @@ object Column {
               annotations += (property -> v)
             }
             case _ =>
-              warnings :+= ErrorWithoutContext(
-                s"invalid_property",
-                s"column: ${property}"
+              warnings.addOne(
+                ErrorWithoutContext(
+                  s"invalid_property",
+                  s"column: ${property}"
+                )
               )
           }
         }
       }
     }
-    (annotations, columnProperties, warnings)
+    (annotations, columnProperties, warnings.toArray)
   }
 
   def fromJson(
@@ -1435,7 +1437,7 @@ case class Column private (
     if (length.isEmpty && minLength.isEmpty && maxLength.isEmpty) {
       Array.ofDim(0)
     } else {
-      var errors = Array.ofDim[ErrorWithoutContext](0)
+      val errors = ArrayBuffer.empty[ErrorWithoutContext]
       var lengthOfValue = value.length
       if (baseDataType == s"${xmlSchema}base64Binary") {
         lengthOfValue = value.replaceAll("==?$", "").length * 3 / 4
@@ -1443,24 +1445,30 @@ case class Column private (
         lengthOfValue = value.length / 2
       }
       if (minLength.isDefined && lengthOfValue < minLength.get) {
-        errors = errors :+ ErrorWithoutContext(
-          "minLength",
-          s"value '${value}' length less than minLength specified - $minLength"
+        errors.addOne(
+          ErrorWithoutContext(
+            "minLength",
+            s"value '${value}' length less than minLength specified - $minLength"
+          )
         )
       }
       if (maxLength.isDefined && lengthOfValue > maxLength.get) {
-        errors = errors :+ ErrorWithoutContext(
-          "maxLength",
-          s"value '${value}' length greater than maxLength specified - $maxLength"
+        errors.addOne(
+          ErrorWithoutContext(
+            "maxLength",
+            s"value '${value}' length greater than maxLength specified - $maxLength"
+          )
         )
       }
       if (length.isDefined && lengthOfValue != length.get) {
-        errors = errors :+ ErrorWithoutContext(
-          "length",
-          s"value '${value}' length different from length specified - ${length.get}"
+        errors.addOne(
+          ErrorWithoutContext(
+            "length",
+            s"value '${value}' length different from length specified - ${length.get}"
+          )
         )
       }
-      errors
+      errors.toArray
     }
   }
 
@@ -1531,45 +1539,53 @@ case class Column private (
       greaterThanMaxInclusive: T => Boolean,
       greaterThanEqualToMaxExclusive: T => Boolean
   ): Array[ErrorWithoutContext] = {
-    var errors = Array[ErrorWithoutContext]()
+    val errors = ArrayBuffer.empty[ErrorWithoutContext]
     if (lessThanMinInclusive(value)) {
-      errors = errors :+ ErrorWithoutContext(
-        "minInclusive",
-        s"value '$value' less than minInclusive value '${minInclusive.get}'"
+      errors.addOne(
+        ErrorWithoutContext(
+          "minInclusive",
+          s"value '$value' less than minInclusive value '${minInclusive.get}'"
+        )
       )
     }
     if (greaterThanMaxInclusive(value)) {
-      errors = errors :+ ErrorWithoutContext(
-        "maxInclusive",
-        s"value '$value' greater than maxInclusive value '${maxInclusive.get}'"
+      errors.addOne(
+        ErrorWithoutContext(
+          "maxInclusive",
+          s"value '$value' greater than maxInclusive value '${maxInclusive.get}'"
+        )
       )
     }
     if (lessThanEqualToMinExclusive(value)) {
-      errors = errors :+ ErrorWithoutContext(
-        "minExclusive",
-        s"value '$value' less than or equal to minExclusive value '${minExclusive.get}'"
+      errors.addOne(
+        ErrorWithoutContext(
+          "minExclusive",
+          s"value '$value' less than or equal to minExclusive value '${minExclusive.get}'"
+        )
       )
     }
     if (greaterThanEqualToMaxExclusive(value)) {
-      errors = errors :+ ErrorWithoutContext(
-        "maxExclusive",
-        s"value '$value' greater than or equal to maxExclusive value '${maxExclusive.get}'"
+      errors.addOne(
+        ErrorWithoutContext(
+          "maxExclusive",
+          s"value '$value' greater than or equal to maxExclusive value '${maxExclusive.get}'"
+        )
       )
     }
-    errors
+    errors.toArray
   }
 
   def validate(
       value: String
   ): (Array[ErrorWithoutContext], Array[Any]) = {
-    var errors = Array[ErrorWithoutContext]()
+    val errors = ArrayBuffer.empty[ErrorWithoutContext]
     if (nullParam.contains(value)) {
       // Since the cell value is among the null values specified for this CSV-W, it can be considered as the default null value which is ""
       val errorWithoutContext = addErrorIfRequiredValueAndValueEmpty("")
       if (errorWithoutContext.isDefined) {
-        errors :+= errorWithoutContext.get
+        errors.addOne(errorWithoutContext.get)
       }
-      (errors, Array())
+      (errors.toArray, Array())
     } else {
       var valuesArrayToReturn = List[Any]()
       val values = separator match {
@@ -1580,29 +1596,33 @@ case class Column private (
       for (v <- values) {
         parserForDataType(v) match {
           case Left(errorMessageContent) => {
-            errors = errors :+ ErrorWithoutContext(
-              errorMessageContent.`type`,
-              s"'$v' - ${errorMessageContent.content} (${format.flatMap(_.pattern).getOrElse("no format provided")})"
+            errors.addOne(
+              ErrorWithoutContext(
+                errorMessageContent.`type`,
+                s"'$v' - ${errorMessageContent.content} (${format.flatMap(_.pattern).getOrElse("no format provided")})"
+              )
             )
             valuesArrayToReturn = valuesArrayToReturn :+ s"invalid - $v"
           }
           case Right(s) => {
-            errors =
-              errors ++
-                validateLength(s.toString) ++
-                validateValue(s) ++
-                Array(
-                  addErrorIfRequiredValueAndValueEmpty(s.toString),
-                  validateFormat(s.toString)
-                ).flatten
+            errors.addAll(validateLength(s.toString))
+            errors.addAll(validateValue(s))
+            addErrorIfRequiredValueAndValueEmpty(s.toString) match {
+              case Some(e) => errors.addOne(e)
+              case None    => {}
+            }
+            validateFormat(s.toString) match {
+              case Some(e) => errors.addOne(e)
+              case None    => {}
+            }
 
-            if (errors.length == 0) {
+            if (errors.isEmpty) {
               valuesArrayToReturn = valuesArrayToReturn :+ s
             }
           }
         }
       }
-      (errors, valuesArrayToReturn.toArray)
+      (errors.toArray, valuesArrayToReturn.toArray)
     }
   }
 

@@ -444,8 +444,8 @@ class Validator(
       * Source(Array([Tuple("first-table.csv", "my-favourite-csvw.csv-metadata.json"), Tuple("second-table.csv", "my-favourite-csvw.csv-metadata.json", dialect, parser)])).flatMap(x => readAndValidateWithParser(x))
       */
 
-    var warnings: Array[WarningWithCsvContext] = Array()
-    var errors: Array[ErrorWithCsvContext] = Array()
+    val warnings = ArrayBuffer.empty[WarningWithCsvContext]
+    val errors = ArrayBuffer.empty[ErrorWithCsvContext]
     val table =
       try {
         schema.tables(tableUri.toString)
@@ -466,8 +466,8 @@ class Validator(
     def accumulateErrorsWarningsAndKeys(
         validateRowOutput: ValidateRowOutput
     ): Unit = {
-      errors ++= validateRowOutput.warningsAndErrors.errors
-      warnings ++= validateRowOutput.warningsAndErrors.warnings
+      errors.addAll(validateRowOutput.warningsAndErrors.errors)
+      warnings.addAll(validateRowOutput.warningsAndErrors.warnings)
       setChildTableForeignKeys(
         validateRowOutput,
         childTableForeignKeys
@@ -479,7 +479,7 @@ class Validator(
       validatePrimaryKey(
         allPrimaryKeyValues,
         validateRowOutput
-      ).ifDefined(e => errors :+= e)
+      ).ifDefined(e => errors.addOne(e))
     }
 
     /**
@@ -523,7 +523,7 @@ class Validator(
           .foreach(x => accumulateErrorsWarningsAndKeys(x))
 
         (
-          WarningsAndErrors(warnings, errors),
+          WarningsAndErrors(warnings.toArray, errors.toArray),
           childTableForeignKeys,
           parentTableForeignKeyReferences
         )

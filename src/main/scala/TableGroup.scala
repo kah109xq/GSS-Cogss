@@ -13,7 +13,7 @@ import org.apache.commons.csv.CSVRecord
 
 import java.net.URL
 import scala.collection.mutable
-import scala.collection.mutable.Map
+import scala.collection.mutable.{ArrayBuffer, Map}
 import scala.util.matching.Regex
 
 object TableGroup {
@@ -319,19 +319,21 @@ object TableGroup {
     val annotations = Map[String, JsonNode]()
     val commonProperties = Map[String, JsonNode]()
     val inheritedProperties = Map[String, JsonNode]()
-    var warnings = Array[WarningWithCsvContext]()
+    val warnings = ArrayBuffer.empty[WarningWithCsvContext]
     for ((property, value) <- tableGroupNode.getKeysAndValues) {
       if (!validProperties.contains(property)) {
         val (newValue, w, csvwPropertyType) =
           PropertyChecker.checkProperty(property, value, baseUrl, lang)
-        warnings = w.map(x =>
-          WarningWithCsvContext(
-            x,
-            "metadata",
-            "",
-            "",
-            s"$property : ${value.toPrettyString}",
-            ""
+        warnings.addAll(
+          w.map(x =>
+            WarningWithCsvContext(
+              x,
+              "metadata",
+              "",
+              "",
+              s"$property : ${value.toPrettyString}",
+              ""
+            )
           )
         )
         csvwPropertyType match {
@@ -340,20 +342,22 @@ object TableGroup {
           case PropertyType.Inherited =>
             inheritedProperties += (property -> newValue)
           case _ => {
-            warnings :+= WarningWithCsvContext(
-              "invalid_property",
-              "metadata",
-              "",
-              "",
-              property,
-              ""
+            warnings.addOne(
+              WarningWithCsvContext(
+                "invalid_property",
+                "metadata",
+                "",
+                "",
+                property,
+                ""
+              )
             )
           }
         }
       }
       ()
     }
-    (annotations, commonProperties, inheritedProperties, warnings)
+    (annotations, commonProperties, inheritedProperties, warnings.toArray)
   }
 
   private def createTableObjectsAndSetWarnings(
@@ -386,21 +390,23 @@ object TableGroup {
       commonProperties: Map[String, JsonNode],
       inheritedProperties: Map[String, JsonNode]
   ): (mutable.Map[String, Table], WarningsAndErrors) = {
-    var warnings = Array[WarningWithCsvContext]()
-    var errors = Array[ErrorWithCsvContext]()
+    val warnings = ArrayBuffer.empty[WarningWithCsvContext]
+    val errors = ArrayBuffer.empty[ErrorWithCsvContext]
     val tables = Map[String, Table]()
     for (tableElement <- tablesArrayNode.elements().asScalaArray) {
       tableElement match {
         case tableElementObject: ObjectNode => {
           var tableUrl = tableElement.get("url")
           if (!tableUrl.isTextual) {
-            errors = errors :+ ErrorWithCsvContext(
-              "invalid_url",
-              "metadata",
-              "",
-              "",
-              s"url: $tableUrl",
-              ""
+            errors.addOne(
+              ErrorWithCsvContext(
+                "invalid_url",
+                "metadata",
+                "",
+                "",
+                s"url: $tableUrl",
+                ""
+              )
             )
             tableUrl = new TextNode("")
           }
@@ -416,21 +422,26 @@ object TableGroup {
             inheritedProperties
           )
           tables += (tableUrl.asText -> table)
-          warnings = warnings.concat(w)
+          warnings.addAll(w)
         }
         case _ => {
-          warnings = warnings :+ WarningWithCsvContext(
-            "invalid_table_description",
-            "metadata",
-            "",
-            "",
-            s"Value must be instance of object, found: ${tableElement.toPrettyString}",
-            ""
+          warnings.addOne(
+            WarningWithCsvContext(
+              "invalid_table_description",
+              "metadata",
+              "",
+              "",
+              s"Value must be instance of object, found: ${tableElement.toPrettyString}",
+              ""
+            )
           )
         }
       }
     }
-    (tables, WarningsAndErrors(errors = errors, warnings = warnings))
+    (
+      tables,
+      WarningsAndErrors(errors = errors.toArray, warnings = warnings.toArray)
+    )
   }
 
   private def getId(commonProperties: Map[String, JsonNode]) = {
