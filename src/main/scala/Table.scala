@@ -542,7 +542,6 @@ case class Table private (
   def validateRow(row: CSVRecord): ValidateRowOutput = {
     var errors = Array[ErrorWithCsvContext]()
     val primaryKeyValues = ArrayBuffer.empty[Any]
-    // arraybuffers
     val foreignKeyReferenceValues =
       ArrayBuffer.empty[
         (ParentTableForeignKeyReference, List[Any])
@@ -553,8 +552,7 @@ case class Table private (
       ] // to store the validated foreign key values in each row
     for ((value, column) <- row.iterator.asScalaArray.zip(columns)) {
       //catch any exception here, possibly outOfBounds  and set warning too many values
-      val (es, v) = column.validate(value)
-      val newValue: List[Any] = v.toList
+      val (es, newValue) = column.validate(value)
       errors = errors ++ es.map(e =>
         ErrorWithCsvContext(
           e.`type`,
@@ -566,9 +564,7 @@ case class Table private (
         )
       )
       if (primaryKey.contains(column)) {
-        primaryKeyValues.addAll(
-          ArrayBuffer.from(newValue)
-        )
+        primaryKeyValues.addAll(newValue)
       }
 
       for (foreignKeyReferenceObject <- foreignKeyReferences) {

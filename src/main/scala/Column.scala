@@ -1577,7 +1577,7 @@ case class Column private (
 
   def validate(
       value: String
-  ): (Array[ErrorWithoutContext], Array[Any]) = {
+  ): (Array[ErrorWithoutContext], List[Any]) = {
     val errors = ArrayBuffer.empty[ErrorWithoutContext]
     if (nullParam.contains(value)) {
       // Since the cell value is among the null values specified for this CSV-W, it can be considered as the default null value which is ""
@@ -1585,9 +1585,9 @@ case class Column private (
       if (errorWithoutContext.isDefined) {
         errors.addOne(errorWithoutContext.get)
       }
-      (errors.toArray, Array())
+      (errors.toArray, List.empty)
     } else {
-      var valuesArrayToReturn = List[Any]()
+      val valuesArrayToReturn = ArrayBuffer.empty[Any]
       val values = separator match {
         case Some(separator) => value.split(separator)
         case None            => Array[String](value)
@@ -1602,7 +1602,7 @@ case class Column private (
                 s"'$v' - ${errorMessageContent.content} (${format.flatMap(_.pattern).getOrElse("no format provided")})"
               )
             )
-            valuesArrayToReturn = valuesArrayToReturn :+ s"invalid - $v"
+            valuesArrayToReturn.addOne(s"invalid - $v")
           }
           case Right(s) => {
             errors.addAll(validateLength(s.toString))
@@ -1617,12 +1617,12 @@ case class Column private (
             }
 
             if (errors.isEmpty) {
-              valuesArrayToReturn = valuesArrayToReturn :+ s
+              valuesArrayToReturn.addOne(s)
             }
           }
         }
       }
-      (errors.toArray, valuesArrayToReturn.toArray)
+      (errors.toArray, valuesArrayToReturn.toList)
     }
   }
 

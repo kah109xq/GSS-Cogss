@@ -34,6 +34,13 @@ class Validator(
   type MapTableToForeignKeyReferences = Map[Table, ForeignKeyReferences]
   type DataToAccumulate =
     (WarningsAndErrors, MapTableToForeignKeys, MapTableToForeignKeyReferences)
+  type AccumulatedValues = (
+      ArrayBuffer[WarningWithCsvContext],
+      ArrayBuffer[ErrorWithCsvContext],
+      mutable.Set[List[Any]],
+      Map[ChildTableForeignKey, mutable.Set[KeyWithContext]],
+      Map[ParentTableForeignKeyReference, mutable.Set[KeyWithContext]]
+  )
 
   private def getAbsoluteSchemaUri(schemaPath: String): URI = {
     val inputSchemaUri = new URI(schemaPath)
@@ -443,9 +450,6 @@ class Validator(
     /**
       * Source(Array([Tuple("first-table.csv", "my-favourite-csvw.csv-metadata.json"), Tuple("second-table.csv", "my-favourite-csvw.csv-metadata.json", dialect, parser)])).flatMap(x => readAndValidateWithParser(x))
       */
-
-    val warnings = ArrayBuffer.empty[WarningWithCsvContext]
-    val errors = ArrayBuffer.empty[ErrorWithCsvContext]
     val table =
       try {
         schema.tables(tableUri.toString)
@@ -455,32 +459,6 @@ class Validator(
             "Metadata does not contain requested tabular data file"
           )
       }
-    val childTableForeignKeys =
-      Map[ChildTableForeignKey, mutable.Set[KeyWithContext]]()
-    val parentTableForeignKeyReferences =
-      Map[ParentTableForeignKeyReference, mutable.Set[KeyWithContext]]()
-    val allPrimaryKeyValues: mutable.Set[List[Any]] =
-      Set() // List of type Any with same values are not added again in a Set, whereas Array of Type any behaves
-    // differently.
-
-    def accumulateErrorsWarningsAndKeys(
-        validateRowOutput: ValidateRowOutput
-    ): Unit = {
-      errors.addAll(validateRowOutput.warningsAndErrors.errors)
-      warnings.addAll(validateRowOutput.warningsAndErrors.warnings)
-      setChildTableForeignKeys(
-        validateRowOutput,
-        childTableForeignKeys
-      )
-      setParentTableForeignKeyReferences(
-        validateRowOutput,
-        parentTableForeignKeyReferences
-      )
-      validatePrimaryKey(
-        allPrimaryKeyValues,
-        validateRowOutput
-      ).ifDefined(e => errors.addOne(e))
-    }
 
     /**
       * #
@@ -513,21 +491,72 @@ class Validator(
           csvRows.map(parseRow(schema, tableUri, dialect, table, _))
         }
       )
-      .fold[ArrayBuffer[ValidateRowOutput]](
-        ArrayBuffer.empty[ValidateRowOutput]
-      )((acc: ArrayBuffer[ValidateRowOutput], v: Seq[ValidateRowOutput]) =>
-        acc.addAll(v)
-      )
-      .map(listOfValidateRowOutputs => {
-        listOfValidateRowOutputs
-          .foreach(x => accumulateErrorsWarningsAndKeys(x))
+      .fold[AccumulatedValues](
+        ArrayBuffer.empty[WarningWithCsvContext],
+        ArrayBuffer.empty[ErrorWithCsvContext],
+        Set(),
+        Map(),
+        Map()
+      ) {
+        case (
+              (
+                warnings,
+                errors,
+                primaryKeyValues,
+                childTableForeignKeys,
+                parentTableForeignKeys
+              ),
+              rowOutputs: Seq[ValidateRowOutput]
+            ) => {
+          for (rowOutput <- rowOutputs) {
+            errors.addAll(rowOutput.warningsAndErrors.errors)
+            warnings.addAll(rowOutput.warningsAndErrors.warnings)
+            setChildTableForeignKeys(
+              rowOutput,
+              childTableForeignKeys
+            )
+            setParentTableForeignKeyReferences(
+              rowOutput,
+              parentTableForeignKeys
+            )
+            validatePrimaryKey(
+              primaryKeyValues,
+              rowOutput
+            ).ifDefined(e => errors.addOne(e))
+          }
 
-        (
-          WarningsAndErrors(warnings.toArray, errors.toArray),
-          childTableForeignKeys,
-          parentTableForeignKeyReferences
-        )
-      })
+          (
+            warnings,
+            errors,
+            primaryKeyValues,
+            childTableForeignKeys,
+            parentTableForeignKeys
+          )
+        }
+      }
+      .map(createFinalOutput)
+  }
+
+  private def createFinalOutput(value: AccumulatedValues): (
+      WarningsAndErrors,
+      mutable.Map[ChildTableForeignKey, mutable.Set[KeyWithContext]],
+      mutable.Map[ParentTableForeignKeyReference, mutable.Set[KeyWithContext]]
+  ) = {
+    val (
+      warnings,
+      errors,
+      _,
+      childTableForeignKeys,
+      parentTableForeignKeys
+    ) = value
+    (
+      WarningsAndErrors(
+        warnings.toArray[WarningWithCsvContext],
+        errors.toArray[ErrorWithCsvContext]
+      ),
+      childTableForeignKeys,
+      parentTableForeignKeys
+    )
   }
 
   private def parseRow(
