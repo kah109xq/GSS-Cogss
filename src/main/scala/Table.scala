@@ -587,6 +587,7 @@ case class Table private (
     }
 
     ValidateRowOutput(
+      row.getRecordNumber,
       WarningsAndErrors(Array(), errors),
       primaryKeyValues.toList,
       getParentTableForeignKeys(foreignKeyReferenceValues.toList, row),

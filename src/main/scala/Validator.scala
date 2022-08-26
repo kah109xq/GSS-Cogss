@@ -12,7 +12,7 @@ import org.apache.commons.csv.{CSVFormat, CSVParser, CSVRecord}
 import java.io.File
 import java.net.URI
 import java.nio.charset.Charset
-import scala.collection.mutable
+import scala.collection.{immutable, mutable}
 import scala.collection.mutable.{ArrayBuffer, Map, Set}
 import scala.concurrent.Future
 import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsScala}
@@ -37,10 +37,14 @@ class Validator(
   type AccumulatedValues = (
       ArrayBuffer[WarningWithCsvContext],
       ArrayBuffer[ErrorWithCsvContext],
-      mutable.Set[List[Any]],
+      mutable.Set[Int],
       Map[ChildTableForeignKey, mutable.Set[KeyWithContext]],
-      Map[ParentTableForeignKeyReference, mutable.Set[KeyWithContext]]
+      Map[ParentTableForeignKeyReference, mutable.Set[KeyWithContext]],
+      mutable.Map[Int, ArrayBuffer[Long]]
   )
+
+  type PrimaryKeysAndErrors =
+    (mutable.Set[List[Any]], ArrayBuffer[ErrorWithCsvContext])
 
   private def getAbsoluteSchemaUri(schemaPath: String): URI = {
     val inputSchemaUri = new URI(schemaPath)
@@ -381,7 +385,7 @@ class Validator(
   ] = {
     getParser(tableUri, dialect, format) match {
       case Right(parser) =>
-        readAndValidateWithParser(schema, tableUri, dialect, parser)
+        readAndValidateWithParser(schema, tableUri, dialect, format, parser)
           .recover {
             case NonFatal(err) => {
               logger.debug(err.getMessage)
@@ -435,6 +439,7 @@ class Validator(
       schema: TableGroup,
       tableUri: URI,
       dialect: Dialect,
+      format: CSVFormat,
       parser: CSVParser
   ): Source[
     (
@@ -460,31 +465,18 @@ class Validator(
           )
       }
 
-    /**
-      * #
-      * #
-      * #
-      * #
-      *
-      * #, #, #, #
-      */
-
-    val rowGrouping: Int = sys.env.get("row_grouping") match {
+    val rowGrouping: Int = sys.env.get("ROW_GROUPING") match {
       case Some(value) => value.toInt
       case None        => 1000
     }
-    val parallelism: Int = sys.env.get("parallelism") match {
+    val parallelism: Int = sys.env.get("PARALLELISM") match {
       case Some(value) => value.toInt
       case None        => Runtime.getRuntime.availableProcessors()
-    }
-    var i = 0;
-    while (i < dialect.skipRows) {
-      parser.iterator().next()
-      i += 1
     }
 
     Source
       .fromIterator(() => parser.asScala.iterator)
+      .filter(row => row.getRecordNumber > dialect.skipRows)
       .grouped(rowGrouping)
       .mapAsyncUnordered(parallelism)(csvRows =>
         Future {
@@ -496,15 +488,26 @@ class Validator(
         ArrayBuffer.empty[ErrorWithCsvContext],
         Set(),
         Map(),
+        Map(),
         Map()
       ) {
+
+        //explain this
+        /**
+          * {
+          *  56: {1, 20},
+          *  45: {2}
+          * }
+          */
+
         case (
               (
                 warnings,
                 errors,
                 primaryKeyValues,
                 childTableForeignKeys,
-                parentTableForeignKeys
+                parentTableForeignKeys,
+                hashToRowNumbersToCheck
               ),
               rowOutputs: Seq[ValidateRowOutput]
             ) => {
@@ -519,10 +522,10 @@ class Validator(
               rowOutput,
               parentTableForeignKeys
             )
-            validatePrimaryKey(
-              primaryKeyValues,
+            accumulatePrimaryKeyRowsToCheck(
+              hashToRowNumbersToCheck,
               rowOutput
-            ).ifDefined(e => errors.addOne(e))
+            )
           }
 
           (
@@ -530,33 +533,114 @@ class Validator(
             errors,
             primaryKeyValues,
             childTableForeignKeys,
-            parentTableForeignKeys
+            parentTableForeignKeys,
+            hashToRowNumbersToCheck
           )
         }
       }
-      .map(createFinalOutput)
+      .flatMapConcat(x => {
+        // function getParser will return a parser here. If not, if wouldn't have reached here
+        val newParser = getParser(tableUri, dialect, format).getOrElse(parser)
+        readCsvAgain(x, newParser, rowGrouping, parallelism, table)
+      })
+    //reading the csv again for primary key false errors
   }
 
-  private def createFinalOutput(value: AccumulatedValues): (
-      WarningsAndErrors,
-      mutable.Map[ChildTableForeignKey, mutable.Set[KeyWithContext]],
-      mutable.Map[ParentTableForeignKeyReference, mutable.Set[KeyWithContext]]
-  ) = {
+  private def readCsvAgain(
+      value: AccumulatedValues,
+      parser: CSVParser,
+      rowGrouping: Int,
+      parallelism: Int,
+      table: Table
+  ): Source[
+    (
+        WarningsAndErrors,
+        mutable.Map[ChildTableForeignKey, mutable.Set[KeyWithContext]],
+        mutable.Map[ParentTableForeignKeyReference, mutable.Set[
+          KeyWithContext
+        ]]
+    ),
+    NotUsed
+  ] = {
     val (
       warnings,
       errors,
       _,
       childTableForeignKeys,
-      parentTableForeignKeys
+      parentTableForeignKeys,
+      hashToRowNumbersToCheck
     ) = value
-    (
-      WarningsAndErrors(
-        warnings.toArray[WarningWithCsvContext],
-        errors.toArray[ErrorWithCsvContext]
-      ),
-      childTableForeignKeys,
-      parentTableForeignKeys
-    )
+    val rowsToCheckAgain = hashToRowNumbersToCheck
+      .filter { case (_, rowNums) => rowNums.length > 1 }
+      .values
+      .flatMap(_.toList)
+      .toSet
+
+    Source
+      .fromIterator(() => parser.asScala.iterator)
+      .filter(row => rowsToCheckAgain.contains(row.getRecordNumber))
+      .grouped(rowGrouping)
+      .mapAsyncUnordered(parallelism)(csvRows =>
+        Future {
+          csvRows.map(parseRowConditional(rowsToCheckAgain, table, _))
+        }
+      )
+      .fold[PrimaryKeysAndErrors](
+        (Set[List[Any]](), ArrayBuffer.empty[ErrorWithCsvContext])
+      ) {
+        case (
+              (
+                primaryKeyValues,
+                errorsInAkkaStreams
+              ),
+              rowOutputs: Seq[ValidateRowOutput]
+            ) => {
+          for (rowOutput <- rowOutputs) {
+            validatePrimaryKeyFinal(primaryKeyValues, rowOutput)
+              .ifDefined(e => {
+                errorsInAkkaStreams.addOne(e)
+              })
+          }
+          (primaryKeyValues, errorsInAkkaStreams)
+        }
+      }
+      .map(x =>
+        (
+          WarningsAndErrors(
+            warnings.toArray[WarningWithCsvContext],
+            errors.toArray[ErrorWithCsvContext] ++ x._2 //todo:fix me
+          ),
+          childTableForeignKeys,
+          parentTableForeignKeys
+        )
+      )
+  }
+
+  private def validatePrimaryKeyFinal(
+      existingPrimaryKeyValues: mutable.Set[List[Any]],
+      validateRowOutput: ValidateRowOutput
+  ): Option[ErrorWithCsvContext] = {
+    val primaryKeyValues = validateRowOutput.primaryKeyValues
+    if (
+      validateRowOutput.primaryKeyValues.nonEmpty && existingPrimaryKeyValues
+        .contains(
+          primaryKeyValues
+        )
+    ) {
+      Some(
+        ErrorWithCsvContext(
+          "duplicate_key",
+          "schema",
+          validateRowOutput.recordNumber.toString,
+          "",
+          s"key already present - ${getListStringValue(primaryKeyValues)}",
+          ""
+        )
+      )
+    } else {
+      existingPrimaryKeyValues += primaryKeyValues
+      None
+    }
   }
 
   private def parseRow(
@@ -568,7 +652,10 @@ class Validator(
   ): ValidateRowOutput = {
     if (row.getRecordNumber == 1 && dialect.header) {
       val warningsAndErrors = schema.validateHeader(row, tableUri.toString)
-      ValidateRowOutput(warningsAndErrors = warningsAndErrors)
+      ValidateRowOutput(
+        warningsAndErrors = warningsAndErrors,
+        recordNumber = row.getRecordNumber
+      )
     } else {
       if (row.size == 0) {
         val blankRowError = ErrorWithCsvContext(
@@ -581,7 +668,10 @@ class Validator(
         )
         val warningsAndErrors =
           WarningsAndErrors(errors = Array(blankRowError))
-        ValidateRowOutput(warningsAndErrors = warningsAndErrors)
+        ValidateRowOutput(
+          warningsAndErrors = warningsAndErrors,
+          recordNumber = row.getRecordNumber
+        )
       } else {
         if (table.columns.length >= row.size()) {
           table.validateRow(row)
@@ -596,35 +686,44 @@ class Validator(
           )
           val warningsAndErrors =
             WarningsAndErrors(errors = Array(raggedRowsError))
-          ValidateRowOutput(warningsAndErrors = warningsAndErrors)
+          ValidateRowOutput(
+            warningsAndErrors = warningsAndErrors,
+            recordNumber = row.getRecordNumber
+          )
         }
       }
     }
   }
 
-  private def validatePrimaryKey(
-      existingPrimaryKeyValues: mutable.Set[List[Any]],
+  private def parseRowConditional(
+      rowsToCheck: immutable.Set[Long],
+      table: Table,
+      row: CSVRecord
+  ): ValidateRowOutput = {
+    if (rowsToCheck.contains(row.getRecordNumber)) {
+      table.validateRow(row)
+    } else ValidateRowOutput(recordNumber = row.getRecordNumber)
+  }
+
+  /**
+    * This checks the hashes todo: expand this
+    */
+  private def accumulatePrimaryKeyRowsToCheck(
+      hashToRowNumbersToCheck: mutable.Map[Int, ArrayBuffer[Long]],
       validateRowOutput: ValidateRowOutput
-  ): Option[ErrorWithCsvContext] = {
-    val primaryKeyValues = validateRowOutput.primaryKeyValues
-    if (
-      primaryKeyValues.nonEmpty && existingPrimaryKeyValues.contains(
-        primaryKeyValues
-      )
-    ) {
-      Some(
-        ErrorWithCsvContext(
-          "duplicate_key",
-          "schema",
-          "",
-          "",
-          s"key already present - ${getListStringValue(primaryKeyValues)}",
-          ""
-        )
-      )
-    } else {
-      existingPrimaryKeyValues += primaryKeyValues
-      None
+  ): Unit = {
+    val primaryKeyValueHash = validateRowOutput.primaryKeyValues.hashCode()
+    if (validateRowOutput.primaryKeyValues.nonEmpty) {
+      hashToRowNumbersToCheck.get(primaryKeyValueHash) match {
+        case Some(_) =>
+          hashToRowNumbersToCheck(primaryKeyValueHash).addOne(
+            validateRowOutput.recordNumber
+          )
+        case None =>
+          hashToRowNumbersToCheck.addOne(
+            primaryKeyValueHash -> ArrayBuffer(validateRowOutput.recordNumber)
+          )
+      }
     }
   }
 
