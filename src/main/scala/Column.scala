@@ -18,6 +18,7 @@ import com.fasterxml.jackson.databind.node.{
   TextNode
 }
 import com.ibm.icu
+import com.typesafe.scalalogging.Logger
 import errors.ErrorWithoutContext
 import org.joda.time.{DateTime, DateTimeZone}
 
@@ -39,6 +40,7 @@ object Column {
   val validDecimalDatatypeRegex =
     "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)".r
 
+  // https://www.w3.org/TR/xmlschema11-2/#float, https://www.w3.org/TR/xmlschema11-2/#double
   val validDoubleDatatypeRegex, validFloatDatatypeRegex =
     "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([Ee](\\+|-)?[0-9]+)?|(\\+|-)?INF|NaN".r
 
@@ -46,6 +48,7 @@ object Column {
 
   val validLongDatatypeRegex = "[\\-+]?[0-9]+".r
 
+  // https://www.w3.org/TR/xmlschema11-2/#duration
   val validDurationRegex: Regex =
     "-?P((([0-9]+Y([0-9]+M)?([0-9]+D)?|([0-9]+M)([0-9]+D)?|([0-9]+D))(T(([0-9]+H)([0-9]+M)?([0-9]+(\\.[0-9]+)?S)?|([0-9]+M)([0-9]+(\\.[0-9]+)?S)?|([0-9]+(\\.[0-9]+)?S)))?)|(T(([0-9]+H)([0-9]+M)?([0-9]+(\\.[0-9]+)?S)?|([0-9]+M)([0-9]+(\\.[0-9]+)?S)?|([0-9]+(\\.[0-9]+)?S))))".r
   val validDayTimeDurationRegex: Regex =
@@ -434,6 +437,7 @@ case class Column private (
     format: Option[Format],
     annotations: Map[String, JsonNode]
 ) {
+  private val logger = Logger(this.getClass.getName)
   lazy val minInclusiveNumeric: Option[BigDecimal] =
     minInclusive.map(BigDecimal(_))
   lazy val maxInclusiveNumeric: Option[BigDecimal] =
@@ -630,7 +634,13 @@ case class Column private (
     }
   }
 
-  def standardisedDecimalValue(value: String): String = {
+  /**
+    * In CSV-W, grouping characters can be used to group numbers in a decimal but this grouping
+    * char won't be recognised by the regular expression we use to validate decimal at a later stage.
+    * This function removes grouping character if any and replaces any custom decimal character with the default
+    * decimal character.
+    */
+  def standardisedValue(value: String): String = {
     val lastChar = value.takeRight(1)
     var newValue =
       if (lastChar == "%" || lastChar == "‰")
@@ -662,7 +672,7 @@ case class Column private (
       value: String
   ): Either[ErrorWithoutContext, BigDecimal] = {
     if (patternIsEmpty()) {
-      val newValue = standardisedDecimalValue(value)
+      val newValue = standardisedValue(value)
       if (
         Column.validDecimalDatatypeRegex.pattern
           .matcher(newValue)
@@ -672,6 +682,8 @@ case class Column private (
           Right(BigDecimal(newValue))
         } catch {
           case e: Throwable =>
+            logger.debug(e.getMessage)
+            logger.debug(e.getStackTrace.mkString("\n"))
             Left(ErrorWithoutContext("invalid_decimal", e.getMessage))
         }
       } else {
@@ -706,15 +718,18 @@ case class Column private (
       value: String
   ): Either[ErrorWithoutContext, Double] = {
     if (patternIsEmpty()) {
+      val newValue = standardisedValue(value)
       if (
         validDoubleDatatypeRegex.pattern
-          .matcher(value)
+          .matcher(newValue)
           .matches()
       ) {
         try {
-          Right(replaceInfWithInfinity(value).toDouble)
+          Right(replaceInfWithInfinity(newValue).toDouble)
         } catch {
           case e: Throwable =>
+            logger.debug(e.getMessage)
+            logger.debug(e.getStackTrace.mkString("\n"))
             Left(ErrorWithoutContext("invalid_double", e.getMessage))
         }
       } else {
@@ -737,8 +752,9 @@ case class Column private (
       value: String
   ): Either[ErrorWithoutContext, Float] = {
     if (patternIsEmpty()) {
-      if (Column.validFloatDatatypeRegex.pattern.matcher(value).matches()) {
-        Right(value.toFloat)
+      val newValue = standardisedValue(value)
+      if (Column.validFloatDatatypeRegex.pattern.matcher(newValue).matches()) {
+        Right(newValue.toFloat)
       } else {
         Left(
           ErrorWithoutContext(
@@ -764,15 +780,18 @@ case class Column private (
       value: String
   ): Either[ErrorWithoutContext, BigInteger] = {
     if (patternIsEmpty()) {
+      val newValue = standardisedValue(value)
       if (
         Column.validIntegerRegex.pattern
-          .matcher(value)
+          .matcher(newValue)
           .matches()
       ) {
         try {
-          Right(new BigInteger(value))
+          Right(new BigInteger(newValue))
         } catch {
           case e: Throwable =>
+            logger.debug(e.getMessage)
+            logger.debug(e.getStackTrace.mkString("\n"))
             Left(ErrorWithoutContext("invalid_integer", e.getMessage))
         }
       } else {
@@ -818,15 +837,18 @@ case class Column private (
   ): Either[ErrorWithoutContext, Long] = {
 
     if (patternIsEmpty()) {
+      val newValue = standardisedValue(value)
       if (
         Column.validLongDatatypeRegex.pattern
-          .matcher(value)
+          .matcher(newValue)
           .matches()
       ) {
         try {
-          Right(value.toLong)
+          Right(newValue.toLong)
         } catch {
           case e: Throwable =>
+            logger.debug(e.getMessage)
+            logger.debug(e.getStackTrace.mkString("\n"))
             Left(ErrorWithoutContext("invalid_long", e.getMessage))
         }
       } else {
@@ -862,15 +884,18 @@ case class Column private (
       value: String
   ): Either[ErrorWithoutContext, Int] = {
     if (patternIsEmpty()) {
+      val newValue = standardisedValue(value)
       if (
         Column.validIntegerRegex.pattern
-          .matcher(value)
+          .matcher(newValue)
           .matches()
       ) {
         try {
-          Right(value.toInt)
+          Right(newValue.toInt)
         } catch {
           case e: Throwable =>
+            logger.debug(e.getMessage)
+            logger.debug(e.getStackTrace.mkString("\n"))
             Left(ErrorWithoutContext("invalid_int", e.getMessage))
         }
       } else {
@@ -915,15 +940,18 @@ case class Column private (
       value: String
   ): Either[ErrorWithoutContext, Short] = {
     if (patternIsEmpty()) {
+      val newValue = standardisedValue(value)
       if (
         Column.validIntegerRegex.pattern
-          .matcher(value)
+          .matcher(newValue)
           .matches()
       ) {
         try {
-          Right(value.toShort)
+          Right(newValue.toShort)
         } catch {
           case e: Throwable =>
+            logger.debug(e.getMessage)
+            logger.debug(e.getStackTrace.mkString("\n"))
             Left(ErrorWithoutContext("invalid_short", e.getMessage))
         }
       } else {
@@ -977,6 +1005,8 @@ case class Column private (
           Right(value.toByte)
         } catch {
           case e: Throwable =>
+            logger.debug(e.getMessage)
+            logger.debug(e.getStackTrace.mkString("\n"))
             Left(ErrorWithoutContext("invalid_byte", e.getMessage))
         }
       } else {
@@ -1176,8 +1206,7 @@ case class Column private (
       value: String
   ): Either[String, Number] = {
     try {
-      val normalised = normalizeForInsanity(value)
-      val parsedNumber = numberFormat.parse(normalised)
+      val parsedNumber = numberFormat.parse(value)
       val paredNumberInString = numberFormat.format(parsedNumber)
       val originalValueWithoutPlusesOrMinuses = stripUnquotedPlusMinus(value)
       val parsedNumberWithoutPlusesOrMinuses = stripUnquotedPlusMinus(
@@ -1189,42 +1218,12 @@ case class Column private (
         Left("Value does not match expected UTS-35 format")
       else Right(parsedNumber)
     } catch {
-      case e: Throwable => Left(e.getMessage)
-    }
-  }
-
-  private def normalizeForInsanity(value: String): String = {
-    var v = value
-
-    val numberFormatContainsUnquotedPluses =
-      numberFormat.pattern.exists(f => containsUnquotedChar(f, '+'))
-    val numberFormatContainsUnquotedMinuses =
-      numberFormat.pattern.exists(f => containsUnquotedChar(f, '-'))
-    val thingyRegex = "^[^0-9+-]".r
-    val formatStartsWithNonNumericChar =
-      numberFormat.pattern.exists(f => thingyRegex.pattern.matcher(f).find())
-    if (
-      !(numberFormatContainsUnquotedPluses || numberFormatContainsUnquotedMinuses) && formatStartsWithNonNumericChar
-    ) {
-      if (containsUnquotedChar(v, '-')) {
-        v = "-" + stripUnquotedPlusMinus(v, removeUnquotedPluses = false)
+      case e: Throwable => {
+        logger.debug(e.getMessage)
+        logger.debug(e.getStackTrace.mkString("\n"))
+        Left(e.getMessage)
       }
     }
-
-    if (
-      containsUnquotedChar(
-        v,
-        '+'
-      ) && !numberFormatContainsUnquotedPluses
-    ) {
-
-      v = stripUnquotedPlusMinus(
-        v,
-        removeUnquotedMinuses = false
-      )
-    }
-
-    v
   }
 
   def containsUnquotedChar(value: String, char: Char): Boolean = {
@@ -1405,7 +1404,7 @@ case class Column private (
     } else Right(value)
   }
 
-  def addErrorIfRequiredValueAndValueEmpty(
+  def getErrorIfRequiredValueAndValueEmpty(
       value: String
   ): Option[ErrorWithoutContext] = {
     if (required && value.isEmpty) {
@@ -1581,7 +1580,7 @@ case class Column private (
     val errors = ArrayBuffer.empty[ErrorWithoutContext]
     if (nullParam.contains(value)) {
       // Since the cell value is among the null values specified for this CSV-W, it can be considered as the default null value which is ""
-      val errorWithoutContext = addErrorIfRequiredValueAndValueEmpty("")
+      val errorWithoutContext = getErrorIfRequiredValueAndValueEmpty("")
       if (errorWithoutContext.isDefined) {
         errors.addOne(errorWithoutContext.get)
       }
@@ -1607,7 +1606,7 @@ case class Column private (
           case Right(s) => {
             errors.addAll(validateLength(s.toString))
             errors.addAll(validateValue(s))
-            addErrorIfRequiredValueAndValueEmpty(s.toString) match {
+            getErrorIfRequiredValueAndValueEmpty(s.toString) match {
               case Some(e) => errors.addOne(e)
               case None    => {}
             }

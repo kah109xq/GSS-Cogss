@@ -15,7 +15,6 @@ case class NumberFormat(
     throw MetadataError("Format supplied for numeric data-types")
 
   private val df: DecimalFormat = new DecimalFormat()
-  private var hasUnquotedPlusMinus = false
   private val decimalFormatSymbols = df.getDecimalFormatSymbols
 
   decimalFormatSymbols.setInfinity("INF")
@@ -35,8 +34,6 @@ case class NumberFormat(
     df.setDecimalFormatSymbols(decimalFormatSymbols)
     pattern match {
       case Some(p) => {
-        val (sanitisedPattern, unquotedPM) = something(p)
-        hasUnquotedPlusMinus = unquotedPM
         df.applyPattern(p)
         df.setParseStrict(true)
       }
@@ -54,38 +51,5 @@ case class NumberFormat(
 
   def format(value: Number): String = {
     df.format(value)
-  }
-
-  def getHasUnquotedPlusMinusSign(): Boolean = hasUnquotedPlusMinus
-
-  def something(format: String): (String, Boolean) = {
-    var sanitisedFormat = new StringBuilder()
-    var insideQuotes = false
-    var hasUnquotedPlus = false
-    var hasUnquotedMinus = false
-    for (char <- format) {
-      if (char == '\'') insideQuotes = !insideQuotes
-      if (char == '+' && !insideQuotes) {
-        if (hasUnquotedPlus) {
-          throw new IllegalArgumentException(
-            "Not sure how to process this scenario"
-          )
-        }
-        sanitisedFormat.append(char)
-        hasUnquotedPlus = true
-      } else if (char == '-' && !insideQuotes) {
-        if (hasUnquotedMinus) {
-          throw new IllegalArgumentException(
-            "Not sure how to process this scenario"
-          )
-        }
-        sanitisedFormat.append("+")
-
-        hasUnquotedMinus = true
-      } else {
-        sanitisedFormat.append(char)
-      }
-    }
-    (sanitisedFormat.toString(), hasUnquotedPlus || hasUnquotedMinus)
   }
 }

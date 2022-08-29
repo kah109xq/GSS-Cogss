@@ -29,7 +29,7 @@ object Main extends App {
 
   OParser.parse(parser, args, Config()) match {
     case Some(config) =>
-      implicit val system: ActorSystem = ActorSystem("actor-system")
+      implicit val actorSystem: ActorSystem = ActorSystem("actor-system")
       val validator = new Validator(config.inputSchema)
       val akkaStream = validator
         .validate()
@@ -51,7 +51,7 @@ object Main extends App {
           print(Console.RESET + "")
         })
       Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
-      system.terminate()
+      actorSystem.terminate()
     case _ => throw new Exception("Invalid arguments")
   }
 

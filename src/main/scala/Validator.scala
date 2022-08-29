@@ -17,13 +17,14 @@ import scala.collection.{immutable, mutable}
 import scala.concurrent.Future
 import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsScala}
 import scala.language.postfixOps
+import scala.math.sqrt
 import scala.util.control.NonFatal
 
 class Validator(
     val schemaUri: Option[String],
-    csvUri: Option[String] = None,
-    var sourceUriUsed: Boolean = false
+    csvUri: Option[String] = None
 ) {
+  private var sourceUriUsed: Boolean = false
   private val logger = Logger(this.getClass.getName)
   val mapAvailableCharsets: mutable.Map[String, Charset] =
     Charset.availableCharsets().asScala
@@ -37,15 +38,21 @@ class Validator(
     Map[ParentTableForeignKeyReference, Set[KeyWithContext]]
   type MapTableToForeignKeys = Map[Table, ForeignKeys]
   type MapTableToForeignKeyReferences = Map[Table, ForeignKeyReferences]
-  type DataToAccumulate =
+  type TableState =
     (WarningsAndErrors, MapTableToForeignKeys, MapTableToForeignKeyReferences)
-  type AccumulatedValues = (
-      ArrayBuffer[WarningWithCsvContext],
-      ArrayBuffer[ErrorWithCsvContext],
-      mutable.Set[Int],
-      Map[ChildTableForeignKey, mutable.Set[KeyWithContext]],
-      Map[ParentTableForeignKeyReference, mutable.Set[KeyWithContext]],
-      mutable.Map[Int, ArrayBuffer[Long]]
+  type TableStateWithPrimaryKeyHashes = (
+      ArrayBuffer[WarningWithCsvContext], // Collection of warnings
+      ArrayBuffer[ErrorWithCsvContext], // Collection of errors
+      Map[ChildTableForeignKey, mutable.Set[
+        KeyWithContext
+      ]], // Map of childTableForeignKey to Set[KeyWithContext]
+      Map[ParentTableForeignKeyReference, mutable.Set[
+        KeyWithContext
+      ]], // Map of parentTableForeignKey reference
+      // to Set[KeyWithContext]
+      mutable.Map[Int, ArrayBuffer[
+        Long
+      ]] // Map of primaryKey hash to row numbers
   )
 
   type PrimaryKeysAndErrors =
@@ -79,9 +86,7 @@ class Validator(
       // http://example.com/imports-data-as-csv?year=1010
 
       val workingWithUserSpecifiedMetadata =
-        if (schemaUri.isDefined && possibleSchemaUri.toString == schemaUri.get)
-          true
-        else false
+        schemaUri.isDefined && possibleSchemaUri.toString == schemaUri.get
       maybeCsvUri
         .map(csvUri => {
           if (
@@ -109,6 +114,8 @@ class Validator(
         Left(GeneralCsvwLoadError(metadataError))
       case e: java.io.FileNotFoundException => Left(CascadeToOtherFilesError(e))
       case e: Throwable => {
+        logger.debug(e.getMessage)
+        logger.debug(e.getStackTrace.mkString("\n"))
         Left(GeneralCsvwLoadError(e))
       }
     }
@@ -236,23 +243,32 @@ class Validator(
   def validateSchemaTables(
       schema: TableGroup
   ): Source[WarningsAndErrors, NotUsed] = {
+    val degreeOfParallelism =
+      math.min(schema.tables.size, sqrt(parallelism).floor.toInt)
+    val degreeOfParallelismInTable = parallelism / degreeOfParallelism
     Source
       .fromIterator(() => schema.tables.keys.iterator)
       .flatMapMerge(
-        parallelism,
+        degreeOfParallelism,
         tableUrl => {
           val table = schema.tables(tableUrl)
           val tableUri = new URI(tableUrl)
           val dialect = table.dialect.getOrElse(Dialect())
           val format = getCsvFormat(dialect)
 
-          readAndValidateCsv(schema, tableUri, format, dialect).map {
-            case (wAndE, fk, fkRef) =>
-              (wAndE, fk, fkRef, table)
+          readAndValidateCsv(
+            schema,
+            tableUri,
+            format,
+            dialect,
+            degreeOfParallelismInTable
+          ).map {
+            case (warningsAndErrors, foreignKeys, foreignKeyReferences) =>
+              (warningsAndErrors, foreignKeys, foreignKeyReferences, table)
           }
         }
       )
-      .fold[DataToAccumulate](
+      .fold[TableState](
         (
           WarningsAndErrors(),
           Map(),
@@ -355,7 +371,9 @@ class Validator(
         )
         Right(csvParser)
       } catch {
-        case NonFatal(_) =>
+        case NonFatal(e) =>
+          logger.debug(e.getMessage)
+          logger.debug(e.getStackTrace.mkString("\n"))
           Left(
             WarningsAndErrors(
               Array(
@@ -379,7 +397,8 @@ class Validator(
       schema: TableGroup,
       tableUri: URI,
       format: CSVFormat,
-      dialect: Dialect
+      dialect: Dialect,
+      degreeOfParallelismInTable: Int
   ): Source[
     (
         WarningsAndErrors,
@@ -390,29 +409,35 @@ class Validator(
   ] = {
     getParser(tableUri, dialect, format) match {
       case Right(parser) =>
-        readAndValidateWithParser(schema, tableUri, dialect, format, parser)
-          .recover {
-            case NonFatal(err) => {
-              logger.debug(err.getMessage)
-              logger.debug(err.getStackTrace.mkString("\n"))
-              val warnings = Array(
-                WarningWithCsvContext(
-                  "source_url_mismatch",
-                  "CSV requested not found in metadata",
-                  "",
-                  "",
-                  "",
-                  ""
-                )
+        readAndValidateWithParser(
+          schema,
+          tableUri,
+          dialect,
+          format,
+          parser,
+          degreeOfParallelismInTable
+        ).recover {
+          case NonFatal(err) => {
+            logger.debug(err.getMessage)
+            logger.debug(err.getStackTrace.mkString("\n"))
+            val warnings = Array(
+              WarningWithCsvContext(
+                "source_url_mismatch",
+                "CSV requested not found in metadata",
+                "",
+                "",
+                "",
+                ""
               )
+            )
 
-              (
-                WarningsAndErrors(warnings = warnings),
-                Map(),
-                Map()
-              )
-            }
+            (
+              WarningsAndErrors(warnings = warnings),
+              Map(),
+              Map()
+            )
           }
+        }
       case Left(warningsAndErrors) =>
         if (tableUri.toString != csvUri.get && !sourceUriUsed) {
           sourceUriUsed = true
@@ -420,7 +445,8 @@ class Validator(
             schema,
             new URI(csvUri.get),
             format,
-            dialect
+            dialect,
+            degreeOfParallelismInTable
           )
         }
         // AND tableUri != sourceUri
@@ -446,7 +472,8 @@ class Validator(
       tableUri: URI,
       dialect: Dialect,
       format: CSVFormat,
-      parser: CSVParser
+      parser: CSVParser,
+      degreeOfParallelismInTable: Int
   ): Source[
     (
         WarningsAndErrors,
@@ -470,15 +497,22 @@ class Validator(
       .fromIterator(() => parser.asScala.iterator)
       .filter(row => row.getRecordNumber > dialect.skipRows)
       .grouped(rowGrouping)
-      .mapAsyncUnordered(parallelism)(csvRows =>
+      // If the actual computation time required for processing something is really low, the gains brought in by
+      // parallelism could be overshadowed by the additional costs of the Akka Streams.
+      // Validating the contents of a row is not an expensive task. So we parallelize this using Akka Streams,
+      // yes it can do more rows at a time but the additional cost of managing all these processes almost takes away
+      // the gains by parallelization.
+      // To overcome this, we are grouping rows together so that each task to process is large enough
+      // and thus better results are obtained. Grouped function allows accumulating the incoming elements
+      // until a specified number has been reached
+      .mapAsyncUnordered(degreeOfParallelismInTable)(csvRows =>
         Future {
           csvRows.map(parseRow(schema, tableUri, dialect, table, _))
         }
       )
-      .fold[AccumulatedValues](
+      .fold[TableStateWithPrimaryKeyHashes](
         ArrayBuffer.empty[WarningWithCsvContext],
         ArrayBuffer.empty[ErrorWithCsvContext],
-        Set(),
         Map(),
         Map(),
         Map()
@@ -488,7 +522,8 @@ class Validator(
           * To validate primary key efficiently, we need to have them in memory and HashSets gave the best performance.
           * Storing all of the primary keys in sets leads to huge memory usage by the application.
           * To be memory efficient, we hash the primary keys and then store them along with the rowNumbers.
-          * Hash Collisions are also addressed at later stage
+          * By hashing primary key values we're only identifying possible duplicates and it can be an overestimate of
+          * the actual number of duplicates because of hash collisions. Hash Collisions are also addressed at later stage
           *
           * {
           *  56234234234: {1, 20},
@@ -501,10 +536,9 @@ class Validator(
               (
                 warnings,
                 errors,
-                primaryKeyValues,
                 childTableForeignKeys,
                 parentTableForeignKeys,
-                hashToRowNumbersToCheck
+                mapPrimaryKeyHashToRowNumbers
               ),
               rowOutputs: Seq[ValidateRowOutput]
             ) => {
@@ -513,24 +547,32 @@ class Validator(
             errors,
             childTableForeignKeys,
             parentTableForeignKeys,
-            hashToRowNumbersToCheck,
+            mapPrimaryKeyHashToRowNumbers,
             rowOutputs
           )
 
           (
             warnings,
             errors,
-            primaryKeyValues,
             childTableForeignKeys,
             parentTableForeignKeys,
-            hashToRowNumbersToCheck
+            mapPrimaryKeyHashToRowNumbers
           )
         }
       }
-      .flatMapConcat(x => {
+      .flatMapConcat(keyCheckAggregateValues => {
         // function getParser will return a parser here. If not, if wouldn't have reached here
-        val newParser = getParser(tableUri, dialect, format).getOrElse(parser)
-        readCsvAgain(x, newParser, rowGrouping, parallelism, table)
+        val newParser = getParser(tableUri, dialect, format)
+          .getOrElse(
+            throw new IllegalArgumentException("Could not fetch CSV parser")
+          )
+        checkPossiblePrimaryKeyDuplicates(
+          keyCheckAggregateValues,
+          newParser,
+          rowGrouping,
+          parallelism,
+          table
+        )
       })
   }
 
@@ -544,7 +586,7 @@ class Validator(
         ParentTableForeignKeyReference,
         mutable.Set[KeyWithContext]
       ],
-      hashToRowNumbersToCheck: mutable.Map[Int, ArrayBuffer[Long]],
+      mapPrimaryKeyHashToRowNumbers: mutable.Map[Int, ArrayBuffer[Long]],
       rowOutputs: Seq[ValidateRowOutput]
   ): Unit = {
     for (rowOutput <- rowOutputs) {
@@ -558,8 +600,8 @@ class Validator(
         rowOutput,
         parentTableForeignKeys
       )
-      accumulatePrimaryKeyRowsToCheck(
-        hashToRowNumbersToCheck,
+      accumulatePossiblePrimaryKeyDuplicates(
+        mapPrimaryKeyHashToRowNumbers,
         rowOutput
       )
     }
@@ -573,8 +615,8 @@ class Validator(
     * To fix this, all the hashes which contain more than one rowNumber is checked again and the primary key error is set
     * at this point. During this checking the actual values of primary keys of these rows are compared.
     */
-  private def readCsvAgain(
-      value: AccumulatedValues,
+  private def checkPossiblePrimaryKeyDuplicates(
+      keyCheckAggregateValues: TableStateWithPrimaryKeyHashes,
       parser: CSVParser,
       rowGrouping: Int,
       parallelism: Int,
@@ -592,12 +634,11 @@ class Validator(
     val (
       warnings,
       errors,
-      _,
       childTableForeignKeys,
       parentTableForeignKeys,
-      hashToRowNumbersToCheck
-    ) = value
-    val rowsToCheckAgain = hashToRowNumbersToCheck
+      mapPrimaryKeyHashToRowNumbers
+    ) = keyCheckAggregateValues
+    val rowsToCheckAgain = mapPrimaryKeyHashToRowNumbers
       .filter { case (_, rowNums) => rowNums.length > 1 }
       .values
       .flatMap(_.toList)
@@ -607,6 +648,14 @@ class Validator(
       .fromIterator(() => parser.asScala.iterator)
       .filter(row => rowsToCheckAgain.contains(row.getRecordNumber))
       .grouped(rowGrouping)
+      // If the actual computation time required for processing something is really low, the gains brought in by
+      // parallelism could be overshadowed by the additional costs of the Akka Streams.
+      // Validating the contents of a row is not an expensive task. So we parallelize this using Akka Streams,
+      // yes it can do more rows at a time but the additional cost of managing all these processes almost takes away
+      // the gains by parallelization.
+      // To overcome this, we are grouping rows together so that each task to process is large enough
+      // and thus better results are obtained. Grouped function allows accumulating the incoming elements
+      // until a specified number has been reached
       .mapAsyncUnordered(parallelism)(csvRows =>
         Future {
           // Since every row is once validated, we do not need the whole checking inside parseRow Function again here.
@@ -626,7 +675,7 @@ class Validator(
               rowOutputs: Seq[ValidateRowOutput]
             ) => {
           for (rowOutput <- rowOutputs) {
-            validatePrimaryKey(primaryKeyValues, rowOutput)
+            ensurePrimaryKeyValueIsNotDuplicate(primaryKeyValues, rowOutput)
               .ifDefined(e => {
                 errorsInAkkaStreams.addOne(e)
               })
@@ -647,7 +696,7 @@ class Validator(
       }
   }
 
-  private def validatePrimaryKey(
+  private def ensurePrimaryKeyValueIsNotDuplicate(
       existingPrimaryKeyValues: mutable.Set[List[Any]],
       validateRowOutput: ValidateRowOutput
   ): Option[ErrorWithCsvContext] = {
@@ -727,23 +776,23 @@ class Validator(
   }
 
   /**
-    * Every PrimaryKey is hashed and stored in the hashMap - hashToRowNumbersToCheck along with the rowNumbers
+    * Every PrimaryKey is hashed and stored in the hashMap - mapPrimaryKeyHashToRowNumbers along with the rowNumbers
     * Later on, the keys(which are the hashes) with more than one rowNumbers are checked again if they are actual primary
     * key violations or hash collisions.
     */
-  private def accumulatePrimaryKeyRowsToCheck(
-      hashToRowNumbersToCheck: mutable.Map[Int, ArrayBuffer[Long]],
+  private def accumulatePossiblePrimaryKeyDuplicates(
+      mapPrimaryKeyHashToRowNumbers: mutable.Map[Int, ArrayBuffer[Long]],
       validateRowOutput: ValidateRowOutput
   ): Unit = {
     val primaryKeyValueHash = validateRowOutput.primaryKeyValues.hashCode()
     if (validateRowOutput.primaryKeyValues.nonEmpty) {
-      hashToRowNumbersToCheck.get(primaryKeyValueHash) match {
+      mapPrimaryKeyHashToRowNumbers.get(primaryKeyValueHash) match {
         case Some(_) =>
-          hashToRowNumbersToCheck(primaryKeyValueHash).addOne(
+          mapPrimaryKeyHashToRowNumbers(primaryKeyValueHash).addOne(
             validateRowOutput.recordNumber
           )
         case None =>
-          hashToRowNumbersToCheck.addOne(
+          mapPrimaryKeyHashToRowNumbers.addOne(
             primaryKeyValueHash -> ArrayBuffer(validateRowOutput.recordNumber)
           )
       }
@@ -755,7 +804,7 @@ class Validator(
       parentTableForeignKeyReferences: Map[ParentTableForeignKeyReference, Set[
         KeyWithContext
       ]]
-  ) = {
+  ): Unit = {
     validateRowOutput.parentTableForeignKeyReferences
       .foreach {
         case (k, value) => {
@@ -875,7 +924,9 @@ class Validator(
     try {
       schema.tables(tableUri.toString)
     } catch {
-      case NonFatal(_) =>
+      case NonFatal(e) =>
+        logger.debug(e.getMessage)
+        logger.debug(e.getStackTrace.mkString("\n"))
         throw MetadataError(
           "Metadata does not contain requested tabular data file"
         )

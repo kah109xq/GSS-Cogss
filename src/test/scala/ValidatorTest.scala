@@ -1,13 +1,15 @@
 package CSVValidation
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.Sink
+import akka.util.Timeout
+import org.joda.time.DurationFieldType.seconds
 import org.scalatest.FunSuite
 
 import java.io.File
 import java.time.{ZoneId, ZonedDateTime}
 import scala.collection.mutable
 import scala.concurrent.Await
-import scala.concurrent.duration.Duration
+import scala.concurrent.duration.{Duration, DurationInt}
 
 class ValidatorTest extends FunSuite {
   val csvwExamplesBaseDir = "src/test/resources/csvwExamples/"
@@ -19,7 +21,7 @@ class ValidatorTest extends FunSuite {
     var warningsAndErrors = WarningsAndErrors()
     val akkaStream =
       validator.validate().map(wAndE => warningsAndErrors = wAndE)
-    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
+    Await.ready(akkaStream.runWith(Sink.ignore), 10.seconds)
     assert(warningsAndErrors.warnings.length === 1)
     val warning = warningsAndErrors.warnings(0)
     assert(warning.`type` === "Empty column name")
@@ -36,7 +38,7 @@ class ValidatorTest extends FunSuite {
     var warningsAndErrors = WarningsAndErrors()
     val akkaStream =
       validator.validate().map(wAndE => warningsAndErrors = wAndE)
-    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
+    Await.ready(akkaStream.runWith(Sink.ignore), 10.seconds)
     assert(warningsAndErrors.errors.length === 1)
     val error = warningsAndErrors.errors(0)
     assert(error.`type` === "Invalid Header")
@@ -53,7 +55,7 @@ class ValidatorTest extends FunSuite {
     var warningsAndErrors = WarningsAndErrors()
     val akkaStream =
       validator.validate().map(wAndE => warningsAndErrors = wAndE)
-    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
+    Await.ready(akkaStream.runWith(Sink.ignore), 10.seconds)
     assert(warningsAndErrors.warnings.length === 1)
     val warning = warningsAndErrors.warnings(0)
     assert(warning.`type` === "Duplicate column name")
@@ -70,7 +72,7 @@ class ValidatorTest extends FunSuite {
     var warningsAndErrors = WarningsAndErrors()
     val akkaStream =
       validator.validate().map(wAndE => warningsAndErrors = wAndE)
-    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
+    Await.ready(akkaStream.runWith(Sink.ignore), 10.seconds)
     assert(warningsAndErrors.errors.length === 1)
     val error = warningsAndErrors.errors(0)
     assert(error.`type` === "Invalid Header")
@@ -85,7 +87,7 @@ class ValidatorTest extends FunSuite {
     var warningsAndErrors = WarningsAndErrors()
     val akkaStream =
       validator.validate().map(wAndE => warningsAndErrors = wAndE)
-    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
+    Await.ready(akkaStream.runWith(Sink.ignore), 10.seconds)
     assert(warningsAndErrors.errors.length === 1)
     val error = warningsAndErrors.errors(0)
     assert(error.`type` === "duplicate_key")
@@ -104,7 +106,7 @@ class ValidatorTest extends FunSuite {
     var warningsAndErrors = WarningsAndErrors()
     val akkaStream =
       validator.validate().map(wAndE => warningsAndErrors = wAndE)
-    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
+    Await.ready(akkaStream.runWith(Sink.ignore), 10.seconds)
     assert(warningsAndErrors.errors.length === 0)
   }
 
@@ -117,7 +119,7 @@ class ValidatorTest extends FunSuite {
     var warningsAndErrors = WarningsAndErrors()
     val akkaStream =
       validator.validate().map(wAndE => warningsAndErrors = wAndE)
-    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
+    Await.ready(akkaStream.runWith(Sink.ignore), 10.seconds)
     assert(warningsAndErrors.errors.length === 1)
     val error = warningsAndErrors.errors(0)
     assert(
@@ -134,7 +136,7 @@ class ValidatorTest extends FunSuite {
     var warningsAndErrors = WarningsAndErrors()
     val akkaStream =
       validator.validate().map(wAndE => warningsAndErrors = wAndE)
-    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
+    Await.ready(akkaStream.runWith(Sink.ignore), 10.seconds)
     assert(warningsAndErrors.errors.length === 1)
     val error = warningsAndErrors.errors(0)
     assert(error.`type` === "duplicate_key")
@@ -153,7 +155,7 @@ class ValidatorTest extends FunSuite {
     var warningsAndErrors = WarningsAndErrors()
     val akkaStream =
       validator.validate().map(wAndE => warningsAndErrors = wAndE)
-    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
+    Await.ready(akkaStream.runWith(Sink.ignore), 10.seconds)
     assert(warningsAndErrors.errors.length === 0)
   }
 
@@ -166,7 +168,7 @@ class ValidatorTest extends FunSuite {
     var warningsAndErrors = WarningsAndErrors()
     val akkaStream =
       validator.validate().map(wAndE => warningsAndErrors = wAndE)
-    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
+    Await.ready(akkaStream.runWith(Sink.ignore), 10.seconds)
     val errors = warningsAndErrors.errors
     assert(errors.length === 1)
     assert(errors(0).`type` === "unmatched_foreign_key_reference")
@@ -182,7 +184,7 @@ class ValidatorTest extends FunSuite {
     var warningsAndErrors = WarningsAndErrors()
     val akkaStream =
       validator.validate().map(wAndE => warningsAndErrors = wAndE)
-    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
+    Await.ready(akkaStream.runWith(Sink.ignore), 10.seconds)
     val errors = warningsAndErrors.errors
     assert(errors.length === 1)
     assert(errors(0).`type` === "multiple_matched_rows")

@@ -78,7 +78,7 @@ object DateFormat {
     s"${xmlSchemaBaseUrl}time" -> s"^($hourGrp:$minuteGrp:$secondGrp|$endOfDay)($timeZone)?$$".r
   )
 
-  val dateTimeFormatEndingWithX: Regex = ".*[^X][Xx]$".r
+  val dateTimeFormatEndingWithX: Regex = ".*[^Xx][Xx]$".r
 
   /**
     * Each XSD date/time datatype has a default format. `mapDataTypeToDefaultValueRegEx` contains regular expressions
@@ -219,7 +219,10 @@ case class DateFormat(format: Option[String], dataType: String) {
           .matcher(format.get)
           .matches()
       ) {
-        // getRawOffset method returns milli seconds. It is divided by 3600000 to get offset in hours
+        // If the time zone offset is a integer multiple of hours then putting the `00` after the hour is optional.
+        // e.g. Both `+03` and `+0300` are valid. By default the ICU dateformat functionality standardises on dropping
+        // the trailing zeroes (i.e. chooses the `+03` format). However, if the cell contains `+0300`, that is still
+        // valid so we need to check for that edge case below.
         val offset = parsedDateTime.getTimeZone.getRawOffset.toFloat
         formatPreservesAllInformation = if ((offset / 3600000).isValidInt) {
           formattedDate == inputDate || s"${formattedDate}00" == inputDate
