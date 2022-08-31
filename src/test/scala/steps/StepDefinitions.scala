@@ -1,4 +1,7 @@
 import CSVValidation.{Validator, WarningsAndErrors}
+import Main.{getDescriptionForMessage, logger}
+import akka.actor.ActorSystem
+import akka.stream.scaladsl.Sink
 import io.cucumber.scala.{EN, ScalaDsl}
 
 import scala.io.Source
@@ -6,6 +9,9 @@ import org.slf4j.LoggerFactory
 import sttp.client3._
 import sttp.model._
 import sttp.client3.testing._
+
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
 
 class StepDefinitions extends ScalaDsl with EN {
   // Definitions for steps in scenarios given in csvw_validation_tests.feature
@@ -16,11 +22,12 @@ class StepDefinitions extends ScalaDsl with EN {
   private var warningsAndErrors: WarningsAndErrors = WarningsAndErrors()
   private var link = ""
   private var csv: String = ""
+  private var metadataFilePath: String = ""
   private var metadata: String = ""
   private var content: String = ""
   private var schemaUrl: Option[String] = None
   private var fileUrl = ""
-  private var contextUrl: String = ""
+  private var csvUrl: Option[String] = None
   private var testingBackend = None
   private var notFoundStartsWith = List[String]()
   private var notFountEndsWith = List[String]()
@@ -28,14 +35,14 @@ class StepDefinitions extends ScalaDsl with EN {
   // Assume we use sttp as http client.
   // Call this funciton and set the testing backend object. Pass the backend object into validator function
   // Stubbing for sttp is done as given in their docs at https://sttp.softwaremill.com/en/latest/testing.html
-  def setTestingBackend() = {
+  def setTestingBackend(): Unit = {
     var testingBackend = SttpBackendStub.synchronous
       .whenRequestMatchesPartial({
         case r if r.uri.path.startsWith(List(fileUrl)) =>
           Response.ok(content)
         case r if r.uri.path.startsWith(List(schemaUrl)) =>
           Response.ok(metadata)
-        case r if r.uri.path.startsWith(List(contextUrl)) =>
+        case r if r.uri.path.startsWith(List(csvUrl)) =>
           Response.ok(csv)
         case r if r.uri.path.endsWith(notFountEndsWith) =>
           Response("Not found", StatusCode.NotFound)
@@ -49,7 +56,7 @@ class StepDefinitions extends ScalaDsl with EN {
   }
 
   Given("""^it is stored at the url "(.*?)"$""") { (url: String) =>
-    contextUrl = url
+    csvUrl = Some(url)
     // notFoundEndsWith is a list which holds all the url endwith strings for which a 404 should be returned.
     // This list is later used in setTestingBackend function to mock http calls
     notFountEndsWith = "/.well-known/csvm" :: notFountEndsWith
@@ -64,8 +71,8 @@ class StepDefinitions extends ScalaDsl with EN {
   }
 
   Given("""^I have a metadata file called "([^"]*)"$""") { filename: String =>
-    val filePath = fixturesPath + filename
-    metadata = Source.fromFile(filePath).getLines.mkString
+//    metadataFilePath = fixturesPath + filename
+//    metadata = Source.fromFile(metadataFilePath).getLines.mkString
   }
 
   And("""^the (schema|metadata) is stored at the url "(.*?)"$""") {
@@ -79,14 +86,18 @@ class StepDefinitions extends ScalaDsl with EN {
 
   And("""^I have a file called "(.*?)" at the url "(.*?)"$""") {
     (fileName: String, url: String) =>
-      val filePath = fixturesPath + fileName
-      content = Source.fromFile(filePath).getLines.mkString
-      fileUrl = url
+      {
+        //      if (url.endsWith(".json")) schemaUrl = Some(url)
+        //      if (url.endsWith(".csv")) csvUrl = Some(url)
+      }
   }
 
   When("I carry out CSVW validation") { () =>
-    val validator = new Validator(schemaUrl, csvFilePath)
-    warningsAndErrors = validator.validate()
+    implicit val system: ActorSystem = ActorSystem("actor-system")
+    val validator = new Validator(schemaUrl, csvUrl)
+    val akkaStream =
+      validator.validate().map(wAndE => warningsAndErrors = wAndE)
+    Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
   }
 
   Then("there should not be errors") { () =>

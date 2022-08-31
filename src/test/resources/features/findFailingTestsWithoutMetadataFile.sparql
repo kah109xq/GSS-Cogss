@@ -1,0 +1,31 @@
+# This query checks to see if there are any CSVW-validation tests defined with no associated metadata JSON file which
+# should return warning or errors.
+# There are none, so if we are asked to validate a CSV with no associated metadata JSON file, we will simply
+# say it's fine.
+
+# Data can be found defined in-page at <https://w3c.github.io/csvw/tests/#manifest-validation>.
+
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX csvwt: <http://www.w3.org/2013/csvw/tests/vocab#>
+
+DESCRIBE ?test WHERE {
+    BIND(<https://w3c.github.io/csvw/tests/manifest-validation> as ?manifest).
+
+    ?manifest a mf:Manifest;
+              mf:entry ?test.
+
+    ?test a ?testType.
+
+    FILTER(?testType != csvwt:PositiveValidationTest).
+
+    FILTER NOT EXISTS {
+        ?test mf:action ?actionFile.
+        FILTER (CONTAINS(LCASE(STR(?actionFile)), ".json"))
+    }
+    FILTER NOT EXISTS {
+        ?test csvwt:implicit ?implicitFile.
+        FILTER (CONTAINS(LCASE(STR(?implicitFile)), ".json"))
+    }
+}

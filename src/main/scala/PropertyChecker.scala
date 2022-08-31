@@ -1,13 +1,15 @@
 package CSVValidation
 import com.fasterxml.jackson.databind.node._
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
+import org.joda.time.DateTime
+import CSVValidation.traits.ObjectNodeExtentions.ObjectNodeGetMaybeNode
 
 import java.net.{URI, URL}
 import scala.jdk.CollectionConverters._
 import scala.util.matching.Regex
 
 object PropertyChecker {
-  val startsWithUnderscore = "^_:.*".r
+  val startsWithUnderscore = "^_:.*$".r
   val containsColon = ".*:.*".r
   val mapper = new ObjectMapper
   val invalidValueWarning = "invalid_value"
@@ -165,6 +167,14 @@ object PropertyChecker {
             case "@type" => processCommonPropertyType(valueCopy, p, v)
             case "@id" => {
               if (!baseUrl.isBlank) {
+                val matcher =
+                  PropertyChecker.startsWithUnderscore.pattern
+                    .matcher(v.asText())
+                if (matcher.matches) {
+                  throw new MetadataError(
+                    s"@id must not start with '_:'  -  ${v.asText()}"
+                  )
+                }
                 try {
                   val newValue = new URL(new URL(baseUrl), v.asText())
                   v = new TextNode(newValue.toString)
@@ -306,11 +316,10 @@ object PropertyChecker {
                   s"common property has invalid @type (${typeElement.asText})"
                 )
             } catch {
-              case e: Exception => {
+              case e: Exception =>
                 throw new MetadataError(
                   s"common property has invalid @type (${typeElement.asText})"
                 )
-              }
             }
           }
         }
@@ -324,11 +333,8 @@ object PropertyChecker {
       datatype: String
   ): Array[String] = {
     if (!value.path(property).isMissingNode) {
-      if (PropertyCheckerConstants.DateFormatDataTypes.contains(datatype)) {
-        throw new NotImplementedError(
-          "To be implemented after implementing DateFormat class"
-        )
-      } else if (
+      if (
+        PropertyCheckerConstants.DateFormatDataTypes.contains(datatype) ||
         PropertyCheckerConstants.NumericFormatDataTypes.contains(datatype)
       ) {
         return Array[String]()
@@ -422,20 +428,18 @@ object PropertyChecker {
       if (value.isArray) {
         val arrayValue = value.asInstanceOf[ArrayNode]
         val elements = Array.from(arrayValue.elements().asScala)
-        if (elements forall (_.isTextual())) {
 
-          /**
-            * [(1,2), (3,4), (5,6)] => ([1,3,5], [2,4,6])
-            */
-          val (values, warnings) = Array
-            .from(elements.map(x => checkCommonPropertyValue(x, baseUrl, lang)))
-            .unzip
-          // warnings at this point will be of type Array[Array[String]]
-          var newWarnings = Array[String]()
-          for (w <- warnings) { newWarnings = Array.concat(newWarnings, w) }
-          val arrayNode: ArrayNode = PropertyChecker.mapper.valueToTree(values)
-          return (arrayNode, newWarnings, csvwPropertyType)
-        }
+        /**
+          * [(1,2), (3,4), (5,6)] => ([1,3,5], [2,4,6])
+          */
+        val (values, warnings) = Array
+          .from(elements.map(x => checkCommonPropertyValue(x, baseUrl, lang)))
+          .unzip
+        // warnings at this point will be of type Array[Array[String]]
+        var newWarnings = Array[String]()
+        for (w <- warnings) { newWarnings = Array.concat(newWarnings, w) }
+        val arrayNode: ArrayNode = PropertyChecker.mapper.valueToTree(values)
+        return (arrayNode, newWarnings, csvwPropertyType)
       }
       (
         JsonNodeFactory.instance.arrayNode(),
@@ -443,7 +447,7 @@ object PropertyChecker {
         csvwPropertyType
       )
     }
-    return notesPropertyInternal
+    notesPropertyInternal
   }
 
   def nullProperty(
@@ -665,122 +669,83 @@ object PropertyChecker {
       warnings :+ convertValueFacet(datatypeNode, "maxInclusive", baseValue)
       warnings :+ convertValueFacet(datatypeNode, "maxExclusive", baseValue)
 
-      val minInclusive: Option[Either[Int, String]] =
-        if (valueCopy.path("minInclusive").path("dateTime").isMissingNode) {
-          if (datatypeNode.path("minInclusive").isMissingNode) {
-            None
-          } else {
-            Some(Left(datatypeNode.get("minInclusive").asInt()))
-          }
-        } else {
-          if (
-            datatypeNode.path("minInclusive").path("dateTime").isMissingNode
-          ) {
-            None
-          } else {
-            Some(
-              Right(datatypeNode.get("minInclusive").get("dateTime").asText())
-            )
-          }
-        }
-
-      val maxInclusive: Option[Either[Int, String]] =
-        if (datatypeNode.path("maxInclusive").path("dateTime").isMissingNode) {
-          if (datatypeNode.path("maxInclusive").isMissingNode) {
-            None
-          } else {
-            Some(Left(datatypeNode.get("maxInclusive").asInt()))
-          }
-        } else {
-          if (
-            datatypeNode.path("maxInclusive").path("dateTime").isMissingNode
-          ) {
-            None
-          } else {
-            Some(
-              Right(datatypeNode.get("maxInclusive").get("dateTime").asText())
-            )
-          }
-        }
-
-      val minExclusive: Option[Either[Int, String]] =
-        if (datatypeNode.path("minExclusive").path("dateTime").isMissingNode) {
-          if (datatypeNode.path("minExclusive").isMissingNode) {
-            None
-          } else {
-            Some(Left(datatypeNode.get("minExclusive").asInt()))
-          }
-        } else {
-          if (datatypeNode.get("minExclusive").path("dateTime").isMissingNode) {
-            None
-          } else {
-            Some(
-              Right(datatypeNode.get("minExclusive").get("dateTime").asText())
-            )
-          }
-        }
-
-      val maxExclusive: Option[Either[Int, String]] =
-        if (datatypeNode.path("maxExclusive").path("dateTime").isMissingNode) {
-          if (datatypeNode.path("maxExclusive").isMissingNode) {
-            None
-          } else {
-            Some(Left(datatypeNode.get("maxExclusive").asInt()))
-          }
-        } else {
-          if (
-            datatypeNode.path("maxExclusive").path("dateTime").isMissingNode
-          ) {
-            None
-          } else {
-            Some(
-              Right(datatypeNode.get("maxExclusive").get("dateTime").asText())
-            )
-          }
-        }
+      val minInclusive: Option[String] =
+        getRangeConstraint(datatypeNode, "minInclusive")
+      val maxInclusive: Option[String] =
+        getRangeConstraint(datatypeNode, "maxInclusive")
+      val minExclusive: Option[String] =
+        getRangeConstraint(datatypeNode, "minExclusive")
+      val maxExclusive: Option[String] =
+        getRangeConstraint(datatypeNode, "maxExclusive")
 
       (minInclusive, minExclusive, maxInclusive, maxExclusive) match {
         case (Some(minI), Some(minE), _, _) =>
-          throw new MetadataError(
-            s"datatype cannot specify both minimum/minInclusive (${minI.merge}) and minExclusive (${minE.merge})"
+          throw MetadataError(
+            s"datatype cannot specify both minimum/minInclusive (${minI}) and minExclusive (${minE})"
           )
         case (_, _, Some(maxI), Some(maxE)) =>
-          throw new MetadataError(
-            s"datatype cannot specify both maximum/maxInclusive (${maxI.merge}) and maxExclusive (${maxE.merge})"
-          )
-        case (Some(Left(minI)), _, Some(Left(maxI)), _) if minI > maxI =>
-          throw new MetadataError(
-            s"datatype minInclusive ($minI) cannot be more than maxInclusive ($maxI)"
-          )
-        case (Some(Right(minI)), _, Some(Right(maxI)), _) if minI > maxI =>
-          throw new MetadataError(
-            s"datatype minInclusive ($minI) cannot be more than maxInclusive ($maxI)"
-          )
-        case (Some(Left(minI)), _, _, Some(Left(maxE))) if minI >= maxE =>
-          throw new MetadataError(
-            s"datatype minInclusive ($minI) cannot be greater than or equal to maxExclusive ($maxE)"
-          )
-        case (Some(Right(minI)), _, _, Some(Right(maxE))) if minI >= maxE =>
-          throw new MetadataError(
-            s"datatype minInclusive ($minI) cannot be greater than or equal to maxExclusive ($maxE)"
-          )
-        case (_, Some(Left(minE)), _, Some(Left(maxE))) if minE > maxE =>
-          throw new MetadataError(
-            s"datatype minExclusive ($minE) cannot be greater than or equal to maxExclusive ($maxE)"
-          )
-        case (_, Some(Right(minE)), _, Some(Right(maxE))) if minE > maxE =>
-          throw new MetadataError(
-            s"datatype minExclusive ($minE) cannot be greater than or equal to maxExclusive ($maxE)"
-          )
-        case (_, Some(Left(minE)), Some(Left(maxI)), _) if minE >= maxI =>
-          throw new MetadataError(
-            s"datatype minExclusive ($minE) cannot be greater than maxInclusive ($maxI)"
-          )
-        case (_, Some(Right(minE)), Some(Right(maxI)), _) if minE >= maxI =>
-          throw new MetadataError(
-            s"datatype minExclusive ($minE) cannot be greater than maxInclusive ($maxI)"
+          throw MetadataError(
+            s"datatype cannot specify both maximum/maxInclusive (${maxI}) and maxExclusive (${maxE})"
           )
         case _ => {}
+      }
+
+      if (PropertyCheckerConstants.NumericFormatDataTypes.contains(baseValue)) {
+        (
+          minInclusive.map(BigDecimal(_)),
+          minExclusive.map(BigDecimal(_)),
+          maxInclusive.map(BigDecimal(_)),
+          maxExclusive.map(BigDecimal(_))
+        ) match {
+          case (Some(minI), _, Some(maxI), _) if minI > maxI =>
+            throw MetadataError(
+              s"datatype minInclusive ($minI) cannot be greater than maxInclusive ($maxI)"
+            )
+          case (Some(minI), _, _, Some(maxE)) if minI >= maxE =>
+            throw MetadataError(
+              s"datatype minInclusive ($minI) cannot be greater than or equal to maxExclusive ($maxE)"
+            )
+          case (_, Some(minE), _, Some(maxE)) if minE > maxE =>
+            throw MetadataError(
+              s"datatype minExclusive ($minE) cannot be greater than or equal to maxExclusive ($maxE)"
+            )
+          case (_, Some(minE), Some(maxI), _) if minE >= maxI =>
+            throw MetadataError(
+              s"datatype minExclusive ($minE) cannot be greater than maxInclusive ($maxI)"
+            )
+          case _ => {}
+        }
+      } else if (
+        PropertyCheckerConstants.DateFormatDataTypes.contains(baseValue)
+      ) {
+        (
+          minInclusive.map(DateTime.parse),
+          minExclusive.map(DateTime.parse),
+          maxInclusive.map(DateTime.parse),
+          maxExclusive.map(DateTime.parse)
+        ) match {
+          case (Some(minI), _, Some(maxI), _)
+              if minI.getMillis > maxI.getMillis =>
+            throw MetadataError(
+              s"datatype minInclusive ($minI) cannot be greater than maxInclusive ($maxI)"
+            )
+          case (Some(minI), _, _, Some(maxE))
+              if minI.getMillis >= maxE.getMillis =>
+            throw MetadataError(
+              s"datatype minInclusive ($minI) cannot be greater than or equal to maxExclusive ($maxE)"
+            )
+          case (_, Some(minE), _, Some(maxE))
+              if minE.getMillis > maxE.getMillis =>
+            throw MetadataError(
+              s"datatype minExclusive ($minE) cannot be greater than or equal to maxExclusive ($maxE)"
+            )
+          case (_, Some(minE), Some(maxI), _)
+              if minE.getMillis >= maxI.getMillis =>
+            throw MetadataError(
+              s"datatype minExclusive ($minE) cannot be greater than maxInclusive ($maxI)"
+            )
+          case _ => {}
+        }
       }
 
       val minLength = datatypeNode.path("minLength")
@@ -839,7 +804,11 @@ object PropertyChecker {
               datatypeNode.remove("format")
               warnings = warnings :+ "invalid_boolean_format"
             }
-          } // Do we want to cope with an array node here? Do we not at least want a warning if it isn't textual or doesn't exist?
+          } else {
+            // Boolean formats should always be textual
+            datatypeNode.remove("format")
+            warnings = warnings :+ "invalid_boolean_format"
+          }
         } else if (
           PropertyCheckerConstants.DateFormatDataTypes.contains(baseValue)
         ) {
@@ -867,6 +836,28 @@ object PropertyChecker {
     }
   }
 
+  private def getRangeConstraint(
+      datatypeNode: ObjectNode,
+      property: String
+  ) = {
+    datatypeNode
+      .getMaybeNode(property)
+      .flatMap {
+        case rangeConstraint: ObjectNode =>
+          rangeConstraint
+            .getMaybeNode("dateTime")
+            .map(rangeConstraint => rangeConstraint.asText())
+        case rangeConstraint: TextNode =>
+          Some(rangeConstraint.asText())
+        case rangeConstraint: IntNode =>
+          Some(rangeConstraint.asText())
+        case rangeConstraint: DecimalNode =>
+          Some(rangeConstraint.asText())
+        case rangeConstraint: LongNode =>
+          Some(rangeConstraint.asText())
+      }
+  }
+
   def processNumericDatatypeAndReturnWarnings(
       objectNode: ObjectNode
   ): Array[String] = {
@@ -889,7 +880,10 @@ object PropertyChecker {
       } else {
         Some(format.get("decimalChar").asText.charAt(0))
       }
-      NumberFormat(Some(format.get("pattern").asText()), groupChar, decimalChar)
+      val patternNode = format.path("pattern")
+      val patternString: Option[String] =
+        if (patternNode.isMissingNode) None else Some(patternNode.asText())
+      NumberFormat(patternString, groupChar, decimalChar)
     } catch {
       case e: NumberFormatError => {
         format.asInstanceOf[ObjectNode].remove("pattern")

@@ -1,15 +1,15 @@
 package CSVValidation
 
 import CSVValidation.Column.{
-  datatypeDefaultValue,
   rdfSyntaxNs,
   unsignedLongMaxValue,
-  validDecimalDatatypeRegex,
   validDoubleDatatypeRegex,
   xmlSchema
 }
-import CSVValidation.traits.ObjectNodeExtentions.IteratorHasGetKeysAndValues
-import CSVValidation.traits.ObjectNodeExtentions.ObjectNodeGetMaybeNode
+import CSVValidation.traits.ObjectNodeExtentions.{
+  IteratorHasGetKeysAndValues,
+  ObjectNodeGetMaybeNode
+}
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.{
   ArrayNode,
@@ -18,15 +18,17 @@ import com.fasterxml.jackson.databind.node.{
   TextNode
 }
 import com.ibm.icu
+import com.typesafe.scalalogging.Logger
 import errors.ErrorWithoutContext
+import org.joda.time.{DateTime, DateTimeZone}
 
-import java.lang
 import java.math.BigInteger
-import java.time.ZonedDateTime
+import java.time.{LocalDateTime, Month, ZoneId, ZonedDateTime}
 import scala.collection.mutable
-import scala.collection.mutable.Map
+import scala.collection.mutable.{ArrayBuffer, Map}
 import scala.jdk.CollectionConverters.IteratorHasAsScala
 import scala.math.BigInt.javaBigInteger2bigInt
+import scala.util.matching.Regex
 
 object Column {
   val xmlSchema = "http://www.w3.org/2001/XMLSchema#"
@@ -38,12 +40,21 @@ object Column {
   val validDecimalDatatypeRegex =
     "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)".r
 
+  // https://www.w3.org/TR/xmlschema11-2/#float, https://www.w3.org/TR/xmlschema11-2/#double
   val validDoubleDatatypeRegex, validFloatDatatypeRegex =
     "(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([Ee](\\+|-)?[0-9]+)?|(\\+|-)?INF|NaN".r
 
   val validIntegerRegex = "[\\-+]?[0-9]+".r
 
   val validLongDatatypeRegex = "[\\-+]?[0-9]+".r
+
+  // https://www.w3.org/TR/xmlschema11-2/#duration
+  val validDurationRegex: Regex =
+    "-?P((([0-9]+Y([0-9]+M)?([0-9]+D)?|([0-9]+M)([0-9]+D)?|([0-9]+D))(T(([0-9]+H)([0-9]+M)?([0-9]+(\\.[0-9]+)?S)?|([0-9]+M)([0-9]+(\\.[0-9]+)?S)?|([0-9]+(\\.[0-9]+)?S)))?)|(T(([0-9]+H)([0-9]+M)?([0-9]+(\\.[0-9]+)?S)?|([0-9]+M)([0-9]+(\\.[0-9]+)?S)?|([0-9]+(\\.[0-9]+)?S))))".r
+  val validDayTimeDurationRegex: Regex =
+    "-?P(([0-9]+D(T(([0-9]+H)([0-9]+M)?([0-9]+(\\.[0-9]+)?S)?|([0-9]+M)([0-9]+(\\.[0-9]+)?S)?|([0-9]+(\\.[0-9]+)?S)))?)|(T(([0-9]+H)([0-9]+M)?([0-9]+(\\.[0-9]+)?S)?|([0-9]+M)([0-9]+(\\.[0-9]+)?S)?|([0-9]+(\\.[0-9]+)?S))))".r
+  val validYearMonthDurationRegex: Regex =
+    """-?P([0-9]+Y([0-9]+M)?|([0-9]+M))""".r
 
   val unsignedLongMaxValue: BigInt = BigInt("18446744073709551615")
 
@@ -105,7 +116,7 @@ object Column {
     val name = columnProperties.get("name")
     val titles = columnProperties.get("titles")
 
-    if (name.isDefined) {
+    if (name.isDefined && !name.get.isNull) {
       Some(name.get.asInstanceOf[TextNode].asText())
     } else if (titles.isDefined && titles.get.path(lang).isMissingNode) {
       val langArray = Array.from(
@@ -214,7 +225,7 @@ object Column {
       Map[String, JsonNode],
       Array[ErrorWithoutContext]
   ) = {
-    var warnings = Array[ErrorWithoutContext]()
+    val warnings = ArrayBuffer.empty[ErrorWithoutContext]
     val annotations = Map[String, JsonNode]()
     val columnProperties = Map[String, JsonNode]()
     for ((property, value) <- columnDesc.getKeysAndValues) {
@@ -227,7 +238,7 @@ object Column {
         case _ => {
           val (v, w, csvwPropertyType) =
             PropertyChecker.checkProperty(property, value, baseUrl, lang)
-          warnings = warnings.concat(
+          warnings.addAll(
             w.map(warningString =>
               ErrorWithoutContext(
                 warningString,
@@ -244,15 +255,17 @@ object Column {
               annotations += (property -> v)
             }
             case _ =>
-              warnings :+= ErrorWithoutContext(
-                s"invalid_property",
-                s"column: ${property}"
+              warnings.addOne(
+                ErrorWithoutContext(
+                  s"invalid_property",
+                  s"column: ${property}"
+                )
               )
           }
         }
       }
     }
-    (annotations, columnProperties, warnings)
+    (annotations, columnProperties, warnings.toArray)
   }
 
   def fromJson(
@@ -285,18 +298,18 @@ object Column {
       if (datatype.path("length").isMissingNode) None
       else Some(datatype.get("length").asText().toInt)
 
-    val minInclusive: Option[BigDecimal] =
+    val minInclusive: Option[String] =
       if (datatype.path("minInclusive").isMissingNode) None
-      else Some(BigDecimal(datatype.get("minInclusive").asText))
-    val maxInclusive: Option[BigDecimal] =
+      else Some(datatype.get("minInclusive").asText)
+    val maxInclusive: Option[String] =
       if (datatype.path("maxInclusive").isMissingNode) None
-      else Some(BigDecimal(datatype.get("maxInclusive").asText))
-    val minExclusive: Option[BigDecimal] =
+      else Some(datatype.get("maxInclusive").asText)
+    val minExclusive: Option[String] =
       if (datatype.path("minExclusive").isMissingNode) None
-      else Some(BigDecimal(datatype.get("minExclusive").asText))
-    val maxExclusive: Option[BigDecimal] =
+      else Some(datatype.get("minExclusive").asText)
+    val maxExclusive: Option[String] =
       if (datatype.path("maxExclusive").isMissingNode) None
-      else Some(BigDecimal(datatype.get("maxExclusive").asText))
+      else Some(datatype.get("maxExclusive").asText)
 
     val newLang = getLangOrDefault(inheritedPropertiesCopy)
 
@@ -404,10 +417,10 @@ case class Column private (
     minLength: Option[Int],
     maxLength: Option[Int],
     length: Option[Int],
-    minInclusive: Option[BigDecimal],
-    maxInclusive: Option[BigDecimal],
-    minExclusive: Option[BigDecimal],
-    maxExclusive: Option[BigDecimal],
+    minInclusive: Option[String],
+    maxInclusive: Option[String],
+    minExclusive: Option[String],
+    maxExclusive: Option[String],
     baseDataType: String,
     default: String,
     lang: String,
@@ -424,10 +437,54 @@ case class Column private (
     format: Option[Format],
     annotations: Map[String, JsonNode]
 ) {
-  lazy val minInclusiveInt: Option[BigInt] = minInclusive.map(_.toBigInt)
-  lazy val maxInclusiveInt: Option[BigInt] = maxInclusive.map(_.toBigInt)
-  lazy val minExclusiveInt: Option[BigInt] = minExclusive.map(_.toBigInt)
-  lazy val maxExclusiveInt: Option[BigInt] = maxExclusive.map(_.toBigInt)
+  private val logger = Logger(this.getClass.getName)
+  lazy val minInclusiveNumeric: Option[BigDecimal] =
+    minInclusive.map(BigDecimal(_))
+  lazy val maxInclusiveNumeric: Option[BigDecimal] =
+    maxInclusive.map(BigDecimal(_))
+  lazy val minExclusiveNumeric: Option[BigDecimal] =
+    minExclusive.map(BigDecimal(_))
+  lazy val maxExclusiveNumeric: Option[BigDecimal] =
+    maxExclusive.map(BigDecimal(_))
+
+  lazy val minInclusiveInt: Option[BigInt] = minInclusiveNumeric.map(_.toBigInt)
+  lazy val maxInclusiveInt: Option[BigInt] = maxInclusiveNumeric.map(_.toBigInt)
+  lazy val minExclusiveInt: Option[BigInt] = minExclusiveNumeric.map(_.toBigInt)
+  lazy val maxExclusiveInt: Option[BigInt] = maxExclusiveNumeric.map(_.toBigInt)
+
+  DateTimeZone.setDefault(DateTimeZone.UTC)
+
+  lazy val minInclusiveDateTime: Option[ZonedDateTime] =
+    minInclusive.map(v => mapJodaDateTimeToZonedDateTime(DateTime.parse(v)))
+
+  lazy val maxInclusiveDateTime: Option[ZonedDateTime] =
+    maxInclusive.map(v => mapJodaDateTimeToZonedDateTime(DateTime.parse(v)))
+  lazy val minExclusiveDateTime: Option[ZonedDateTime] =
+    minExclusive.map(v => mapJodaDateTimeToZonedDateTime(DateTime.parse(v)))
+  lazy val maxExclusiveDateTime: Option[ZonedDateTime] =
+    maxExclusive.map(v => mapJodaDateTimeToZonedDateTime(DateTime.parse(v)))
+
+  lazy val numberFormat: NumberFormat =
+    NumberFormat(
+      format.flatMap(f => f.pattern),
+      format.flatMap(f => f.groupChar),
+      format.flatMap(f => f.decimalChar)
+    )
+
+  private def mapJodaDateTimeToZonedDateTime(jDt: DateTime) = {
+    val zoneId: ZoneId = jDt.getZone.toTimeZone.toZoneId
+    val localDateTime: LocalDateTime =
+      LocalDateTime.of(
+        jDt.getYear,
+        Month.of(jDt.getMonthOfYear),
+        jDt.getDayOfMonth,
+        jDt.getHourOfDay,
+        jDt.getMinuteOfHour,
+        jDt.getSecondOfMinute,
+        (jDt.getMillisOfSecond * 1000).toInt
+      )
+    ZonedDateTime.of(localDateTime, zoneId)
+  }
 
   val datatypeParser: Map[String, String => Either[
     ErrorWithoutContext,
@@ -474,7 +531,10 @@ case class Column private (
       s"${xmlSchema}gMonthDay" -> processGMonthDay _,
       s"${xmlSchema}gYear" -> processGYear _,
       s"${xmlSchema}gYearMonth" -> processGYearMonth _,
-      s"${xmlSchema}time" -> processTime _
+      s"${xmlSchema}time" -> processTime _,
+      s"${xmlSchema}duration" -> processDuration _,
+      s"${xmlSchema}dayTimeDuration" -> processDayTimeDuration _,
+      s"${xmlSchema}yearMonthDuration" -> processYearMonthDuration _
     )
 
   val datatypeFormatValidation = Map(
@@ -545,7 +605,7 @@ case class Column private (
   ): Either[ErrorWithoutContext, Boolean] = {
     format.flatMap(f => f.pattern) match {
       case Some(pattern) => {
-        var patternValues = pattern.split("""\|""")
+        val patternValues = pattern.split("""\|""")
         if (patternValues(0) == value) {
           Right(true)
         } else if (patternValues(1) == value) {
@@ -574,39 +634,112 @@ case class Column private (
     }
   }
 
+  /**
+    * In CSV-W, grouping characters can be used to group numbers in a decimal but this grouping
+    * char won't be recognised by the regular expression we use to validate decimal at a later stage.
+    * This function removes grouping character if any and replaces any custom decimal character with the default
+    * decimal character.
+    */
+  def standardisedValue(value: String): String = {
+    val lastChar = value.takeRight(1)
+    var newValue =
+      if (lastChar == "%" || lastChar == "‰")
+        value.substring(0, value.length - 1)
+      else value
+    newValue = groupChar match {
+      case Some(groupChar) =>
+        s"(?<=[0-9])$groupChar(?=[0-9])".r.replaceAllIn(newValue, "")
+      case None => newValue
+    }
+
+    newValue = decimalChar match {
+      case Some(decimalChar) =>
+        s"(?<=[0-9])$decimalChar(?=[0-9])".r.replaceAllIn(newValue, ".")
+      case None => newValue
+    }
+    newValue
+  }
+
+  def groupChar: Option[Char] = {
+    format.flatMap(_.groupChar)
+  }
+
+  def decimalChar: Option[Char] = {
+    format.flatMap(_.decimalChar)
+  }
+
   def processDecimalDatatype(
       value: String
   ): Either[ErrorWithoutContext, BigDecimal] = {
-    if (!validDecimalDatatypeRegex.pattern.matcher(value).matches()) {
-      Left(
-        ErrorWithoutContext(
-          "invalid_decimal",
-          "Does not match expected Decimal format"
+    if (patternIsEmpty()) {
+      val newValue = standardisedValue(value)
+      if (
+        Column.validDecimalDatatypeRegex.pattern
+          .matcher(newValue)
+          .matches()
+      ) {
+        try {
+          Right(BigDecimal(newValue))
+        } catch {
+          case e: Throwable =>
+            logger.debug(e.getMessage)
+            logger.debug(e.getStackTrace.mkString("\n"))
+            Left(ErrorWithoutContext("invalid_decimal", e.getMessage))
+        }
+      } else {
+        Left(
+          ErrorWithoutContext(
+            "invalid_decimal",
+            "Does not match expected decimal format"
+          )
         )
-      )
+      }
     } else {
       numericParser(value) match {
-        case Left(w) => Left(ErrorWithoutContext("invalid_decimal", w))
-        case Right(parsedValue) => {
+        case Right(parsedValue) =>
           parsedValue match {
             case bigD: icu.math.BigDecimal => Right(bigD.toBigDecimal)
             case _                         => Right(BigDecimal(parsedValue.longValue()))
           }
-        }
+
+        case Left(warning) =>
+          Left(ErrorWithoutContext("invalid_decimal", warning))
       }
     }
   }
 
+  /**
+    * Scala Double does not recognise INF as infinity
+    */
+  def replaceInfWithInfinity(value: String): String =
+    value.replace("INF", "Infinity")
+
   def processDoubleDatatype(
       value: String
   ): Either[ErrorWithoutContext, Double] = {
-    if (!validDoubleDatatypeRegex.pattern.matcher(value).matches()) {
-      Left(
-        ErrorWithoutContext(
-          "invalid_double",
-          "Does not match expected Double format"
+    if (patternIsEmpty()) {
+      val newValue = standardisedValue(value)
+      if (
+        validDoubleDatatypeRegex.pattern
+          .matcher(newValue)
+          .matches()
+      ) {
+        try {
+          Right(replaceInfWithInfinity(newValue).toDouble)
+        } catch {
+          case e: Throwable =>
+            logger.debug(e.getMessage)
+            logger.debug(e.getStackTrace.mkString("\n"))
+            Left(ErrorWithoutContext("invalid_double", e.getMessage))
+        }
+      } else {
+        Left(
+          ErrorWithoutContext(
+            "invalid_double",
+            "Does not match expected Double format"
+          )
         )
-      )
+      }
     } else {
       numericParser(value) match {
         case Left(w)            => Left(ErrorWithoutContext("invalid_double", w))
@@ -618,13 +751,18 @@ case class Column private (
   def processFloatDatatype(
       value: String
   ): Either[ErrorWithoutContext, Float] = {
-    if (!Column.validFloatDatatypeRegex.pattern.matcher(value).matches()) {
-      Left(
-        ErrorWithoutContext(
-          "invalid_float",
-          "Does not match expected Float format"
+    if (patternIsEmpty()) {
+      val newValue = standardisedValue(value)
+      if (Column.validFloatDatatypeRegex.pattern.matcher(newValue).matches()) {
+        Right(newValue.toFloat)
+      } else {
+        Left(
+          ErrorWithoutContext(
+            "invalid_float",
+            "Does not match expected Float format"
+          )
         )
-      )
+      }
     } else {
       numericParser(value) match {
         case Left(w)            => Left(ErrorWithoutContext("invalid_float", w))
@@ -633,16 +771,37 @@ case class Column private (
     }
   }
 
+  private def patternIsEmpty(): Boolean =
+    format
+      .flatMap(_.pattern)
+      .isEmpty
+
   def processIntegerDatatype(
       value: String
   ): Either[ErrorWithoutContext, BigInteger] = {
-    if (!Column.validIntegerRegex.pattern.matcher(value).matches()) {
-      Left(
-        ErrorWithoutContext(
-          "invalid_integer",
-          "Does not match expected integer format"
+    if (patternIsEmpty()) {
+      val newValue = standardisedValue(value)
+      if (
+        Column.validIntegerRegex.pattern
+          .matcher(newValue)
+          .matches()
+      ) {
+        try {
+          Right(new BigInteger(newValue))
+        } catch {
+          case e: Throwable =>
+            logger.debug(e.getMessage)
+            logger.debug(e.getStackTrace.mkString("\n"))
+            Left(ErrorWithoutContext("invalid_integer", e.getMessage))
+        }
+      } else {
+        Left(
+          ErrorWithoutContext(
+            "invalid_integer",
+            "Does not match expected integer format"
+          )
         )
-      )
+      }
     } else {
       numericParser(value) match {
         case Right(parsedValue) => convertToBigIntegerValue(parsedValue)
@@ -676,13 +835,30 @@ case class Column private (
   def processLongDatatype(
       value: String
   ): Either[ErrorWithoutContext, Long] = {
-    if (!Column.validLongDatatypeRegex.pattern.matcher(value).matches()) {
-      Left(
-        ErrorWithoutContext(
-          "invalid_long",
-          "Does not match expected long format"
+
+    if (patternIsEmpty()) {
+      val newValue = standardisedValue(value)
+      if (
+        Column.validLongDatatypeRegex.pattern
+          .matcher(newValue)
+          .matches()
+      ) {
+        try {
+          Right(newValue.toLong)
+        } catch {
+          case e: Throwable =>
+            logger.debug(e.getMessage)
+            logger.debug(e.getStackTrace.mkString("\n"))
+            Left(ErrorWithoutContext("invalid_long", e.getMessage))
+        }
+      } else {
+        Left(
+          ErrorWithoutContext(
+            "invalid_long",
+            "Does not match expected long format"
+          )
         )
-      )
+      }
     } else {
       numericParser(value) match {
         case Left(w) => Left(ErrorWithoutContext("invalid_long", w))
@@ -707,13 +883,29 @@ case class Column private (
   def processIntDatatype(
       value: String
   ): Either[ErrorWithoutContext, Int] = {
-    if (!Column.validIntegerRegex.pattern.matcher(value).matches()) {
-      Left(
-        ErrorWithoutContext(
-          "invalid_int",
-          "Does not match expected integer format"
+    if (patternIsEmpty()) {
+      val newValue = standardisedValue(value)
+      if (
+        Column.validIntegerRegex.pattern
+          .matcher(newValue)
+          .matches()
+      ) {
+        try {
+          Right(newValue.toInt)
+        } catch {
+          case e: Throwable =>
+            logger.debug(e.getMessage)
+            logger.debug(e.getStackTrace.mkString("\n"))
+            Left(ErrorWithoutContext("invalid_int", e.getMessage))
+        }
+      } else {
+        Left(
+          ErrorWithoutContext(
+            "invalid_int",
+            "Does not match expected int format"
+          )
         )
-      )
+      }
     } else {
       numericParser(value) match {
         case Left(w) => Left(ErrorWithoutContext("invalid_int", w))
@@ -747,13 +939,29 @@ case class Column private (
   def processShortDatatype(
       value: String
   ): Either[ErrorWithoutContext, Short] = {
-    if (!Column.validIntegerRegex.pattern.matcher(value).matches()) {
-      Left(
-        ErrorWithoutContext(
-          "invalid_short",
-          "Does not match expected short format"
+    if (patternIsEmpty()) {
+      val newValue = standardisedValue(value)
+      if (
+        Column.validIntegerRegex.pattern
+          .matcher(newValue)
+          .matches()
+      ) {
+        try {
+          Right(newValue.toShort)
+        } catch {
+          case e: Throwable =>
+            logger.debug(e.getMessage)
+            logger.debug(e.getStackTrace.mkString("\n"))
+            Left(ErrorWithoutContext("invalid_short", e.getMessage))
+        }
+      } else {
+        Left(
+          ErrorWithoutContext(
+            "invalid_short",
+            "Does not match expected short format"
+          )
         )
-      )
+      }
     } else {
       numericParser(value) match {
         case Left(w) => Left(ErrorWithoutContext("invalid_short", w))
@@ -787,13 +995,28 @@ case class Column private (
   def processByteDatatype(
       value: String
   ): Either[ErrorWithoutContext, Byte] = {
-    if (!Column.validIntegerRegex.pattern.matcher(value).matches()) {
-      Left(
-        ErrorWithoutContext(
-          "invalid_byte",
-          "Does not match expected byte format"
+    if (patternIsEmpty()) {
+      if (
+        Column.validIntegerRegex.pattern
+          .matcher(value)
+          .matches()
+      ) {
+        try {
+          Right(value.toByte)
+        } catch {
+          case e: Throwable =>
+            logger.debug(e.getMessage)
+            logger.debug(e.getStackTrace.mkString("\n"))
+            Left(ErrorWithoutContext("invalid_byte", e.getMessage))
+        }
+      } else {
+        Left(
+          ErrorWithoutContext(
+            "invalid_byte",
+            "Does not match expected byte format"
+          )
         )
-      )
+      }
     } else {
       numericParser(value) match {
         case Left(w) => Left(ErrorWithoutContext("invalid_byte", w))
@@ -982,17 +1205,63 @@ case class Column private (
   def numericParser(
       value: String
   ): Either[String, Number] = {
-    val numberFormatObject =
-      NumberFormat(
-        format.flatMap(f => f.pattern),
-        format.flatMap(f => f.groupChar),
-        format.flatMap(f => f.decimalChar)
-      )
     try {
-      Right(numberFormatObject.parse(value))
+      val parsedNumber = numberFormat.parse(value)
+      val paredNumberInString = numberFormat.format(parsedNumber)
+      val originalValueWithoutPlusesOrMinuses = stripUnquotedPlusMinus(value)
+      val parsedNumberWithoutPlusesOrMinuses = stripUnquotedPlusMinus(
+        paredNumberInString
+      )
+      if (
+        originalValueWithoutPlusesOrMinuses != parsedNumberWithoutPlusesOrMinuses
+      )
+        Left("Value does not match expected UTS-35 format")
+      else Right(parsedNumber)
     } catch {
-      case e: NumberFormatError => Left(e.getMessage)
+      case e: Throwable => {
+        logger.debug(e.getMessage)
+        logger.debug(e.getStackTrace.mkString("\n"))
+        Left(e.getMessage)
+      }
     }
+  }
+
+  def containsUnquotedChar(value: String, char: Char): Boolean = {
+    var insideQuotes = false
+
+    for (c <- value) {
+      if (c == '\'') {
+        insideQuotes = !insideQuotes
+      } else if (c == char && !insideQuotes) {
+        return true
+      }
+    }
+    false
+  }
+
+  def stripUnquotedPlusMinus(
+      value: String,
+      removeUnquotedPluses: Boolean = true,
+      removeUnquotedMinuses: Boolean = true
+  ): String = {
+    var insideQuotes = false
+    val filteredChars = new StringBuilder()
+    for (char <- value) {
+      if (char == '\'') {
+        insideQuotes = !insideQuotes
+      } else if (char == '+' && !insideQuotes) {
+        if (!removeUnquotedPluses) {
+          filteredChars.append(char)
+        }
+      } else if (char == '-' && !insideQuotes) {
+        if (!removeUnquotedMinuses) {
+          filteredChars.append(char)
+        }
+      } else {
+        filteredChars.append(char)
+      }
+    }
+    filteredChars.toString()
   }
 
   def processDateDatatype(
@@ -1096,7 +1365,46 @@ case class Column private (
     }
   }
 
-  def addErrorIfRequiredValueAndValueEmpty(
+  def processDuration(
+      value: String
+  ): Either[ErrorWithoutContext, String] = {
+    if (!Column.validDurationRegex.pattern.matcher(value).matches()) {
+      Left(
+        ErrorWithoutContext(
+          "invalid_duration",
+          "Does not match expected duration format"
+        )
+      )
+    } else Right(value)
+  }
+
+  def processDayTimeDuration(
+      value: String
+  ): Either[ErrorWithoutContext, String] = {
+    if (!Column.validDayTimeDurationRegex.pattern.matcher(value).matches()) {
+      Left(
+        ErrorWithoutContext(
+          "invalid_dayTimeDuration",
+          "Does not match expected dayTimeDuration format"
+        )
+      )
+    } else Right(value)
+  }
+
+  def processYearMonthDuration(
+      value: String
+  ): Either[ErrorWithoutContext, String] = {
+    if (!Column.validYearMonthDurationRegex.pattern.matcher(value).matches()) {
+      Left(
+        ErrorWithoutContext(
+          "invalid_yearMonthDuration",
+          "Does not match expected yearMonthDuration format"
+        )
+      )
+    } else Right(value)
+  }
+
+  def getErrorIfRequiredValueAndValueEmpty(
       value: String
   ): Option[ErrorWithoutContext] = {
     if (required && value.isEmpty) {
@@ -1126,9 +1434,9 @@ case class Column private (
       value: String
   ): Array[ErrorWithoutContext] = {
     if (length.isEmpty && minLength.isEmpty && maxLength.isEmpty) {
-      Array()
+      Array.ofDim(0)
     } else {
-      var errors = Array[ErrorWithoutContext]()
+      val errors = ArrayBuffer.empty[ErrorWithoutContext]
       var lengthOfValue = value.length
       if (baseDataType == s"${xmlSchema}base64Binary") {
         lengthOfValue = value.replaceAll("==?$", "").length * 3 / 4
@@ -1136,40 +1444,55 @@ case class Column private (
         lengthOfValue = value.length / 2
       }
       if (minLength.isDefined && lengthOfValue < minLength.get) {
-        errors = errors :+ ErrorWithoutContext(
-          "minLength",
-          s"value '${value}' length less than minLength specified - $minLength"
+        errors.addOne(
+          ErrorWithoutContext(
+            "minLength",
+            s"value '${value}' length less than minLength specified - $minLength"
+          )
         )
       }
       if (maxLength.isDefined && lengthOfValue > maxLength.get) {
-        errors = errors :+ ErrorWithoutContext(
-          "maxLength",
-          s"value '${value}' length greater than maxLength specified - $maxLength"
+        errors.addOne(
+          ErrorWithoutContext(
+            "maxLength",
+            s"value '${value}' length greater than maxLength specified - $maxLength"
+          )
         )
       }
       if (length.isDefined && lengthOfValue != length.get) {
-        errors = errors :+ ErrorWithoutContext(
-          "length",
-          s"value '${value}' length different from length specified - ${length.get}"
+        errors.addOne(
+          ErrorWithoutContext(
+            "length",
+            s"value '${value}' length different from length specified - ${length.get}"
+          )
         )
       }
-      errors
+      errors.toArray
     }
   }
 
   def validateValue(value: Any): Array[ErrorWithoutContext] =
     value match {
-      case numericValue: Number => {
-        validateNumericValue(numericValue)
-      }
-      case s: String        => Array[ErrorWithoutContext]()
-      case d: ZonedDateTime => Array[ErrorWithoutContext]()
-      case b: Boolean       => Array[ErrorWithoutContext]()
+      case numericValue: Number    => validateNumericValue(numericValue)
+      case s: String               => Array[ErrorWithoutContext]()
+      case datetime: ZonedDateTime => validateDateTimeValue(datetime)
+      case b: Boolean              => Array[ErrorWithoutContext]()
       case _ =>
         throw new IllegalArgumentException(
           s"Have not mapped ${value.getClass} yet."
         )
     }
+
+  private def validateDateTimeValue(
+      datetime: ZonedDateTime
+  ): Array[ErrorWithoutContext] =
+    checkValueRangeConstraints[ZonedDateTime](
+      datetime,
+      dtValue => minInclusiveDateTime.exists(dtValue.compareTo(_) < 0),
+      dtValue => minExclusiveDateTime.exists(dtValue.compareTo(_) <= 0),
+      dtValue => maxInclusiveDateTime.exists(v => dtValue.compareTo(v) > 0),
+      dtValue => maxExclusiveDateTime.exists(dtValue.compareTo(_) >= 0)
+    )
 
   private def validateNumericValue(
       numericValue: Number
@@ -1177,23 +1500,23 @@ case class Column private (
     numericValue match {
       case _: java.lang.Long | _: Integer | _: java.lang.Short |
           _: java.lang.Float | _: java.lang.Double | _: java.lang.Byte =>
-        checkNumericValueRangeConstraints[Long](
+        checkValueRangeConstraints[Long](
           numericValue.longValue(),
-          longValue => minInclusive.exists(longValue < _),
-          longValue => minExclusive.exists(longValue <= _),
-          longValue => maxInclusive.exists(longValue > _),
-          longValue => maxExclusive.exists(longValue >= _)
+          longValue => minInclusiveNumeric.exists(longValue < _),
+          longValue => minExclusiveNumeric.exists(longValue <= _),
+          longValue => maxInclusiveNumeric.exists(longValue > _),
+          longValue => maxExclusiveNumeric.exists(longValue >= _)
         )
       case bd: BigDecimal =>
-        checkNumericValueRangeConstraints[BigDecimal](
+        checkValueRangeConstraints[BigDecimal](
           bd,
-          bigDecimalValue => minInclusive.exists(bigDecimalValue < _),
-          bigDecimalValue => minExclusive.exists(bigDecimalValue <= _),
-          bigDecimalValue => maxInclusive.exists(bigDecimalValue > _),
-          bigDecimalValue => maxExclusive.exists(bigDecimalValue >= _)
+          bigDecimalValue => minInclusiveNumeric.exists(bigDecimalValue < _),
+          bigDecimalValue => minExclusiveNumeric.exists(bigDecimalValue <= _),
+          bigDecimalValue => maxInclusiveNumeric.exists(bigDecimalValue > _),
+          bigDecimalValue => maxExclusiveNumeric.exists(bigDecimalValue >= _)
         )
       case bi: BigInteger => {
-        checkNumericValueRangeConstraints[BigInt](
+        checkValueRangeConstraints[BigInt](
           BigInt(bi),
           bigIntValue => minInclusiveInt.exists(bigIntValue < _),
           bigIntValue => minExclusiveInt.exists(bigIntValue <= _),
@@ -1208,53 +1531,62 @@ case class Column private (
     }
   }
 
-  def checkNumericValueRangeConstraints[T](
+  def checkValueRangeConstraints[T](
       value: T,
       lessThanMinInclusive: T => Boolean,
       lessThanEqualToMinExclusive: T => Boolean,
       greaterThanMaxInclusive: T => Boolean,
       greaterThanEqualToMaxExclusive: T => Boolean
   ): Array[ErrorWithoutContext] = {
-    var errors = Array[ErrorWithoutContext]()
+    val errors = ArrayBuffer.empty[ErrorWithoutContext]
     if (lessThanMinInclusive(value)) {
-      errors = errors :+ ErrorWithoutContext(
-        "minInclusive",
-        s"value '$value' less than minInclusive value '${minInclusive.get}'"
+      errors.addOne(
+        ErrorWithoutContext(
+          "minInclusive",
+          s"value '$value' less than minInclusive value '${minInclusive.get}'"
+        )
       )
     }
     if (greaterThanMaxInclusive(value)) {
-      errors = errors :+ ErrorWithoutContext(
-        "maxInclusive",
-        s"value '$value' greater than maxInclusive value '${maxInclusive.get}'"
+      errors.addOne(
+        ErrorWithoutContext(
+          "maxInclusive",
+          s"value '$value' greater than maxInclusive value '${maxInclusive.get}'"
+        )
       )
     }
     if (lessThanEqualToMinExclusive(value)) {
-      errors = errors :+ ErrorWithoutContext(
-        "minExclusive",
-        s"value '$value' less than or equal to minExclusive value '${minExclusive.get}'"
+      errors.addOne(
+        ErrorWithoutContext(
+          "minExclusive",
+          s"value '$value' less than or equal to minExclusive value '${minExclusive.get}'"
+        )
       )
     }
     if (greaterThanEqualToMaxExclusive(value)) {
-      errors = errors :+ ErrorWithoutContext(
-        "maxExclusive",
-        s"value '$value' greater than or equal to maxExclusive value '${maxExclusive.get}'"
+      errors.addOne(
+        ErrorWithoutContext(
+          "maxExclusive",
+          s"value '$value' greater than or equal to maxExclusive value '${maxExclusive.get}'"
+        )
       )
     }
-    errors
+    errors.toArray
   }
 
   def validate(
       value: String
-  ): (Array[ErrorWithoutContext], Array[Any]) = {
-    var errors = Array[ErrorWithoutContext]()
+  ): (Array[ErrorWithoutContext], List[Any]) = {
+    val errors = ArrayBuffer.empty[ErrorWithoutContext]
     if (nullParam.contains(value)) {
-      val errorWithoutContext = addErrorIfRequiredValueAndValueEmpty(value)
+      // Since the cell value is among the null values specified for this CSV-W, it can be considered as the default null value which is ""
+      val errorWithoutContext = getErrorIfRequiredValueAndValueEmpty("")
       if (errorWithoutContext.isDefined) {
-        errors :+= errorWithoutContext.get
+        errors.addOne(errorWithoutContext.get)
       }
-      (errors, Array())
+      (errors.toArray, List.empty)
     } else {
-      var valuesArrayToReturn = Array[Any]()
+      val valuesArrayToReturn = ArrayBuffer.empty[Any]
       val values = separator match {
         case Some(separator) => value.split(separator)
         case None            => Array[String](value)
@@ -1263,29 +1595,33 @@ case class Column private (
       for (v <- values) {
         parserForDataType(v) match {
           case Left(errorMessageContent) => {
-            errors = errors :+ ErrorWithoutContext(
-              errorMessageContent.`type`,
-              s"'$v' - ${errorMessageContent.content}"
+            errors.addOne(
+              ErrorWithoutContext(
+                errorMessageContent.`type`,
+                s"'$v' - ${errorMessageContent.content} (${format.flatMap(_.pattern).getOrElse("no format provided")})"
+              )
             )
-            valuesArrayToReturn = valuesArrayToReturn :+ s"invalid - $v"
+            valuesArrayToReturn.addOne(s"invalid - $v")
           }
           case Right(s) => {
-            errors =
-              errors ++
-                validateLength(s.toString) ++
-                validateValue(s) ++
-                Array(
-                  addErrorIfRequiredValueAndValueEmpty(s.toString),
-                  validateFormat(s.toString)
-                ).flatten
+            errors.addAll(validateLength(s.toString))
+            errors.addAll(validateValue(s))
+            getErrorIfRequiredValueAndValueEmpty(s.toString) match {
+              case Some(e) => errors.addOne(e)
+              case None    => {}
+            }
+            validateFormat(s.toString) match {
+              case Some(e) => errors.addOne(e)
+              case None    => {}
+            }
 
-            if (errors.length == 0) {
-              valuesArrayToReturn = valuesArrayToReturn :+ s
+            if (errors.isEmpty) {
+              valuesArrayToReturn.addOne(s)
             }
           }
         }
       }
-      (errors, valuesArrayToReturn)
+      (errors.toArray, valuesArrayToReturn.toList)
     }
   }
 

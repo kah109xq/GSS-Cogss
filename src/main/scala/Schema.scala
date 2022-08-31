@@ -10,11 +10,10 @@ import java.net.URI
 object Schema {
   def loadMetadataAndValidate(
       schemaUri: URI
-  ): Either[String, (TableGroup, Array[WarningWithCsvContext])] = {
+  ): Either[String, (TableGroup, WarningsAndErrors)] = {
     try {
       val jsonNode = if (schemaUri.getScheme == "file") {
-        val f = new File(schemaUri)
-        objectMapper.readTree(f)
+        objectMapper.readTree(new File(schemaUri))
       } else {
         objectMapper.readTree(schemaUri.toURL)
       }
@@ -25,9 +24,7 @@ object Schema {
         )
       )
     } catch {
-      case metadataError: MetadataError => {
-        Left(metadataError.getMessage)
-      }
+      case metadataError: MetadataError => Left(metadataError.getMessage)
       case e: Throwable => {
         val sw = new StringWriter
         e.printStackTrace(new PrintWriter(sw))
@@ -36,10 +33,10 @@ object Schema {
     }
   }
 
-  private def fromCsvwMetadata(
+  def fromCsvwMetadata(
       uri: String,
       json: ObjectNode
-  ): (TableGroup, Array[WarningWithCsvContext]) = {
+  ): (TableGroup, WarningsAndErrors) = {
     TableGroup.fromJson(json, uri)
   }
 

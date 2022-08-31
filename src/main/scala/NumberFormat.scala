@@ -7,8 +7,16 @@ case class NumberFormat(
     groupChar: Option[Char] = None,
     decimalChar: Option[Char] = None
 ) {
-  private var df: DecimalFormat = new DecimalFormat()
+
+  /**
+    * Raising an exception when a pattern is supplied as we cannot figure out how to actually use them in some scenarios.
+    */
+  if (pattern.isDefined)
+    throw MetadataError("Format supplied for numeric data-types")
+
+  private val df: DecimalFormat = new DecimalFormat()
   private val decimalFormatSymbols = df.getDecimalFormatSymbols
+
   decimalFormatSymbols.setInfinity("INF")
   try {
     decimalChar match {
@@ -27,6 +35,7 @@ case class NumberFormat(
     pattern match {
       case Some(p) => {
         df.applyPattern(p)
+        df.setParseStrict(true)
       }
       case _ => {
         // Figure out what the default pattern should be

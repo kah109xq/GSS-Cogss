@@ -1,9 +1,11 @@
 import CSVValidation.{MessageWithCsvContext, Validator}
+import akka.actor.ActorSystem
+import akka.stream.scaladsl.Sink
 import com.typesafe.scalalogging.Logger
 import scopt.OParser
 
-import java.io.File
-import java.net.URI
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
 case class Config(
     inputSchema: Option[String] = None,
     csvPath: Option[String] = None
@@ -27,25 +29,29 @@ object Main extends App {
 
   OParser.parse(parser, args, Config()) match {
     case Some(config) =>
+      implicit val actorSystem: ActorSystem = ActorSystem("actor-system")
       val validator = new Validator(config.inputSchema)
-      val errorsAndWarnings = validator.validate()
-      if (errorsAndWarnings.warnings.nonEmpty) {
-        println(Console.YELLOW + "Warnings")
-        errorsAndWarnings.warnings.foreach(x =>
-          logger.warn(getDescriptionForMessage(x))
-        )
-      }
-      if (errorsAndWarnings.errors.nonEmpty) {
-        println(Console.RED + "Error")
-        errorsAndWarnings.errors.foreach(x =>
-          logger.warn(getDescriptionForMessage(x))
-        )
-        print(Console.RESET + "")
-        sys.exit(1)
-      }
-      println((Console.GREEN + "Result"))
-      println("Valid CSV-W")
-      print(Console.RESET + "")
+      val akkaStream = validator
+        .validate()
+        .map(warningsAndErrors => {
+          if (warningsAndErrors.warnings.nonEmpty) {
+            println(Console.YELLOW + "Warnings")
+            warningsAndErrors.warnings
+              .foreach(x => logger.warn(getDescriptionForMessage(x)))
+          }
+          if (warningsAndErrors.errors.nonEmpty) {
+            println(Console.RED + "Error")
+            warningsAndErrors.errors
+              .foreach(x => logger.warn(getDescriptionForMessage(x)))
+            print(Console.RESET + "")
+            sys.exit(1)
+          }
+          println(Console.GREEN + "Result")
+          println("Valid CSV-W")
+          print(Console.RESET + "")
+        })
+      Await.ready(akkaStream.runWith(Sink.ignore), Duration.Inf)
+      actorSystem.terminate()
     case _ => throw new Exception("Invalid arguments")
   }
 

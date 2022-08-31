@@ -1,10 +1,7 @@
 package CSVValidation
 
 import CSVValidation.traits.JavaIteratorExtensions.IteratorHasAsScalaArray
-import CSVValidation.traits.ObjectNodeExtentions.{
-  IteratorHasGetKeysAndValues,
-  ObjectNodeGetMaybeNode
-}
+import CSVValidation.traits.ObjectNodeExtentions.IteratorHasGetKeysAndValues
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.{
   ArrayNode,
@@ -16,7 +13,7 @@ import org.apache.commons.csv.CSVRecord
 
 import java.net.URL
 import scala.collection.mutable
-import scala.collection.mutable.Map
+import scala.collection.mutable.{ArrayBuffer, Map}
 import scala.util.matching.Regex
 
 object TableGroup {
@@ -27,8 +24,9 @@ object TableGroup {
   def fromJson(
       tableGroupNodeIn: ObjectNode,
       baseUri: String
-  ): (TableGroup, Array[WarningWithCsvContext]) = {
+  ): (TableGroup, WarningsAndErrors) = {
     var baseUrl = baseUri.trim
+    var errors = Array[ErrorWithCsvContext]()
     var warnings = Array[WarningWithCsvContext]()
     val matcher = containsWhitespaces.pattern.matcher(baseUrl)
     if (matcher.matches()) {
@@ -54,14 +52,15 @@ object TableGroup {
     val id = getId(commonProperties)
     ensureTypeofTableGroup(tableGroupNode)
 
-    val (tables, w2) = createTableObjectsAndSetWarnings(
+    val (tables, warningsAndErrors) = createTableObjectsAndSetWarnings(
       tableGroupNode,
       baseUrl,
       lang,
       commonProperties,
       inheritedProperties
     )
-    warnings = warnings.concat(w2)
+    warnings = warnings.concat(warningsAndErrors.warnings)
+    errors = errors.concat(warningsAndErrors.errors)
 
     findForeignKeysLinkToReferencedTables(baseUrl, tables)
 
@@ -72,7 +71,7 @@ object TableGroup {
       commonProperties.get("notes"),
       annotations
     )
-    (tableGroup, warnings)
+    (tableGroup, WarningsAndErrors(warnings = warnings, errors = errors))
   }
 
   private def restructureIfNodeIsSingleTable(
@@ -320,19 +319,21 @@ object TableGroup {
     val annotations = Map[String, JsonNode]()
     val commonProperties = Map[String, JsonNode]()
     val inheritedProperties = Map[String, JsonNode]()
-    var warnings = Array[WarningWithCsvContext]()
+    val warnings = ArrayBuffer.empty[WarningWithCsvContext]
     for ((property, value) <- tableGroupNode.getKeysAndValues) {
       if (!validProperties.contains(property)) {
         val (newValue, w, csvwPropertyType) =
           PropertyChecker.checkProperty(property, value, baseUrl, lang)
-        warnings = w.map(x =>
-          WarningWithCsvContext(
-            x,
-            "metadata",
-            "",
-            "",
-            s"$property : ${value.toPrettyString}",
-            ""
+        warnings.addAll(
+          w.map(x =>
+            WarningWithCsvContext(
+              x,
+              "metadata",
+              "",
+              "",
+              s"$property : ${value.toPrettyString}",
+              ""
+            )
           )
         )
         csvwPropertyType match {
@@ -341,20 +342,22 @@ object TableGroup {
           case PropertyType.Inherited =>
             inheritedProperties += (property -> newValue)
           case _ => {
-            warnings :+= WarningWithCsvContext(
-              "invalid_property",
-              "metadata",
-              "",
-              "",
-              property,
-              ""
+            warnings.addOne(
+              WarningWithCsvContext(
+                "invalid_property",
+                "metadata",
+                "",
+                "",
+                property,
+                ""
+              )
             )
           }
         }
       }
       ()
     }
-    (annotations, commonProperties, inheritedProperties, warnings)
+    (annotations, commonProperties, inheritedProperties, warnings.toArray)
   }
 
   private def createTableObjectsAndSetWarnings(
@@ -363,7 +366,7 @@ object TableGroup {
       lang: String,
       commonProperties: mutable.Map[String, JsonNode],
       inheritedProperties: mutable.Map[String, JsonNode]
-  ): (mutable.Map[String, Table], Array[WarningWithCsvContext]) = {
+  ): (mutable.Map[String, Table], WarningsAndErrors) = {
     tableGroupNode.path("tables") match {
       case t: ArrayNode if t.isEmpty() =>
         throw MetadataError("Empty tables property")
@@ -386,21 +389,24 @@ object TableGroup {
       lang: String,
       commonProperties: Map[String, JsonNode],
       inheritedProperties: Map[String, JsonNode]
-  ): (mutable.Map[String, Table], Array[WarningWithCsvContext]) = {
-    var warnings = Array[WarningWithCsvContext]()
+  ): (mutable.Map[String, Table], WarningsAndErrors) = {
+    val warnings = ArrayBuffer.empty[WarningWithCsvContext]
+    val errors = ArrayBuffer.empty[ErrorWithCsvContext]
     val tables = Map[String, Table]()
     for (tableElement <- tablesArrayNode.elements().asScalaArray) {
       tableElement match {
         case tableElementObject: ObjectNode => {
           var tableUrl = tableElement.get("url")
           if (!tableUrl.isTextual) {
-            warnings = warnings :+ WarningWithCsvContext(
-              "invalid_url",
-              "metadata",
-              "",
-              "",
-              s"url: $tableUrl",
-              ""
+            errors.addOne(
+              ErrorWithCsvContext(
+                "invalid_url",
+                "metadata",
+                "",
+                "",
+                s"url: $tableUrl",
+                ""
+              )
             )
             tableUrl = new TextNode("")
           }
@@ -416,21 +422,26 @@ object TableGroup {
             inheritedProperties
           )
           tables += (tableUrl.asText -> table)
-          warnings = warnings.concat(w)
+          warnings.addAll(w)
         }
         case _ => {
-          warnings = warnings :+ WarningWithCsvContext(
-            "invalid_table_description",
-            "metadata",
-            "",
-            "",
-            s"Value must be instance of object, found: ${tableElement.toPrettyString}",
-            ""
+          warnings.addOne(
+            WarningWithCsvContext(
+              "invalid_table_description",
+              "metadata",
+              "",
+              "",
+              s"Value must be instance of object, found: ${tableElement.toPrettyString}",
+              ""
+            )
           )
         }
       }
     }
-    (tables, warnings)
+    (
+      tables,
+      WarningsAndErrors(errors = errors.toArray, warnings = warnings.toArray)
+    )
   }
 
   private def getId(commonProperties: Map[String, JsonNode]) = {

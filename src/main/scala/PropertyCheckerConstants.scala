@@ -37,7 +37,7 @@ object PropertyCheckerConstants {
     "http://www.w3.org/2001/XMLSchema#decimal",
     "http://www.w3.org/2001/XMLSchema#double",
     "http://www.w3.org/2001/XMLSchema#float"
-  ) :+ IntegerFormatDataTypes
+  ) ++ IntegerFormatDataTypes
 
   val DateFormatDataTypes = Array[String](
     "http://www.w3.org/2001/XMLSchema#date",
