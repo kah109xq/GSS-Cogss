@@ -464,12 +464,15 @@ case class Column private (
   lazy val maxExclusiveDateTime: Option[ZonedDateTime] =
     maxExclusive.map(v => mapJodaDateTimeToZonedDateTime(DateTime.parse(v)))
 
-  lazy val numberFormat: NumberFormat =
-    NumberFormat(
-      format.flatMap(f => f.pattern),
-      format.flatMap(f => f.groupChar),
-      format.flatMap(f => f.decimalChar)
-    )
+  lazy val numberParserForFormat =
+    try {
+      NumberFormatParser(
+        format.flatMap(f => f.groupChar).getOrElse(','),
+        format.flatMap(f => f.decimalChar).getOrElse('.')
+      ).getParserForFormat(format.flatMap(f => f.pattern).get)
+    } catch {
+      case e: Exception => throw NumberFormatError(e.getMessage, e)
+    }
 
   private def mapJodaDateTimeToZonedDateTime(jDt: DateTime) = {
     val zoneId: ZoneId = jDt.getZone.toTimeZone.toZoneId
@@ -696,12 +699,7 @@ case class Column private (
       }
     } else {
       numericParser(value) match {
-        case Right(parsedValue) =>
-          parsedValue match {
-            case bigD: icu.math.BigDecimal => Right(bigD.toBigDecimal)
-            case _                         => Right(BigDecimal(parsedValue.longValue()))
-          }
-
+        case Right(parsedValue) => Right(parsedValue)
         case Left(warning) =>
           Left(ErrorWithoutContext("invalid_decimal", warning))
       }
@@ -743,7 +741,7 @@ case class Column private (
     } else {
       numericParser(value) match {
         case Left(w)            => Left(ErrorWithoutContext("invalid_double", w))
-        case Right(parsedValue) => Right(parsedValue.doubleValue())
+        case Right(parsedValue) => Right(parsedValue.doubleValue)
       }
     }
   }
@@ -766,7 +764,7 @@ case class Column private (
     } else {
       numericParser(value) match {
         case Left(w)            => Left(ErrorWithoutContext("invalid_float", w))
-        case Right(parsedValue) => Right(parsedValue.floatValue())
+        case Right(parsedValue) => Right(parsedValue.floatValue)
       }
     }
   }
@@ -812,20 +810,10 @@ case class Column private (
   }
 
   private def convertToBigIntegerValue(
-      parsedValue: Number
+      parsedValue: BigDecimal
   ): Either[ErrorWithoutContext, BigInteger] = {
     try {
-      val bigIntValue = parsedValue match {
-        case _: java.lang.Long | _: Integer | _: java.lang.Short =>
-          BigInteger.valueOf(parsedValue.longValue())
-        case bigDecimalValue: icu.math.BigDecimal =>
-          bigDecimalValue.toBigIntegerExact
-        case _ =>
-          throw new IllegalArgumentException(
-            s"Unexpected type ${parsedValue.getClass}"
-          )
-      }
-      Right(bigIntValue)
+      Right(parsedValue.toBigInt.bigInteger)
     } catch {
       case e =>
         Left(ErrorWithoutContext("invalid_integer", e.getMessage))
@@ -863,10 +851,9 @@ case class Column private (
       numericParser(value) match {
         case Left(w) => Left(ErrorWithoutContext("invalid_long", w))
         case Right(parsedValue) => {
-          parsedValue match {
-            case _: java.lang.Long | _: java.lang.Integer | _: java.lang.Short |
-                _: java.lang.Byte =>
-              Right(parsedValue.longValue())
+          try {
+            Right(parsedValue.longValue)
+          } catch {
             case _ =>
               Left(
                 ErrorWithoutContext(
@@ -909,29 +896,16 @@ case class Column private (
     } else {
       numericParser(value) match {
         case Left(w) => Left(ErrorWithoutContext("invalid_int", w))
-        case Right(parsedNumber) => {
-          parsedNumber match {
-            case _: java.lang.Long | _: java.lang.Integer | _: java.lang.Short |
-                _: java.lang.Byte => {
-              val parsedValue = parsedNumber.longValue()
-              if (parsedValue > Int.MaxValue || parsedValue < Int.MinValue)
-                Left(
-                  ErrorWithoutContext(
-                    "invalid_int",
-                    s"Outside Int Range ${Int.MinValue} - ${Int.MaxValue} (inclusive)"
-                  )
-                )
-              else Right(parsedValue.intValue())
-            }
-            case _ =>
-              Left(
-                ErrorWithoutContext(
-                  "invalid_int",
-                  s"Outside Int Range ${Int.MinValue} - ${Int.MaxValue} (inclusive)"
-                )
+        case Right(parsedNumber) =>
+          val parsedValue = parsedNumber.longValue
+          if (parsedValue > Int.MaxValue || parsedValue < Int.MinValue)
+            Left(
+              ErrorWithoutContext(
+                "invalid_int",
+                s"Outside Int Range ${Int.MinValue} - ${Int.MaxValue} (inclusive)"
               )
-          }
-        }
+            )
+          else Right(parsedValue.intValue)
       }
     }
   }
@@ -966,27 +940,15 @@ case class Column private (
       numericParser(value) match {
         case Left(w) => Left(ErrorWithoutContext("invalid_short", w))
         case Right(parsedNumber) => {
-          parsedNumber match {
-            case _: java.lang.Long | _: java.lang.Integer | _: java.lang.Short |
-                _: java.lang.Byte => {
-              val parsedValue = parsedNumber.longValue()
-              if (parsedValue > Short.MaxValue || parsedValue < Short.MinValue)
-                Left(
-                  ErrorWithoutContext(
-                    "invalid_short",
-                    s"Outside Short Range ${Short.MinValue} - ${Short.MaxValue} (inclusive)"
-                  )
-                )
-              else Right(parsedValue.shortValue())
-            }
-            case _ =>
-              Left(
-                ErrorWithoutContext(
-                  "invalid_short",
-                  s"Outside Short Range ${Short.MinValue} - ${Short.MaxValue} (inclusive)"
-                )
+          val parsedValue = parsedNumber.longValue
+          if (parsedValue > Short.MaxValue || parsedValue < Short.MinValue)
+            Left(
+              ErrorWithoutContext(
+                "invalid_short",
+                s"Outside Short Range ${Short.MinValue} - ${Short.MaxValue} (inclusive)"
               )
-          }
+            )
+          else Right(parsedValue.shortValue())
         }
       }
     }
@@ -1020,29 +982,16 @@ case class Column private (
     } else {
       numericParser(value) match {
         case Left(w) => Left(ErrorWithoutContext("invalid_byte", w))
-        case Right(parsedNumber) => {
-          parsedNumber match {
-            case _: java.lang.Long | _: java.lang.Integer | _: java.lang.Short |
-                _: java.lang.Byte => {
-              val parsedValue = parsedNumber.byteValue()
-              if (parsedValue > Byte.MaxValue || parsedValue < Byte.MinValue)
-                Left(
-                  ErrorWithoutContext(
-                    "invalid_byte",
-                    s"Outside Byte Range ${Byte.MinValue} - ${Byte.MaxValue} (inclusive)"
-                  )
-                )
-              else Right(parsedValue.byteValue())
-            }
-            case _ =>
-              Left(
-                ErrorWithoutContext(
-                  "invalid_byte",
-                  s"Outside Byte Range ${Byte.MinValue} - ${Byte.MaxValue} (inclusive)"
-                )
+        case Right(parsedNumber) =>
+          val parsedValue = parsedNumber.byteValue
+          if (parsedValue > Byte.MaxValue || parsedValue < Byte.MinValue)
+            Left(
+              ErrorWithoutContext(
+                "invalid_byte",
+                s"Outside Byte Range ${Byte.MinValue} - ${Byte.MaxValue} (inclusive)"
               )
-          }
-        }
+            )
+          else Right(parsedValue.byteValue())
       }
     }
   }
@@ -1204,27 +1153,7 @@ case class Column private (
 
   def numericParser(
       value: String
-  ): Either[String, Number] = {
-    try {
-      val parsedNumber = numberFormat.parse(value)
-      val paredNumberInString = numberFormat.format(parsedNumber)
-      val originalValueWithoutPlusesOrMinuses = stripUnquotedPlusMinus(value)
-      val parsedNumberWithoutPlusesOrMinuses = stripUnquotedPlusMinus(
-        paredNumberInString
-      )
-      if (
-        originalValueWithoutPlusesOrMinuses != parsedNumberWithoutPlusesOrMinuses
-      )
-        Left("Value does not match expected UTS-35 format")
-      else Right(parsedNumber)
-    } catch {
-      case e: Throwable => {
-        logger.debug(e.getMessage)
-        logger.debug(e.getStackTrace.mkString("\n"))
-        Left(e.getMessage)
-      }
-    }
-  }
+  ): Either[String, BigDecimal] = numberParserForFormat.parse(value)
 
   def containsUnquotedChar(value: String, char: Char): Boolean = {
     var insideQuotes = false
