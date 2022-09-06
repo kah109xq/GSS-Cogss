@@ -1,5 +1,6 @@
 package CSVValidation
 
+import java.lang.IllegalArgumentException
 import scala.collection.mutable
 import scala.util.parsing.combinator.RegexParsers
 
@@ -51,7 +52,7 @@ case class NumberFormatParser(groupChar: Char = ',', decimalChar: Char = '.')
       char match {
         case '.' =>
           isFractionalPart = true
-          parserParts :+= "." ^^^ IrrelevantPart()
+          parserParts :+= opt(".") ^^^ IrrelevantPart()
         case c if numericDigitChars.contains(c) =>
           format.push(char)
           parserParts :+= parseDigits(format, isFractionalPart)
@@ -150,47 +151,74 @@ case class NumberFormatParser(groupChar: Char = ',', decimalChar: Char = '.')
     getParserForDigitsInGroupings(
       isFractionalPart,
       zeroPaddingDigits,
+      nonPaddingDigits + zeroPaddingDigits,
       firstGroupSize,
       secondGroupSize,
       digitMatcherRegex
-    ) ^^ {
-      case digits =>
-        if (isFractionalPart)
-          FractionalPart(digits)
-        else
-          IntegerPart(digits)
-    }
+    ) ^^ (digits =>
+      if (isFractionalPart)
+        FractionalPart(digits)
+      else
+        IntegerPart(digits)
+    )
   }
 
   private def getParserForDigitsInGroupings(
       isFractionalPart: Boolean,
-      zeroPaddingDigits: Int,
+      minimumDigits: Int,
+      maximumDigits: Int,
       firstGroupSize: Option[Int],
       secondGroupSize: Option[Int],
-      digitMatcherRegex: String
+      digitAndGroupingMatcherRegex: String
   ): Parser[String] = {
     val numberPartDescription =
       if (isFractionalPart) "fractional" else "integer"
 
-    val digitMatcher: Parser[String] =
-      s"$digitMatcherRegex{$zeroPaddingDigits,}".r | failure(
-        s"Expected at least $zeroPaddingDigits $numberPartDescription digits."
+    val greedyDigitAndGroupingMatcher: Parser[String] =
+      s"$digitAndGroupingMatcherRegex{$minimumDigits,}".r | failure(
+        s"Expected at least $minimumDigits $numberPartDescription digits."
       )
 
+    def ensureCorrectNumDigits(
+        input: String
+    ): String = {
+      (isFractionalPart, input.length) match {
+        case (_, l) if l < minimumDigits =>
+          throw new IllegalArgumentException(
+            s"Expected a minimum of $minimumDigits $numberPartDescription digits."
+          )
+
+        /**
+          * > The number of # placeholder characters before the decimal do not matter, since no limit is placed on the maximum number of digits
+          * https://www.unicode.org/reports/tr35/tr35-31/tr35-numbers.html#Number_Patterns
+          */
+        case (true, l) if l > maximumDigits =>
+          throw new IllegalArgumentException(
+            s"Expected a maximum of $maximumDigits $numberPartDescription digits."
+          )
+        case _ => input
+      }
+
+    }
+
     Parser { p =>
-      digitMatcher(p) match {
-        case Success(digits, currentPosition) =>
-          parseAll(
-            enforceGroupsRemoveGroupCharsParser(
-              firstGroupSize,
-              secondGroupSize,
-              isFractionalPart
-            ),
-            digits
-          ) match {
-            case Success(digitsWithoutGroupingChar, _) =>
-              Success(digitsWithoutGroupingChar, currentPosition)
-            case Failure(err, _) => Failure(err, currentPosition)
+      greedyDigitAndGroupingMatcher(p) match {
+        case Success(digitAndGroupChars, currentPosition) =>
+          try {
+            parseAll(
+              enforceGroupsRemoveGroupCharsParser(
+                firstGroupSize,
+                secondGroupSize,
+                isFractionalPart
+              ) ^^ ensureCorrectNumDigits,
+              digitAndGroupChars
+            ) match {
+              case Success(digitsWithoutGroupingChar, _) =>
+                Success(digitsWithoutGroupingChar, currentPosition)
+              case Failure(err, _) => Failure(err, currentPosition)
+            }
+          } catch {
+            case e => Failure(e.getMessage, currentPosition)
           }
         case failure @ Failure(_, _) => failure
       }
@@ -233,7 +261,7 @@ case class NumberFormatParser(groupChar: Char = ',', decimalChar: Char = '.')
         case (_, _) => None
       }
 
-    groupingParser.getOrElse("[0-9]+".r)
+    groupingParser.getOrElse("[0-9]*".r)
   }
 
   private def getGroupsParserForPrimarySecondaryGrouping(
@@ -245,28 +273,37 @@ case class NumberFormatParser(groupChar: Char = ',', decimalChar: Char = '.')
       // Fractional part
       // Given a primary group size of 3 and a secondary grouping size of 2, this matches things like:
       // 0.000,(00,)*(0)?
+      // 0.###,(##,)*(#)?
       s"[0-9]{$primaryGroupSize}".r ~
         rep(groupChar ~> s"[0-9]{$secondaryGroupSize}".r) ~
         opt(groupChar ~> s"[0-9]{1,$secondaryGroupSize}".r) ^^ {
         case primaryGroup ~ secondaryGroups ~ last =>
-          (List(primaryGroup) ++ secondaryGroups :+ last.getOrElse(""))
-            .mkString("")
+          (
+            List(primaryGroup)
+              ++ secondaryGroups
+              :+ last.getOrElse("")
+          ).mkString("")
       }
     } else {
       // Integer part
       // Given a primary group size of 3 and a secondary grouping size of 2, this matches things like:
       // (0,)?(00,)*,000.0
+      // (#,)?(##,)*,###.0
       opt(s"[0-9]{1,$secondaryGroupSize}".r <~ groupChar) ~
         rep(s"[0-9]{$secondaryGroupSize}".r <~ groupChar) ~
         s"[0-9]{$primaryGroupSize}".r ^^ {
         case first ~ secondaryGroups ~ primaryGroup =>
-          (List(first.getOrElse("")) ++ secondaryGroups :+ primaryGroup)
-            .mkString("")
+          (
+            List(first.getOrElse(""))
+              ++ secondaryGroups
+              :+ primaryGroup
+          ).mkString("")
       }
+
     }
 
     // Support numbers which don't have enough digits to show a single group.
-    groupsParser | s"[0-9]{1,$primaryGroupSize}".r
+    groupsParser | s"[0-9]{0,$primaryGroupSize}".r
   }
 
   private def getGroupsParserForPrimaryGrouping(
@@ -280,26 +317,36 @@ case class NumberFormatParser(groupChar: Char = ',', decimalChar: Char = '.')
       // Fractional part
       // Given a primary group size of 3, this matches things like:
       // 0.000,(000,)*(00)?
+      // #.###,(###,)*(##)?
       primaryGroupMatch ~
         rep(groupChar ~> primaryGroupMatch) ~
         opt(groupChar ~> partialGroupMatch) ^^ {
         case first ~ groups ~ last =>
-          (List(first) ++ groups :+ last.getOrElse("")).mkString("")
+          (
+            List(first)
+              ++ groups
+              :+ last.getOrElse("")
+          ).mkString("")
       }
     } else {
       // Integer part.
       // Given a primary group size of 3, this matches things like:
       // (00,)?(000,)*(000).0
+      // (##,)?(###,)*(###).#
       opt(partialGroupMatch <~ groupChar) ~
         rep(primaryGroupMatch <~ groupChar) ~
         primaryGroupMatch ^^ {
         case first ~ groups ~ last =>
-          (List(first.getOrElse("")) ++ groups :+ last).mkString("")
+          (
+            List(first.getOrElse(""))
+              ++ groups
+              :+ last
+          ).mkString("")
       }
     }
 
     // Support numbers which don't have enough digits to show a single group.
-    groupsParser | partialGroupMatch
+    groupsParser | s"[0-9]{0,$primaryGroupSize}".r
   }
 
   case class NumericParserForFormat(private val parser: Parser[BigDecimal]) {
