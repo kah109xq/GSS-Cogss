@@ -1,11 +1,8 @@
 package CSVValidation
 
-import com.ibm.icu
 import com.ibm.icu.text.DecimalFormat
 
 abstract class ParsedNumberPart
-
-case class IrrelevantPart() extends ParsedNumberPart
 
 case class SignPart(isPositive: Boolean) extends ParsedNumberPart
 

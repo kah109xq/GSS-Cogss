@@ -1,19 +1,17 @@
 package CSVValidation
 
-import java.lang.IllegalArgumentException
 import scala.collection.mutable
 import scala.util.parsing.combinator.RegexParsers
 
 case class NumberFormatParser(groupChar: Char = ',', decimalChar: Char = '.')
     extends RegexParsers {
-  def digit: Parser[String] = "[0-9]".r
 
   def numericDigitChars =
     Set('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '#', '@', ',')
 
   def parseQuote(
       format: mutable.Stack[Char]
-  ): Either[String, Parser[IrrelevantPart]] = {
+  ): Either[String, Parser[Option[ParsedNumberPart]]] = {
     val quotedText = new mutable.StringBuilder()
     var quoteEnded = false
     while (format.nonEmpty && !quoteEnded) {
@@ -28,40 +26,45 @@ case class NumberFormatParser(groupChar: Char = ',', decimalChar: Char = '.')
     }
 
     if (quoteEnded)
-      Right("'" ~> quotedText.toString().trim <~ "'" ^^^ IrrelevantPart())
+      Right("'" ~> quotedText.toString().trim <~ "'" ^^^ None)
     else
       Left("Unterminated quote.")
   }
 
-  def parseSign(signChar: Char): Parser[SignPart] =
+  def parseSign(signChar: Char): Parser[Some[SignPart]] =
     signChar match {
       // todo: Should these signs be optional? To support parsing numbers which don't have one or the other
       //  i.e. `opt(signChar.toString)`?
-      case '+' => signChar.toString ^^ { _ => SignPart(true) }
-      case '-' => signChar.toString ^^ { _ => SignPart(false) }
+      case '+' => signChar.toString ^^^ Some(SignPart(true))
+      case '-' => signChar.toString ^^^ Some(SignPart(false))
     }
 
   def parseNumberWithPossibleExponent(
       format: mutable.Stack[Char]
-  ): Array[Parser[ParsedNumberPart]] = {
+  ): Array[Parser[Option[ParsedNumberPart]]] = {
     var numberEnded = false
-    var parserParts: Array[Parser[ParsedNumberPart]] = Array()
+    var parserParts: Array[Parser[Option[ParsedNumberPart]]] = Array(
+      // Parse an (optional) sign at the beginning of the number.
+      // Yes, the format may specify a different position for the sign char but we only count the *first* one we come
+      // across which should enable sensible behaviour.
+      opt("+" ^^^ SignPart(true) | "-" ^^^ SignPart(false))
+    )
     var isFractionalPart = false
     while (format.nonEmpty && !numberEnded) {
       val char = format.pop()
       char match {
         case '.' =>
           isFractionalPart = true
-          parserParts :+= opt(".") ^^^ IrrelevantPart()
+          parserParts :+= opt(".") ^^^ None
         case c if numericDigitChars.contains(c) =>
           format.push(char)
           parserParts :+= parseDigits(format, isFractionalPart)
         // `E` should only be recognised as the exponent char if it is preceded and followed by digits.
         // http://www.unicode.org/reports/tr35/tr35-numbers.html#sci
         case 'E' if numericDigitChars.contains(format.top) =>
-          val exponentDigits = parseDigits(format, false)
+          val exponentDigits = parseDigits(format, false) ^^ (_.get)
           parserParts :+= "E" ~ exponentDigits ^^ {
-            case _ ~ digits => ExponentPart(digits)
+            case _ ~ digits => Some(ExponentPart(digits))
           }
         case _ =>
           numberEnded = true
@@ -77,7 +80,7 @@ case class NumberFormatParser(groupChar: Char = ',', decimalChar: Char = '.')
   def parseDigits(
       format: mutable.Stack[Char],
       isFractionalPart: Boolean
-  ): Parser[DigitsPart] = {
+  ): Parser[Some[DigitsPart]] = {
     var finished = false
 
     var nonPaddingDigits = 0
@@ -157,9 +160,9 @@ case class NumberFormatParser(groupChar: Char = ',', decimalChar: Char = '.')
       digitMatcherRegex
     ) ^^ (digits =>
       if (isFractionalPart)
-        FractionalPart(digits)
+        Some(FractionalPart(digits))
       else
-        IntegerPart(digits)
+        Some(IntegerPart(digits))
     )
   }
 
@@ -176,7 +179,7 @@ case class NumberFormatParser(groupChar: Char = ',', decimalChar: Char = '.')
 
     val greedyDigitAndGroupingMatcher: Parser[String] =
       s"$digitAndGroupingMatcherRegex{$minimumDigits,}".r | failure(
-        s"Expected at least $minimumDigits $numberPartDescription digits."
+        s"Expected a minimum of $minimumDigits $numberPartDescription digits."
       )
 
     def ensureCorrectNumDigits(
@@ -184,7 +187,7 @@ case class NumberFormatParser(groupChar: Char = ',', decimalChar: Char = '.')
     ): String = {
       (isFractionalPart, input.length) match {
         case (_, l) if l < minimumDigits =>
-          throw new IllegalArgumentException(
+          throw NumberFormatError(
             s"Expected a minimum of $minimumDigits $numberPartDescription digits."
           )
 
@@ -193,7 +196,7 @@ case class NumberFormatParser(groupChar: Char = ',', decimalChar: Char = '.')
           * https://www.unicode.org/reports/tr35/tr35-31/tr35-numbers.html#Number_Patterns
           */
         case (true, l) if l > maximumDigits =>
-          throw new IllegalArgumentException(
+          throw NumberFormatError(
             s"Expected a maximum of $maximumDigits $numberPartDescription digits."
           )
         case _ => input
@@ -366,7 +369,7 @@ case class NumberFormatParser(groupChar: Char = ',', decimalChar: Char = '.')
       formatIn: String
   ): Parser[BigDecimal] = {
     val format = mutable.Stack.from(formatIn)
-    var parserParts: Array[Parser[ParsedNumberPart]] = Array()
+    var parserParts: Array[Parser[Option[ParsedNumberPart]]] = Array()
 
     while (format.nonEmpty) {
       val char = format.pop()
@@ -383,7 +386,7 @@ case class NumberFormatParser(groupChar: Char = ',', decimalChar: Char = '.')
         case '-' | '+'       => parserParts :+= parseSign(char)
         case '%' | '‰' | '¤' =>
           // todo: The percent and per-mille chars actually do add a factor to the number
-          parserParts :+= char.toString ^^^ IrrelevantPart()
+          parserParts :+= char.toString ^^^ None
         // todo: Need to parse sub-patterns separated by ';'.
         // todo: Need to deal with special padding chars
         case _ =>
@@ -395,7 +398,7 @@ case class NumberFormatParser(groupChar: Char = ',', decimalChar: Char = '.')
   }
 
   private def getParserForNumberParts(
-      parserParts: Array[Parser[ParsedNumberPart]]
+      parserParts: Array[Parser[Option[ParsedNumberPart]]]
   ): Parser[BigDecimal] =
     Parser { p =>
       val parsedNumber: ParsedNumber = ParsedNumber()
@@ -410,14 +413,15 @@ case class NumberFormatParser(groupChar: Char = ',', decimalChar: Char = '.')
               // > If more than one sign, currency symbol, exponent, or percent/per mille occurs in the input,
               // > the first found should be used.
               numberPart match {
-                case s @ SignPart(_) =>
+                case Some(s @ SignPart(_)) =>
                   if (parsedNumber.sign.isEmpty) parsedNumber.sign = Some(s)
-                case i @ IntegerPart(_)    => parsedNumber.integer = Some(i)
-                case f @ FractionalPart(_) => parsedNumber.fraction = Some(f)
-                case e @ ExponentPart(_) =>
+                case Some(i @ IntegerPart(_)) => parsedNumber.integer = Some(i)
+                case Some(f @ FractionalPart(_)) =>
+                  parsedNumber.fraction = Some(f)
+                case Some(e @ ExponentPart(_)) =>
                   if (parsedNumber.exponent.isEmpty)
                     parsedNumber.exponent = Some(e)
-                case IrrelevantPart() =>
+                case None =>
               }
               currentInputPosition = rest
             case error @ Failure(_, rest) =>
