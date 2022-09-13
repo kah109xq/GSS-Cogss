@@ -3,6 +3,10 @@ package CSVValidation
 import scala.collection.mutable
 import scala.util.parsing.combinator.RegexParsers
 
+trait NumberParser {
+  def parse(number: String): Either[String, BigDecimal]
+}
+
 case class NumberFormatParser(groupChar: Char = ',', decimalChar: Char = '.')
     extends RegexParsers {
 
@@ -352,7 +356,8 @@ case class NumberFormatParser(groupChar: Char = ',', decimalChar: Char = '.')
     groupsParser | s"[0-9]{0,$primaryGroupSize}".r
   }
 
-  case class NumericParserForFormat(private val parser: Parser[BigDecimal]) {
+  case class NumericParserForFormat(private val parser: Parser[BigDecimal])
+      extends NumberParser {
     def parse(number: String): Either[String, BigDecimal] = {
       parseAll(parser, number) match {
         case Success(result, _)      => Right(result)

@@ -464,14 +464,19 @@ case class Column private (
   lazy val maxExclusiveDateTime: Option[ZonedDateTime] =
     maxExclusive.map(v => mapJodaDateTimeToZonedDateTime(DateTime.parse(v)))
 
-  lazy val numberParserForFormat =
+  lazy val numberParserForFormat: Either[String, NumberParser] =
     try {
-      NumberFormatParser(
-        format.flatMap(f => f.groupChar).getOrElse(','),
-        format.flatMap(f => f.decimalChar).getOrElse('.')
-      ).getParserForFormat(format.flatMap(f => f.pattern).get)
+      Right(
+        NumberFormatParser(
+          format.flatMap(f => f.groupChar).getOrElse(','),
+          format.flatMap(f => f.decimalChar).getOrElse('.')
+        ).getParserForFormat(format.flatMap(f => f.pattern).get)
+      )
     } catch {
-      case e: Exception => throw NumberFormatError(e.getMessage, e)
+      case e =>
+        logger.debug(e.getMessage)
+        logger.debug(e.getStackTrace.mkString("\n"))
+        Left(e.getMessage)
     }
 
   private def mapJodaDateTimeToZonedDateTime(jDt: DateTime) = {
@@ -660,6 +665,7 @@ case class Column private (
         s"(?<=[0-9])$decimalChar(?=[0-9])".r.replaceAllIn(newValue, ".")
       case None => newValue
     }
+
     newValue
   }
 
@@ -698,7 +704,7 @@ case class Column private (
         )
       }
     } else {
-      numericParser(value) match {
+      parseNumberAgainstFormat(value) match {
         case Right(parsedValue) => Right(parsedValue)
         case Left(warning) =>
           Left(ErrorWithoutContext("invalid_decimal", warning))
@@ -739,7 +745,7 @@ case class Column private (
         )
       }
     } else {
-      numericParser(value) match {
+      parseNumberAgainstFormat(value) match {
         case Left(w)            => Left(ErrorWithoutContext("invalid_double", w))
         case Right(parsedValue) => Right(parsedValue.doubleValue)
       }
@@ -752,7 +758,7 @@ case class Column private (
     if (patternIsEmpty()) {
       val newValue = standardisedValue(value)
       if (Column.validFloatDatatypeRegex.pattern.matcher(newValue).matches()) {
-        Right(newValue.toFloat)
+        Right(replaceInfWithInfinity(newValue).toFloat)
       } else {
         Left(
           ErrorWithoutContext(
@@ -762,7 +768,7 @@ case class Column private (
         )
       }
     } else {
-      numericParser(value) match {
+      parseNumberAgainstFormat(value) match {
         case Left(w)            => Left(ErrorWithoutContext("invalid_float", w))
         case Right(parsedValue) => Right(parsedValue.floatValue)
       }
@@ -801,7 +807,7 @@ case class Column private (
         )
       }
     } else {
-      numericParser(value) match {
+      parseNumberAgainstFormat(value) match {
         case Right(parsedValue) => convertToBigIntegerValue(parsedValue)
         case Left(warning) =>
           Left(ErrorWithoutContext("invalid_integer", warning))
@@ -848,7 +854,7 @@ case class Column private (
         )
       }
     } else {
-      numericParser(value) match {
+      parseNumberAgainstFormat(value) match {
         case Left(w) => Left(ErrorWithoutContext("invalid_long", w))
         case Right(parsedValue) => {
           try {
@@ -894,7 +900,7 @@ case class Column private (
         )
       }
     } else {
-      numericParser(value) match {
+      parseNumberAgainstFormat(value) match {
         case Left(w) => Left(ErrorWithoutContext("invalid_int", w))
         case Right(parsedNumber) =>
           val parsedValue = parsedNumber.longValue
@@ -937,7 +943,7 @@ case class Column private (
         )
       }
     } else {
-      numericParser(value) match {
+      parseNumberAgainstFormat(value) match {
         case Left(w) => Left(ErrorWithoutContext("invalid_short", w))
         case Right(parsedNumber) => {
           val parsedValue = parsedNumber.longValue
@@ -980,7 +986,7 @@ case class Column private (
         )
       }
     } else {
-      numericParser(value) match {
+      parseNumberAgainstFormat(value) match {
         case Left(w) => Left(ErrorWithoutContext("invalid_byte", w))
         case Right(parsedNumber) =>
           val parsedValue = parsedNumber.byteValue
@@ -1151,9 +1157,13 @@ case class Column private (
     }
   }
 
-  def numericParser(
+  def parseNumberAgainstFormat(
       value: String
-  ): Either[String, BigDecimal] = numberParserForFormat.parse(value)
+  ): Either[String, BigDecimal] =
+    numberParserForFormat match {
+      case Right(numericParser) => numericParser.parse(value)
+      case Left(err)            => Left(err)
+    }
 
   def containsUnquotedChar(value: String, char: Char): Boolean = {
     var insideQuotes = false
