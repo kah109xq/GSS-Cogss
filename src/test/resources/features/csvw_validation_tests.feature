@@ -1392,7 +1392,6 @@ Feature: CSVW Validation Tests
 	
 	# manifest-validation#test155
 	# If the datatype format annotation is a single string, this is interpreted in the same way as if it were an object with a pattern property whose value is that string
-	@ignore # Remove @ignore flag when new parser is implemented (#78)
 	Scenario: manifest-validation#test155 number format (valid combinations)
 		Given I have a metadata file called "csvw/test155-metadata.json"
 		And the metadata is stored at the url "https://w3c.github.io/csvw/tests/test155-metadata.json"
@@ -1403,7 +1402,6 @@ Feature: CSVW Validation Tests
 	
 	# manifest-validation#test156
 	# If the datatype format annotation is a single string, this is interpreted in the same way as if it were an object with a pattern property whose value is that string
-	@ignore # Remove @ignore flag when new parser is implemented (#78)
 	Scenario: manifest-validation#test156 number format (bad format string)
 		Given I have a metadata file called "csvw/test156-metadata.json"
 		And the metadata is stored at the url "https://w3c.github.io/csvw/tests/test156-metadata.json"
@@ -1423,7 +1421,6 @@ Feature: CSVW Validation Tests
 	
 	# manifest-validation#test158
 	# Numeric dataype with object format
-	@ignore # Remove @ignore flag when new parser is implemented (#78)
 	Scenario: manifest-validation#test158 number format (valid combinations)
 		Given I have a metadata file called "csvw/test158-metadata.json"
 		And the metadata is stored at the url "https://w3c.github.io/csvw/tests/test158-metadata.json"
@@ -1434,7 +1431,6 @@ Feature: CSVW Validation Tests
 	
 	# manifest-validation#test159
 	# If the datatype format annotation is a single string, this is interpreted in the same way as if it were an object with a pattern property whose value is that string
-	@ignore # Remove @ignore flag when new parser is implemented (#78)
 	Scenario: manifest-validation#test159 number format (bad pattern format string)
 		Given I have a metadata file called "csvw/test159-metadata.json"
 		And the metadata is stored at the url "https://w3c.github.io/csvw/tests/test159-metadata.json"
@@ -2562,7 +2558,6 @@ Feature: CSVW Validation Tests
 	
 	# manifest-validation#test282
 	# A number format pattern as defined in [UAX35]. Implementations MUST recognise number format patterns containing the symbols `0`, `#`, the specified decimalChar (or `.` if unspecified), the specified groupChar (or `,` if unspecified), `E`, `+`, `%` and `&permil;`.
-	@ignore # Remove @ignore flag when new parser is implemented (#78)
 	Scenario: manifest-validation#test282 valid number patterns
 		Given I have a metadata file called "csvw/test282-metadata.json"
 		And the metadata is stored at the url "https://w3c.github.io/csvw/tests/test282-metadata.json"
@@ -2573,7 +2568,6 @@ Feature: CSVW Validation Tests
 	
 	# manifest-validation#test283
 	# A number format pattern as defined in [UAX35]. Implementations MUST recognise number format patterns containing the symbols `0`, `#`, the specified decimalChar (or `.` if unspecified), the specified groupChar (or `,` if unspecified), `E`, `+`, `%` and `&permil;
-	@ignore # Remove @ignore flag when new parser is implemented (#78)
 	Scenario: manifest-validation#test283 valid number patterns (signs and percent/permille)
 		Given I have a metadata file called "csvw/test283-metadata.json"
 		And the metadata is stored at the url "https://w3c.github.io/csvw/tests/test283-metadata.json"
@@ -2584,7 +2578,6 @@ Feature: CSVW Validation Tests
 	
 	# manifest-validation#test284
 	# A number format pattern as defined in [UAX35]. Implementations MUST recognise number format patterns containing the symbols `0`, `#`, the specified decimalChar (or `.` if unspecified), the specified groupChar (or `,` if unspecified), `E`, `+`, `%` and `&permil;`.
-	@ignore # Remove @ignore flag when new parser is implemented (#78)
 	Scenario: manifest-validation#test284 valid number patterns (grouping)
 		Given I have a metadata file called "csvw/test284-metadata.json"
 		And the metadata is stored at the url "https://w3c.github.io/csvw/tests/test284-metadata.json"
@@ -2595,7 +2588,6 @@ Feature: CSVW Validation Tests
 	
 	# manifest-validation#test285
 	# A number format pattern as defined in [UAX35]. Implementations MUST recognise number format patterns containing the symbols `0`, `#`, the specified decimalChar (or `.` if unspecified), the specified groupChar (or `,` if unspecified), `E`, `+`, `%` and `&permil;`.
-	@ignore # Remove @ignore flag when new parser is implemented (#78)
 	Scenario: manifest-validation#test285 valid number patterns (fractional grouping)
 		Given I have a metadata file called "csvw/test285-metadata.json"
 		And the metadata is stored at the url "https://w3c.github.io/csvw/tests/test285-metadata.json"
