@@ -8,16 +8,16 @@ class NumberFormatParserTest extends FunSuite {
     val numberFormatParser = NumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("0.#E0")
     val actual = parser.parse("3.4E2")
-    assert(actual == Right(340.0))
+    assert(actual == Right(340.0), actual)
   }
 
   test("Parsing a number missing exponent fails") {
     val numberFormatParser = NumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("0.#E0")
-    val actual = parser.parse("3.42")
+    val actual = parser.parse("3.4")
     assert(actual.isLeft)
     val Left(err) = actual
-    assert(err.contains("'E' expected but end of source found"))
+    assert(err.contains("'E' expected but end of source found"), err)
   }
 
   test("Parsing a number not meeting minimum decimal padding fails") {
@@ -26,14 +26,14 @@ class NumberFormatParserTest extends FunSuite {
     val actual = parser.parse("3.4")
     assert(actual.isLeft)
     val Left(err) = actual
-    assert(err.contains("Expected at least 2 integer digits."))
+    assert(err.contains("Expected a minimum of 2 integer digits."), err)
   }
 
   test("Parsing a number meeting minimum integer padding succeeds") {
     val numberFormatParser = NumberFormatParser()
-    val parser = numberFormatParser.getParserForFormat("00.0")
+    val parser = numberFormatParser.getParserForFormat("00.0#")
     val actual = parser.parse("13.45")
-    assert(actual == Right(BigDecimal("13.45")))
+    assert(actual == Right(BigDecimal("13.45")), actual)
   }
 
   test("Parsing a number not meeting minimum fractional padding fails") {
@@ -42,22 +42,22 @@ class NumberFormatParserTest extends FunSuite {
     val actual = parser.parse("3.4")
     assert(actual.isLeft)
     val Left(err) = actual
-    assert(err.contains("Expected at least 2 fractional digits."))
+    assert(err.contains("Expected a minimum of 2 fractional digits."), err)
   }
 
   test("Parsing a number meeting minimum fractional padding succeeds") {
     val numberFormatParser = NumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("0.00")
-    val actual = parser.parse("3.401")
-    assert(actual == Right(BigDecimal("3.401")))
+    val actual = parser.parse("3.41")
+    assert(actual == Right(BigDecimal("3.41")), actual)
   }
 
   test("Quoted information is supported") {
     val numberFormatParser = NumberFormatParser()
     val parser =
       numberFormatParser.getParserForFormat("0.00' some quoted message'")
-    val actual = parser.parse("3.401' some quoted message'")
-    assert(actual == Right(BigDecimal("3.401")))
+    val actual = parser.parse("3.41' some quoted message'")
+    assert(actual == Right(BigDecimal("3.41")), actual)
   }
 
   test("Unterminated quoted leads to exception") {
@@ -65,7 +65,7 @@ class NumberFormatParserTest extends FunSuite {
     val thrown = intercept[NumberFormatError] {
       numberFormatParser.getParserForFormat("'this has no terminating quote")
     }
-    assert(thrown.getMessage == "Unterminated quote.")
+    assert(thrown.getMessage == "Unterminated quote.", thrown.getMessage)
   }
 
   test("Escaped quote char is supported") {
@@ -75,16 +75,16 @@ class NumberFormatParserTest extends FunSuite {
         "'this is a message with an ''escaped'' quotation mark'0.00"
       )
     val actual = parser.parse(
-      "'this is a message with an ''escaped'' quotation mark'3.401"
+      "'this is a message with an ''escaped'' quotation mark'3.41"
     )
-    assert(actual == Right(BigDecimal("3.401")))
+    assert(actual == Right(BigDecimal("3.41")), actual)
   }
 
   test("Primary group char is supported in the integer part") {
     val numberFormatParser = NumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("#,##0.##")
     val actual = parser.parse("3,123.1")
-    assert(actual == Right(BigDecimal("3123.1")))
+    assert(actual == Right(BigDecimal("3123.1")), actual)
   }
 
   test("Primary grouping - primary group size must be correct") {
@@ -93,14 +93,14 @@ class NumberFormatParserTest extends FunSuite {
     val actual = parser.parse("31,23.1")
     assert(actual.isLeft)
     val Left(err) = actual
-    assert(err.contains("end of input expected"))
+    assert(err.contains("end of input expected"), err)
   }
 
   test("Secondary grouping - is supported in the integer part") {
     val numberFormatParser = NumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("#,##,##0.##")
     val actual = parser.parse("12,34,56,789.1")
-    assert(actual == Right(BigDecimal("123456789.1")))
+    assert(actual == Right(BigDecimal("123456789.1")), actual)
   }
 
   test("Secondary grouping - incorrect secondary group size returns error") {
@@ -109,7 +109,7 @@ class NumberFormatParserTest extends FunSuite {
     val actual = parser.parse("12,345,56,789.1")
     assert(actual.isLeft)
     val Left(err) = actual
-    assert(err.contains("end of input expected"))
+    assert(err.contains("end of input expected"), err)
   }
 
   test("Secondary grouping - incorrect primary group size returns error") {
@@ -118,41 +118,41 @@ class NumberFormatParserTest extends FunSuite {
     val actual = parser.parse("12,345,56,78.1")
     assert(actual.isLeft)
     val Left(err) = actual
-    assert(err.contains("end of input expected"))
+    assert(err.contains("end of input expected"), err)
   }
 
   test("Integer grouping sizes only apply to integer part of number") {
     val numberFormatParser = NumberFormatParser()
-    val parser = numberFormatParser.getParserForFormat("#,##0.##")
+    val parser = numberFormatParser.getParserForFormat("#,##0.######")
     // intentionally contains group char in fractional part
     val actual = parser.parse("3,123.456,789")
     assert(actual.isLeft)
     val Left(err) = actual
-    assert(err.contains("end of input expected"))
+    assert(err.contains("end of input expected"), err)
   }
 
   test("Fractional grouping - primary grouping size works") {
     val numberFormatParser = NumberFormatParser()
-    val parser = numberFormatParser.getParserForFormat("#0.##,##")
+    val parser = numberFormatParser.getParserForFormat("#0.##,##,##")
     val actual = parser.parse("3123.45,67,89")
-    assert(actual == Right(BigDecimal("3123.456789")))
+    assert(actual == Right(BigDecimal("3123.456789")), actual)
   }
 
   test("Fractional grouping - primary and secondary grouping sizes work") {
     val numberFormatParser = NumberFormatParser()
-    val parser = numberFormatParser.getParserForFormat("#0.##,###,#")
+    val parser = numberFormatParser.getParserForFormat("#0.##,###,###,##")
     val actual = parser.parse("123.45,678,901,23")
-    assert(actual == Right(BigDecimal("123.4567890123")))
+    assert(actual == Right(BigDecimal("123.4567890123")), actual)
   }
 
   test("Fractional grouping sizes only apply to fractional part of number") {
     val numberFormatParser = NumberFormatParser()
-    val parser = numberFormatParser.getParserForFormat("#0.##,##")
+    val parser = numberFormatParser.getParserForFormat("#0.##,##,##")
     // intentionally contains group char in integer part
     val actual = parser.parse("3,123.45,67,89")
     assert(actual.isLeft)
     val Left(err) = actual
-    assert(err.contains("'.' expected but ',' found"))
+    assert(err.contains("end of input expected"), err)
   }
 
   test("Only the first sign character should be used") {
@@ -163,7 +163,7 @@ class NumberFormatParserTest extends FunSuite {
     val parser = numberFormatParser.getParserForFormat("+-0.0")
     // intentionally contains group char in integer part
     val actual = parser.parse("+-25.6")
-    assert(actual == Right(BigDecimal("25.6")))
+    assert(actual == Right(BigDecimal("25.6")), actual)
   }
 
   test("Only the first exponent should be used") {
