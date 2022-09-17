@@ -17,7 +17,7 @@ import com.fasterxml.jackson.databind.node.{
   ObjectNode,
   TextNode
 }
-import com.ibm.icu
+import CSVValidation.traits.LoggerExtensions.LogDebugException
 import com.typesafe.scalalogging.Logger
 import errors.ErrorWithoutContext
 import org.joda.time.{DateTime, DateTimeZone}
@@ -474,8 +474,7 @@ case class Column private (
       )
     } catch {
       case e =>
-        logger.debug(e.getMessage)
-        logger.debug(e.getStackTrace.mkString("\n"))
+        logger.debug(e)
         Left(e.getMessage)
     }
 
@@ -691,8 +690,7 @@ case class Column private (
           Right(BigDecimal(newValue))
         } catch {
           case e: Throwable =>
-            logger.debug(e.getMessage)
-            logger.debug(e.getStackTrace.mkString("\n"))
+            logger.debug(e)
             Left(ErrorWithoutContext("invalid_decimal", e.getMessage))
         }
       } else {
@@ -732,8 +730,7 @@ case class Column private (
           Right(replaceInfWithInfinity(newValue).toDouble)
         } catch {
           case e: Throwable =>
-            logger.debug(e.getMessage)
-            logger.debug(e.getStackTrace.mkString("\n"))
+            logger.debug(e)
             Left(ErrorWithoutContext("invalid_double", e.getMessage))
         }
       } else {
@@ -794,8 +791,7 @@ case class Column private (
           Right(new BigInteger(newValue))
         } catch {
           case e: Throwable =>
-            logger.debug(e.getMessage)
-            logger.debug(e.getStackTrace.mkString("\n"))
+            logger.debug(e)
             Left(ErrorWithoutContext("invalid_integer", e.getMessage))
         }
       } else {
@@ -841,8 +837,7 @@ case class Column private (
           Right(newValue.toLong)
         } catch {
           case e: Throwable =>
-            logger.debug(e.getMessage)
-            logger.debug(e.getStackTrace.mkString("\n"))
+            logger.debug(e)
             Left(ErrorWithoutContext("invalid_long", e.getMessage))
         }
       } else {
@@ -887,8 +882,7 @@ case class Column private (
           Right(newValue.toInt)
         } catch {
           case e: Throwable =>
-            logger.debug(e.getMessage)
-            logger.debug(e.getStackTrace.mkString("\n"))
+            logger.debug(e)
             Left(ErrorWithoutContext("invalid_int", e.getMessage))
         }
       } else {
@@ -930,8 +924,7 @@ case class Column private (
           Right(newValue.toShort)
         } catch {
           case e: Throwable =>
-            logger.debug(e.getMessage)
-            logger.debug(e.getStackTrace.mkString("\n"))
+            logger.debug(e)
             Left(ErrorWithoutContext("invalid_short", e.getMessage))
         }
       } else {
@@ -973,8 +966,7 @@ case class Column private (
           Right(value.toByte)
         } catch {
           case e: Throwable =>
-            logger.debug(e.getMessage)
-            logger.debug(e.getStackTrace.mkString("\n"))
+            logger.debug(e)
             Left(ErrorWithoutContext("invalid_byte", e.getMessage))
         }
       } else {

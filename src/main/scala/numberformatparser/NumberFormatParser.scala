@@ -1,7 +1,10 @@
 package CSVValidation
 
+import com.typesafe.scalalogging.Logger
+
 import scala.collection.mutable
 import scala.util.parsing.combinator.RegexParsers
+import CSVValidation.traits.LoggerExtensions.LogDebugException
 
 trait NumberParser {
   def parse(number: String): Either[String, BigDecimal]
@@ -9,6 +12,8 @@ trait NumberParser {
 
 case class NumberFormatParser(groupChar: Char = ',', decimalChar: Char = '.')
     extends RegexParsers {
+
+  val logger = Logger(this.getClass.getName)
 
   def numericDigitChars =
     Set('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '#', '@', ',')
@@ -225,7 +230,9 @@ case class NumberFormatParser(groupChar: Char = ',', decimalChar: Char = '.')
               case Failure(err, _) => Failure(err, currentPosition)
             }
           } catch {
-            case e => Failure(e.getMessage, currentPosition)
+            case e =>
+              logger.debug(e)
+              Failure(e.getMessage, currentPosition)
           }
         case failure @ Failure(_, _) => failure
       }
