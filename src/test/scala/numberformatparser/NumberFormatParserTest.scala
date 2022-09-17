@@ -52,6 +52,15 @@ class NumberFormatParserTest extends FunSuite {
     assert(actual == Right(BigDecimal("3.41")), actual)
   }
 
+  test("Parsing a number exceeding maximum fractional padding fails") {
+    val numberFormatParser = NumberFormatParser()
+    val parser = numberFormatParser.getParserForFormat("0.00")
+    val actual = parser.parse("3.412")
+    assert(actual.isLeft)
+    val Left(err) = actual
+    assert(err.contains("Expected a maximum of 2 fractional digits."), err)
+  }
+
   test("Quoted information is supported") {
     val numberFormatParser = NumberFormatParser()
     val parser =
