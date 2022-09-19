@@ -10,8 +10,10 @@ trait NumberParser {
   def parse(number: String): Either[String, BigDecimal]
 }
 
-case class NumberFormatParser(groupChar: Char = ',', decimalChar: Char = '.')
-    extends RegexParsers {
+case class LdmlNumberFormatParser(
+    groupChar: Char = ',',
+    decimalChar: Char = '.'
+) extends RegexParsers {
 
   val logger = Logger(this.getClass.getName)
 
@@ -64,7 +66,7 @@ case class NumberFormatParser(groupChar: Char = ',', decimalChar: Char = '.')
       char match {
         case '.' =>
           isFractionalPart = true
-          parserParts :+= opt(".") ^^^ None
+          parserParts :+= opt(decimalChar.toString) ^^^ None
         case c if numericDigitChars.contains(c) =>
           format.push(char)
           parserParts :+= parseDigits(format, isFractionalPart)

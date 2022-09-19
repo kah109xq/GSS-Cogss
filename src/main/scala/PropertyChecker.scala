@@ -886,7 +886,7 @@ object PropertyChecker {
 
       patternString
         .map(pattern =>
-          NumberFormatParser(
+          LdmlNumberFormatParser(
             groupChar.getOrElse(','),
             decimalChar.getOrElse('.')
           ).getParserForFormat(pattern)

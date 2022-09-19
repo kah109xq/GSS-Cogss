@@ -467,7 +467,7 @@ case class Column private (
   lazy val numberParserForFormat: Either[String, NumberParser] =
     try {
       Right(
-        NumberFormatParser(
+        LdmlNumberFormatParser(
           format.flatMap(f => f.groupChar).getOrElse(','),
           format.flatMap(f => f.decimalChar).getOrElse('.')
         ).getParserForFormat(format.flatMap(f => f.pattern).get)
