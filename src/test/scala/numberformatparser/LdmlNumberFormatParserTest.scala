@@ -180,7 +180,6 @@ class LdmlNumberFormatParserTest extends FunSuite {
     // > the first found should be used.
     val numberFormatParser = LdmlNumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("+-0.0")
-    // intentionally contains group char in integer part
     val actual = parser.parse("+-25.6")
     assert(actual == Right(BigDecimal("25.6")), actual)
   }
@@ -191,9 +190,28 @@ class LdmlNumberFormatParserTest extends FunSuite {
     // > the first found should be used.
     val numberFormatParser = LdmlNumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("0.0E0E0")
-    // intentionally contains group char in integer part
     val actual = parser.parse("2.4E1E2")
     assert(actual == Right(24))
+  }
+
+  test("E is not treated as an exponent if there is no following digit") {
+    val numberFormatParser = LdmlNumberFormatParser()
+    val parser = numberFormatParser.getParserForFormat("0.0Explained")
+    val actual = parser.parse("2.4Explained")
+    assert(actual == Right(2.4))
+  }
+  test("E is not treated as an exponent if there is no preceding digit") {
+    val numberFormatParser = LdmlNumberFormatParser()
+    val parser = numberFormatParser.getParserForFormat("ExplainThis:0.0")
+    val actual = parser.parse("ExplainThis:1.5")
+    assert(actual == Right(1.5))
+  }
+
+  test("Non-special character text is permitted (including white-space)") {
+    val numberFormatParser = LdmlNumberFormatParser()
+    val parser = numberFormatParser.getParserForFormat("What do you mean? 0.0")
+    val actual = parser.parse("What do you mean? 9.8")
+    assert(actual == Right(9.8))
   }
 
   test("Percent sign can be included in format") {
@@ -206,7 +224,6 @@ class LdmlNumberFormatParserTest extends FunSuite {
   test("Per-mille sign can be included in format") {
     val numberFormatParser = LdmlNumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("0‰")
-    // intentionally contains group char in integer part
     val actual = parser.parse("250‰")
     assert(actual == Right(250))
   }

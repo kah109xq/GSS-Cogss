@@ -18,6 +18,7 @@ import com.fasterxml.jackson.databind.node.{
   TextNode
 }
 import CSVValidation.traits.LoggerExtensions.LogDebugException
+import CSVValidation.traits.NumberParser
 import com.typesafe.scalalogging.Logger
 import errors.ErrorWithoutContext
 import org.joda.time.{DateTime, DateTimeZone}

@@ -5,15 +5,18 @@ import com.typesafe.scalalogging.Logger
 import scala.collection.mutable
 import scala.util.parsing.combinator.RegexParsers
 import CSVValidation.traits.LoggerExtensions.LogDebugException
-
-trait NumberParser {
-  def parse(number: String): Either[String, BigDecimal]
-}
+import CSVValidation.traits.NumberParser
+import models.ArrayCursor
 
 case class LdmlNumberFormatParser(
     groupChar: Char = ',',
     decimalChar: Char = '.'
 ) extends RegexParsers {
+
+  /**
+    * Don't automatically consume/skip any whitespace characters.
+    */
+  override val whiteSpace = "".r
 
   val logger = Logger(this.getClass.getName)
 
@@ -21,15 +24,15 @@ case class LdmlNumberFormatParser(
     Set('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '#', '@', ',')
 
   def parseQuote(
-      format: mutable.Stack[Char]
+      format: ArrayCursor[Char]
   ): Either[String, Parser[Option[ParsedNumberPart]]] = {
     val quotedText = new mutable.StringBuilder()
     var quoteEnded = false
-    while (format.nonEmpty && !quoteEnded) {
-      format.pop() match {
-        case '\'' if format.nonEmpty && format.top == '\'' =>
+    while (format.hasNext() && !quoteEnded) {
+      format.next() match {
+        case '\'' if format.hasNext() && format.peekNext() == '\'' =>
           // Escaped quotation mark `''` (two single quotes)
-          format.pop()
+          format.next()
           quotedText.append("''")
         case '\'' => quoteEnded = true
         case c    => quotedText.append(c)
@@ -44,14 +47,12 @@ case class LdmlNumberFormatParser(
 
   def parseSign(signChar: Char): Parser[Some[SignPart]] =
     signChar match {
-      // todo: Should these signs be optional? To support parsing numbers which don't have one or the other
-      //  i.e. `opt(signChar.toString)`?
       case '+' => signChar.toString ^^^ Some(SignPart(true))
       case '-' => signChar.toString ^^^ Some(SignPart(false))
     }
 
   def parseNumberWithPossibleExponent(
-      format: mutable.Stack[Char]
+      format: ArrayCursor[Char]
   ): Array[Parser[Option[ParsedNumberPart]]] = {
     var numberEnded = false
     var parserParts: Array[Parser[Option[ParsedNumberPart]]] = Array(
@@ -61,35 +62,40 @@ case class LdmlNumberFormatParser(
       opt("+" ^^^ SignPart(true) | "-" ^^^ SignPart(false))
     )
     var isFractionalPart = false
-    while (format.nonEmpty && !numberEnded) {
-      val char = format.pop()
-      char match {
+    while (format.hasNext() && !numberEnded) {
+      val nextChar = format.next()
+      nextChar match {
         case '.' =>
           isFractionalPart = true
           parserParts :+= opt(decimalChar.toString) ^^^ None
         case c if numericDigitChars.contains(c) =>
-          format.push(char)
+          format.stepBack()
           parserParts :+= parseDigits(format, isFractionalPart)
         // `E` should only be recognised as the exponent char if it is preceded and followed by digits.
         // http://www.unicode.org/reports/tr35/tr35-numbers.html#sci
-        case 'E' if numericDigitChars.contains(format.top) =>
+        case 'E' if surroundedByNumericDigits(format) =>
           val exponentDigits = parseDigits(format, false) ^^ (_.get)
           parserParts :+= "E" ~ exponentDigits ^^ {
             case _ ~ digits => Some(ExponentPart(digits))
           }
         case _ =>
           numberEnded = true
-          format.push(
-            char
-          ) // Put whatever it was back on the stack to be parsed elsewhere.
+          // Step back one position in the format and let the parser continue from there.
+          format.stepBack()
       }
     }
 
     parserParts
   }
 
+  private def surroundedByNumericDigits(positionInFormat: ArrayCursor[Char]) =
+    positionInFormat.hasPrevious() &&
+      numericDigitChars.contains(positionInFormat.peekPrevious()) &&
+      positionInFormat.hasNext() &&
+      numericDigitChars.contains(positionInFormat.peekNext())
+
   def parseDigits(
-      format: mutable.Stack[Char],
+      format: ArrayCursor[Char],
       isFractionalPart: Boolean
   ): Parser[Some[DigitsPart]] = {
     var finished = false
@@ -101,9 +107,8 @@ case class LdmlNumberFormatParser(
     var currentGroupSize: Int = 0
     val groupSizes = mutable.ArrayBuffer[Int]()
 
-    while (format.nonEmpty && !finished) {
-      val char = format.pop()
-      char match {
+    while (format.hasNext() && !finished) {
+      format.next() match {
         case '0' => {
           if (nonPaddingDigits > 0 && isFractionalPart) {
             throw NumberFormatError(
@@ -122,11 +127,11 @@ case class LdmlNumberFormatParser(
           nonPaddingDigits += 1
           if (groupsPresent) currentGroupSize += 1
         }
-        case '@' =>
+        case char @ '@' =>
           throw NumberFormatError(
             s"Found significant figures character '$char'. Significant figures functionality not implemented."
           )
-        case '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' =>
+        case char @ ('1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9') =>
           throw NumberFormatError(
             s"Found rounding character '$char'. Rounding functionality not implemented."
           )
@@ -142,10 +147,9 @@ case class LdmlNumberFormatParser(
             }
           }
         case _ =>
-          format.push(
-            char
-          ) // Put whatever it was back on the stack to be parsed elsewhere.
           finished = true
+          // Step back one position in the format and let the parser continue from there.
+          format.stepBack()
       }
     }
     if (groupsPresent && !isFractionalPart) {
@@ -232,7 +236,7 @@ case class LdmlNumberFormatParser(
               case Failure(err, _) => Failure(err, currentPosition)
             }
           } catch {
-            case e =>
+            case e: Throwable =>
               logger.debug(e)
               Failure(e.getMessage, currentPosition)
           }
@@ -365,7 +369,7 @@ case class LdmlNumberFormatParser(
     groupsParser | s"[0-9]{0,$primaryGroupSize}".r
   }
 
-  case class NumericParserForFormat(private val parser: Parser[BigDecimal])
+  case class LdmlNumericParserForFormat(private val parser: Parser[BigDecimal])
       extends NumberParser {
     def parse(number: String): Either[String, BigDecimal] = {
       parseAll(parser, number) match {
@@ -376,18 +380,18 @@ case class LdmlNumberFormatParser(
     }
   }
 
-  def getParserForFormat(format: String): NumericParserForFormat =
-    NumericParserForFormat(getParser(format))
+  def getParserForFormat(format: String): LdmlNumericParserForFormat =
+    LdmlNumericParserForFormat(getParser(format))
 
   private def getParser(
       formatIn: String
   ): Parser[BigDecimal] = {
-    val format = mutable.Stack.from(formatIn)
+    val format = ArrayCursor[Char](formatIn.toCharArray)
     var parserParts: Array[Parser[Option[ParsedNumberPart]]] = Array()
 
-    while (format.nonEmpty) {
-      val char = format.pop()
-      char match {
+    while (format.hasNext()) {
+      val nextChar = format.next()
+      nextChar match {
         // todo: Need to be able to deal with all known currency symbols
         case '\'' =>
           parseQuote(format) match {
@@ -395,16 +399,16 @@ case class LdmlNumberFormatParser(
             case Left(err)          => throw NumberFormatError(err)
           }
         case c if numericDigitChars.contains(c) =>
-          format.push(char)
+          format.stepBack()
           parserParts ++= parseNumberWithPossibleExponent(format)
-        case '-' | '+'       => parserParts :+= parseSign(char)
-        case '%' | '‰' | '¤' =>
+        case char @ ('-' | '+')       => parserParts :+= parseSign(char)
+        case char @ ('%' | '‰' | '¤') =>
           // todo: The percent and per-mille chars actually do add a factor to the number
           parserParts :+= char.toString ^^^ None
         // todo: Need to parse sub-patterns separated by ';'.
         // todo: Need to deal with special padding chars
-        case _ =>
-          throw NumberFormatError(s"Unexpected character '$char'")
+        case char =>
+          parserParts :+= char.toString ^^^ None // Be permissive.
       }
     }
 
