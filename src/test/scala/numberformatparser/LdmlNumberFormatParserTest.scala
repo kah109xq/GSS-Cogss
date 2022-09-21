@@ -238,6 +238,18 @@ class LdmlNumberFormatParserTest extends FunSuite {
     )
   }
 
+  test("Parser Throws an Exception where no Digit Chars are Found in Format") {
+    val numberFormatParser = LdmlNumberFormatParser()
+    val thrown = intercept[NumberFormatError] {
+      numberFormatParser.getParserForFormat(
+        "This does not contain any digit chars."
+      )
+    }
+    assert(
+      thrown.getMessage == "Number format does not contain any digits characters."
+    )
+  }
+
   test("Significant Figures Digits not supported") {
     val numberFormatParser = LdmlNumberFormatParser()
     val thrown = intercept[NumberFormatError] {

@@ -388,11 +388,19 @@ case class LdmlNumberFormatParser(
   ): Parser[BigDecimal] = {
     val format = ArrayCursor[Char](formatIn.toCharArray)
     var parserParts: Array[Parser[Option[ParsedNumberPart]]] = Array()
+    var hasDigitsParsingPart: Boolean = false
 
     while (format.hasNext()) {
       val nextChar = format.next()
       nextChar match {
         // todo: Need to be able to deal with all known currency symbols
+        /*
+          TODO: Support non-standard quote chars.
+          U+02BB MODIFIER LETTER TURNED COMMA (ʻ) might be typed instead as U+2018 LEFT SINGLE QUOTATION MARK (‘).
+          U+02BC MODIFIER LETTER APOSTROPHE (ʼ) might be typed instead as U+2019 RIGHT SINGLE QUOTATION MARK (’), U+0027 APOSTROPHE, etc.
+          U+05F3 HEBREW PUNCTUATION GERESH (‎׳) might be typed instead as U+0027 APOSTROPHE.
+          https://www.unicode.org/reports/tr35/tr35.html#Loose_Matching
+         */
         case '\'' =>
           parseQuote(format) match {
             case Right(quoteParser) => parserParts :+= quoteParser
@@ -401,6 +409,7 @@ case class LdmlNumberFormatParser(
         case c if numericDigitChars.contains(c) =>
           format.stepBack()
           parserParts ++= parseNumberWithPossibleExponent(format)
+          hasDigitsParsingPart = true
         case char @ ('-' | '+')       => parserParts :+= parseSign(char)
         case char @ ('%' | '‰' | '¤') =>
           // todo: The percent and per-mille chars actually do add a factor to the number
@@ -408,8 +417,17 @@ case class LdmlNumberFormatParser(
         // todo: Need to parse sub-patterns separated by ';'.
         // todo: Need to deal with special padding chars
         case char =>
+          // http://www.unicode.org/reports/tr35/tr35-numbers.html#Special_Pattern_Characters
+          // "Many characters in a pattern are taken literally; they are matched during parsing and output
+          //  unchanged during formatting"
           parserParts :+= char.toString ^^^ None // Be permissive.
       }
+    }
+
+    if (!hasDigitsParsingPart) {
+      throw NumberFormatError(
+        "Number format does not contain any digits characters."
+      )
     }
 
     getParserForNumberParts(parserParts)
@@ -428,8 +446,8 @@ case class LdmlNumberFormatParser(
           numericPartParser(currentInputPosition) match {
             case Success(numberPart, rest) =>
               // https://www.unicode.org/reports/tr35/tr35-numbers.html#Parsing_Numbers
-              // > If more than one sign, currency symbol, exponent, or percent/per mille occurs in the input,
-              // > the first found should be used.
+              // "If more than one sign, currency symbol, exponent, or percent/per mille occurs in the input,
+              //  the first found should be used."
               numberPart match {
                 case Some(s @ SignPart(_)) =>
                   if (parsedNumber.sign.isEmpty) parsedNumber.sign = Some(s)
