@@ -23,6 +23,9 @@ case class LdmlNumberFormatParser(
   def numericDigitChars =
     Set('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '#', '@', ',')
 
+  // https://www.unicode.org/reports/tr35/tr35.html#Loose_Matching
+  def quoteCharsRegEx = "[\u2018\u02BB\u02BC\u2019\u0027\u05F3']".r
+
   def parseQuote(
       format: ArrayCursor[Char]
   ): Either[String, Parser[Option[ParsedNumberPart]]] = {
@@ -40,7 +43,10 @@ case class LdmlNumberFormatParser(
     }
 
     if (quoteEnded)
-      Right("'" ~> quotedText.toString().trim <~ "'" ^^^ None)
+      Right(
+        quoteCharsRegEx ~> quotedText
+          .toString() <~ quoteCharsRegEx ^^^ None
+      )
     else
       Left("Unterminated quote.")
   }
@@ -393,14 +399,6 @@ case class LdmlNumberFormatParser(
     while (format.hasNext()) {
       val nextChar = format.next()
       nextChar match {
-        // todo: Need to be able to deal with all known currency symbols
-        /*
-          TODO: Support non-standard quote chars.
-          U+02BB MODIFIER LETTER TURNED COMMA (ʻ) might be typed instead as U+2018 LEFT SINGLE QUOTATION MARK (‘).
-          U+02BC MODIFIER LETTER APOSTROPHE (ʼ) might be typed instead as U+2019 RIGHT SINGLE QUOTATION MARK (’), U+0027 APOSTROPHE, etc.
-          U+05F3 HEBREW PUNCTUATION GERESH (‎׳) might be typed instead as U+0027 APOSTROPHE.
-          https://www.unicode.org/reports/tr35/tr35.html#Loose_Matching
-         */
         case '\'' =>
           parseQuote(format) match {
             case Right(quoteParser) => parserParts :+= quoteParser
@@ -426,7 +424,7 @@ case class LdmlNumberFormatParser(
 
     if (!hasDigitsParsingPart) {
       throw NumberFormatError(
-        "Number format does not contain any digits characters."
+        "Number format does not contain any digit characters."
       )
     }
 

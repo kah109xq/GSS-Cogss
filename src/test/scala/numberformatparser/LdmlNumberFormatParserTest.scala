@@ -69,6 +69,60 @@ class LdmlNumberFormatParserTest extends FunSuite {
     assert(actual == Right(BigDecimal("3.41")), actual)
   }
 
+  test("Support MODIFIER LETTER TURNED COMMA (ʻ) Quote Character") {
+    // https://www.unicode.org/reports/tr35/tr35.html#Loose_Matching
+    val numberFormatParser = LdmlNumberFormatParser()
+    val parser =
+      numberFormatParser.getParserForFormat("0.00' some quoted message'")
+    val actual = parser.parse("9.34ʻ some quoted messageʻ")
+    assert(actual == Right(BigDecimal("9.34")), actual)
+  }
+
+  test("Support LEFT SINGLE QUOTATION MARK (‘) Quote Character") {
+    // https://www.unicode.org/reports/tr35/tr35.html#Loose_Matching
+    val numberFormatParser = LdmlNumberFormatParser()
+    val parser =
+      numberFormatParser.getParserForFormat("0.00' some quoted message'")
+    val actual = parser.parse("5.16‘ some quoted message‘")
+    assert(actual == Right(BigDecimal("5.16")), actual)
+  }
+
+  test("Support MODIFIER LETTER APOSTROPHE (ʼ) Quote Character") {
+    // https://www.unicode.org/reports/tr35/tr35.html#Loose_Matching
+    val numberFormatParser = LdmlNumberFormatParser()
+    val parser =
+      numberFormatParser.getParserForFormat("0.00' some quoted message'")
+    val actual = parser.parse("1.58ʼ some quoted messageʼ")
+    assert(actual == Right(BigDecimal("1.58")), actual)
+  }
+
+  test("Support RIGHT SINGLE QUOTATION MARK (’) Quote Character") {
+    // https://www.unicode.org/reports/tr35/tr35.html#Loose_Matching
+    val numberFormatParser = LdmlNumberFormatParser()
+    val parser =
+      numberFormatParser.getParserForFormat("0.00' some quoted message'")
+    val actual = parser.parse("6.55’ some quoted message’")
+    assert(actual == Right(BigDecimal("6.55")), actual)
+  }
+
+  test("Support APOSTROPHE (') Quote Character") {
+    // https://www.unicode.org/reports/tr35/tr35.html#Loose_Matching
+    val numberFormatParser = LdmlNumberFormatParser()
+    val parser =
+      numberFormatParser.getParserForFormat("0.00' some quoted message'")
+    val actual = parser.parse("1.23' some quoted message'")
+    assert(actual == Right(BigDecimal("1.23")), actual)
+  }
+
+  test("Support HEBREW PUNCTUATION GERESH (\u05F3) Quote Character") {
+    // https://www.unicode.org/reports/tr35/tr35.html#Loose_Matching
+    val numberFormatParser = LdmlNumberFormatParser()
+    val parser =
+      numberFormatParser.getParserForFormat("0.00' some quoted message'")
+    val actual = parser.parse("8.17\u05F3 some quoted message\u05F3")
+    assert(actual == Right(BigDecimal("8.17")), actual)
+  }
+
   test("Unterminated quoted leads to exception") {
     val numberFormatParser = LdmlNumberFormatParser()
     val thrown = intercept[NumberFormatError] {
@@ -228,6 +282,13 @@ class LdmlNumberFormatParserTest extends FunSuite {
     assert(actual == Right(250))
   }
 
+  test("Parsing currency symbols works") {
+    val numberFormatParser = LdmlNumberFormatParser()
+    val parser = numberFormatParser.getParserForFormat("£#0.00")
+    val actual = parser.parse("£2.50")
+    assert(actual == Right(2.5))
+  }
+
   test("Rounding not supported") {
     val numberFormatParser = LdmlNumberFormatParser()
     val thrown = intercept[NumberFormatError] {
@@ -242,11 +303,11 @@ class LdmlNumberFormatParserTest extends FunSuite {
     val numberFormatParser = LdmlNumberFormatParser()
     val thrown = intercept[NumberFormatError] {
       numberFormatParser.getParserForFormat(
-        "This does not contain any digit chars."
+        "This does not contain any digit characters."
       )
     }
     assert(
-      thrown.getMessage == "Number format does not contain any digits characters."
+      thrown.getMessage == "Number format does not contain any digit characters."
     )
   }
 
