@@ -4,6 +4,18 @@ import com.ibm.icu.text.DecimalFormat
 
 abstract class ParsedNumberPart
 
+abstract class ScalingFactorPart extends ParsedNumberPart {
+  val scalingFactor: Float
+}
+
+case class PercentagePart() extends ScalingFactorPart {
+  override val scalingFactor: Float = 0.01f
+}
+
+case class PerMillePart() extends ScalingFactorPart {
+  override val scalingFactor: Float = 0.001f
+}
+
 case class SignPart(isPositive: Boolean) extends ParsedNumberPart
 
 abstract class DigitsPart extends ParsedNumberPart {
@@ -31,7 +43,8 @@ case class ParsedNumber(
     var sign: Option[SignPart] = None,
     var integer: Option[IntegerPart] = None,
     var fraction: Option[FractionalPart] = None,
-    var exponent: Option[ExponentPart] = None
+    var exponent: Option[ExponentPart] = None,
+    var scalingFactor: Option[ScalingFactorPart] = None
 ) {
   def toBigDecimal(): BigDecimal = {
     val signPart = sign.map(s => if (s.isPositive) "+" else "-").getOrElse("+")
@@ -42,6 +55,11 @@ case class ParsedNumber(
     val normalisedNumberString =
       signPart + integerPart + fractionalPart + exponentPart
 
-    BigDecimal(normalisedNumberString)
+    val factorToScaleNumberBy =
+      scalingFactor.map(f => f.scalingFactor).getOrElse(1.0f)
+
+    BigDecimal(normalisedNumberString).*(
+      BigDecimal.decimal(factorToScaleNumberBy)
+    )
   }
 }

@@ -123,15 +123,18 @@ class LdmlNumberFormatParserTest extends FunSuite {
     assert(actual == Right(BigDecimal("8.17")), actual)
   }
 
-  test("Unterminated quoted leads to exception") {
+  test("Unterminated Quoted Section Should lead to an Exception") {
     val numberFormatParser = LdmlNumberFormatParser()
     val thrown = intercept[NumberFormatError] {
       numberFormatParser.getParserForFormat("'this has no terminating quote")
     }
-    assert(thrown.getMessage == "Unterminated quote.", thrown.getMessage)
+    assert(
+      thrown.getMessage == "Closing quotation mark missing.",
+      thrown.getMessage
+    )
   }
 
-  test("Escaped quote char is supported") {
+  test("Escaped Quote Char is Supported") {
     val numberFormatParser = LdmlNumberFormatParser()
     val parser =
       numberFormatParser.getParserForFormat(
@@ -143,7 +146,7 @@ class LdmlNumberFormatParserTest extends FunSuite {
     assert(actual == Right(BigDecimal("3.41")), actual)
   }
 
-  test("Primary group char is supported in the integer part") {
+  test("Primary Grouping Char is Supported in the Integer Part") {
     val numberFormatParser = LdmlNumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("#,##0.##")
     val actual = parser.parse("3,123.1")
@@ -151,7 +154,7 @@ class LdmlNumberFormatParserTest extends FunSuite {
   }
 
   test(
-    "Number formatter supports custom grouping and decimal separator characters."
+    "Number Formatter Supports Custom Grouping and Decimal Separator Characters."
   ) {
     val frenchNumberFormatParser =
       LdmlNumberFormatParser(groupChar = '.', decimalChar = ',')
@@ -160,7 +163,7 @@ class LdmlNumberFormatParserTest extends FunSuite {
     assert(actual == Right(BigDecimal("3123.1")), actual)
   }
 
-  test("Primary grouping - primary group size must be correct") {
+  test("Primary Grouping - Primary Group Size Must be Correct") {
     val numberFormatParser = LdmlNumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("#,##0.##")
     val actual = parser.parse("31,23.1")
@@ -169,14 +172,18 @@ class LdmlNumberFormatParserTest extends FunSuite {
     assert(err.contains("end of input expected"), err)
   }
 
-  test("Secondary grouping - is supported in the integer part") {
+  test(
+    "Secondary Grouping - Parsing Number with Valid Secondary Grouping Succeeds"
+  ) {
     val numberFormatParser = LdmlNumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("#,##,##0.##")
     val actual = parser.parse("12,34,56,789.1")
     assert(actual == Right(BigDecimal("123456789.1")), actual)
   }
 
-  test("Secondary grouping - incorrect secondary group size returns error") {
+  test(
+    "Secondary Grouping - Parsing Number with Incorrect Secondary Group Size Returns Error"
+  ) {
     val numberFormatParser = LdmlNumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("#,##,##0.##")
     val actual = parser.parse("12,345,56,789.1")
@@ -185,7 +192,9 @@ class LdmlNumberFormatParserTest extends FunSuite {
     assert(err.contains("end of input expected"), err)
   }
 
-  test("Secondary grouping - incorrect primary group size returns error") {
+  test(
+    "Secondary grouping - Parsing Number with Incorrect Primary Group Size Returns Error"
+  ) {
     val numberFormatParser = LdmlNumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("#,##,##0.##")
     val actual = parser.parse("12,345,56,78.1")
@@ -194,7 +203,7 @@ class LdmlNumberFormatParserTest extends FunSuite {
     assert(err.contains("end of input expected"), err)
   }
 
-  test("Integer grouping sizes only apply to integer part of number") {
+  test("Integer Grouping Sizes Only Apply to the Integer Part of a Number") {
     val numberFormatParser = LdmlNumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("#,##0.######")
     // intentionally contains group char in fractional part
@@ -204,21 +213,23 @@ class LdmlNumberFormatParserTest extends FunSuite {
     assert(err.contains("end of input expected"), err)
   }
 
-  test("Fractional grouping - primary grouping size works") {
+  test("Fractional Grouping - Parsing Number with Primary Grouping Succeeds") {
     val numberFormatParser = LdmlNumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("#0.##,##,##")
     val actual = parser.parse("3123.45,67,89")
     assert(actual == Right(BigDecimal("3123.456789")), actual)
   }
 
-  test("Fractional grouping - primary and secondary grouping sizes work") {
+  test(
+    "Fractional Grouping - Parsing Number with Primary and Secondary Grouping Succeeds"
+  ) {
     val numberFormatParser = LdmlNumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("#0.##,###,###,##")
     val actual = parser.parse("123.45,678,901,23")
     assert(actual == Right(BigDecimal("123.4567890123")), actual)
   }
 
-  test("Fractional grouping sizes only apply to fractional part of number") {
+  test("Fractional Grouping Sizes only Apply to Fractional Part of Number") {
     val numberFormatParser = LdmlNumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("#0.##,##,##")
     // intentionally contains group char in integer part
@@ -228,7 +239,7 @@ class LdmlNumberFormatParserTest extends FunSuite {
     assert(err.contains("end of input expected"), err)
   }
 
-  test("Only the first sign character should be used") {
+  test("Only the First Sign Character Should be Used") {
     // https://www.unicode.org/reports/tr35/tr35-numbers.html#Parsing_Numbers
     // > If more than one sign, currency symbol, exponent, or percent/per mille occurs in the input,
     // > the first found should be used.
@@ -238,7 +249,7 @@ class LdmlNumberFormatParserTest extends FunSuite {
     assert(actual == Right(BigDecimal("25.6")), actual)
   }
 
-  test("Only the first exponent should be used") {
+  test("Only the First Exponent Should be Used") {
     // https://www.unicode.org/reports/tr35/tr35-numbers.html#Parsing_Numbers
     // > If more than one sign, currency symbol, exponent, or percent/per mille occurs in the input,
     // > the first found should be used.
@@ -248,55 +259,45 @@ class LdmlNumberFormatParserTest extends FunSuite {
     assert(actual == Right(24))
   }
 
-  test("E is not treated as an exponent if there is no following digit") {
+  test("'E' is not Treated as an Exponent if There is No Following Digit") {
     val numberFormatParser = LdmlNumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("0.0Explained")
     val actual = parser.parse("2.4Explained")
     assert(actual == Right(2.4))
   }
-  test("E is not treated as an exponent if there is no preceding digit") {
+  test("'E' is not Treated as an Exponent if There is no Preceding Digit") {
     val numberFormatParser = LdmlNumberFormatParser()
-    val parser = numberFormatParser.getParserForFormat("ExplainThis:0.0")
-    val actual = parser.parse("ExplainThis:1.5")
+    val parser = numberFormatParser.getParserForFormat("Explain This: 0.0")
+    val actual = parser.parse("Explain This: 1.5")
     assert(actual == Right(1.5))
   }
 
-  test("Non-special character text is permitted (including white-space)") {
+  test("Non-special Character Text is Permitted (including white-space)") {
     val numberFormatParser = LdmlNumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("What do you mean? 0.0")
     val actual = parser.parse("What do you mean? 9.8")
     assert(actual == Right(9.8))
   }
 
-  test("Percent sign can be included in format") {
+  test("Percent Sign is Correctly Parsed") {
     val numberFormatParser = LdmlNumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("0%")
     val actual = parser.parse("25%")
-    assert(actual == Right(25))
+    assert(actual == Right(0.25))
   }
 
-  test("Per-mille sign can be included in format") {
+  test("Per-mille Sign is Correctly Parsed") {
     val numberFormatParser = LdmlNumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("0‰")
-    val actual = parser.parse("250‰")
-    assert(actual == Right(250))
+    val actual = parser.parse("130‰")
+    assert(actual == Right(0.13))
   }
 
-  test("Parsing currency symbols works") {
+  test("Parsing Currency Symbols Works") {
     val numberFormatParser = LdmlNumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("£#0.00")
     val actual = parser.parse("£2.50")
     assert(actual == Right(2.5))
-  }
-
-  test("Rounding not supported") {
-    val numberFormatParser = LdmlNumberFormatParser()
-    val thrown = intercept[NumberFormatError] {
-      numberFormatParser.getParserForFormat("##0.1")
-    }
-    assert(
-      thrown.getMessage == "Found rounding character '1'. Rounding functionality not implemented."
-    )
   }
 
   test("Parser Throws an Exception where no Digit Chars are Found in Format") {
@@ -311,7 +312,17 @@ class LdmlNumberFormatParserTest extends FunSuite {
     )
   }
 
-  test("Significant Figures Digits not supported") {
+  test("Rounding not Supported") {
+    val numberFormatParser = LdmlNumberFormatParser()
+    val thrown = intercept[NumberFormatError] {
+      numberFormatParser.getParserForFormat("##0.1")
+    }
+    assert(
+      thrown.getMessage == "Found rounding character '1'. Rounding functionality not implemented."
+    )
+  }
+
+  test("Significant Figures Digits not Supported") {
     val numberFormatParser = LdmlNumberFormatParser()
     val thrown = intercept[NumberFormatError] {
       numberFormatParser.getParserForFormat("@@")

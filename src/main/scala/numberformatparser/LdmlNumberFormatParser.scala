@@ -24,7 +24,7 @@ case class LdmlNumberFormatParser(
     Set('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '#', '@', ',')
 
   // https://www.unicode.org/reports/tr35/tr35.html#Loose_Matching
-  def quoteCharsRegEx = "[\u2018\u02BB\u02BC\u2019\u0027\u05F3']".r
+  def quoteCharsRegEx = "[\u0027\u2018\u02BB\u02BC\u2019\u05F3]".r
 
   def parseQuote(
       format: ArrayCursor[Char]
@@ -48,7 +48,7 @@ case class LdmlNumberFormatParser(
           .toString() <~ quoteCharsRegEx ^^^ None
       )
     else
-      Left("Unterminated quote.")
+      Left("Closing quotation mark missing.")
   }
 
   def parseSign(signChar: Char): Parser[Some[SignPart]] =
@@ -212,10 +212,10 @@ case class LdmlNumberFormatParser(
             s"Expected a minimum of $minimumDigits $numberPartDescription digits."
           )
 
-        /**
-          * > The number of # placeholder characters before the decimal do not matter, since no limit is placed on the maximum number of digits
-          * https://www.unicode.org/reports/tr35/tr35-31/tr35-numbers.html#Number_Patterns
-          */
+        /*
+        "The number of # placeholder characters before the decimal do not matter, since no limit is placed on the maximum number of digits"
+        https://www.unicode.org/reports/tr35/tr35-31/tr35-numbers.html#Number_Patterns
+         */
         case (true, l) if l > maximumDigits =>
           throw NumberFormatError(
             s"Expected a maximum of $maximumDigits $numberPartDescription digits."
@@ -408,10 +408,12 @@ case class LdmlNumberFormatParser(
           format.stepBack()
           parserParts ++= parseNumberWithPossibleExponent(format)
           hasDigitsParsingPart = true
-        case char @ ('-' | '+')       => parserParts :+= parseSign(char)
-        case char @ ('%' | '‰' | '¤') =>
-          // todo: The percent and per-mille chars actually do add a factor to the number
-          parserParts :+= char.toString ^^^ None
+        case char @ ('-' | '+') => parserParts :+= parseSign(char)
+        case char @ '%' =>
+          parserParts :+= char.toString ^^^ Some(PercentagePart())
+        case char @ '‰' =>
+          parserParts :+= char.toString ^^^ Some(PerMillePart())
+        case char @ '¤' => parserParts :+= char.toString ^^^ None
         // todo: Need to parse sub-patterns separated by ';'.
         // todo: Need to deal with special padding chars
         case char =>
@@ -455,6 +457,9 @@ case class LdmlNumberFormatParser(
                 case Some(e @ ExponentPart(_)) =>
                   if (parsedNumber.exponent.isEmpty)
                     parsedNumber.exponent = Some(e)
+                case Some(factor: ScalingFactorPart) =>
+                  if (parsedNumber.scalingFactor.isEmpty)
+                    parsedNumber.scalingFactor = Some(factor)
                 case None =>
               }
               currentInputPosition = rest
