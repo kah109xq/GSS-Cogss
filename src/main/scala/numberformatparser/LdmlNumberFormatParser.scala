@@ -8,6 +8,8 @@ import CSVValidation.traits.LoggerExtensions.LogDebugException
 import CSVValidation.traits.NumberParser
 import models.ArrayCursor
 
+import scala.collection.mutable.ArrayBuffer
+
 case class LdmlNumberFormatParser(
     groupChar: Char = ',',
     decimalChar: Char = '.'
@@ -25,6 +27,45 @@ case class LdmlNumberFormatParser(
 
   // https://www.unicode.org/reports/tr35/tr35.html#Loose_Matching
   def quoteCharsRegEx = "[\u0027\u2018\u02BB\u02BC\u2019\u05F3]".r
+
+  type NumberPartParser = Parser[Option[ParsedNumberPart]]
+
+  /**
+    * "Each subpattern has a prefix, a numeric part, and a suffix."
+    *  https://www.unicode.org/reports/tr35/tr35-31/tr35-numbers.html#Number_Format_Patterns
+    *
+    * @param prefixParsers
+    * @param numericPartParser
+    * @param suffixParsers
+    */
+  case class LdmlNumericSubPattern(
+      var prefixParsers: Array[NumberPartParser],
+      var numericPartParsers: Array[NumberPartParser],
+      var suffixParsers: Array[NumberPartParser]
+  ) {
+
+    /**
+      * Accumulate all of the existing parser up together into a parser which returns a list of results.
+      * @return
+      */
+    def toParser(): Parser[Array[ParsedNumberPart]] = {
+      val Array(firstParser, remainingParsers @ _*) =
+        Array.concat(prefixParsers, numericPartParsers, suffixParsers)
+
+      type ParserAccumulator = Parser[ArrayBuffer[ParsedNumberPart]]
+
+      remainingParsers.foldLeft[ParserAccumulator](
+        firstParser ^^ (_.map(ArrayBuffer(_)).getOrElse(ArrayBuffer.empty))
+      )((accumulatedParsers, nextNumberPartParser) =>
+        accumulatedParsers ~ nextNumberPartParser ^^ {
+          case accumulatedNumberParts ~ Some(nextNumberPart) =>
+            accumulatedNumberParts.append(nextNumberPart)
+            accumulatedNumberParts
+          case accumulatedNumberParts ~ None => accumulatedNumberParts
+        }
+      ) ^^ (accumulatedNumberParts => accumulatedNumberParts.toArray)
+    }
+  }
 
   def parseQuote(
       format: ArrayCursor[Char]
@@ -393,84 +434,122 @@ case class LdmlNumberFormatParser(
       formatIn: String
   ): Parser[BigDecimal] = {
     val format = ArrayCursor[Char](formatIn.toCharArray)
-    var parserParts: Array[Parser[Option[ParsedNumberPart]]] = Array()
-    var hasDigitsParsingPart: Boolean = false
-
+    var subPatterns = Array.empty[LdmlNumericSubPattern]
     while (format.hasNext()) {
-      val nextChar = format.next()
-      nextChar match {
+      subPatterns +:= extractSubPatternParsers(format)
+    }
+
+    val (
+      positivePattern: LdmlNumericSubPattern,
+      negativePattern: Option[LdmlNumericSubPattern]
+    ) = subPatterns match {
+      case Array()         => throw NumberFormatError("No pattern provided.")
+      case Array(pos)      => (pos, None)
+      case Array(pos, neg) => (pos, neg)
+      case _ =>
+        throw NumberFormatError(
+          s"Found ${subPatterns.length} sub-patterns. Expected at most two (positive & negative)."
+        )
+    }
+
+    getParserForSubPatterns(positivePattern, negativePattern)
+  }
+
+  def extractSubPatternParsers(
+      format: ArrayCursor[Char]
+  ): LdmlNumericSubPattern = {
+    val prefixParsers = ArrayBuffer.empty[NumberPartParser]
+    val numericPartParsers = ArrayBuffer.empty[NumberPartParser]
+    val suffixParsers = ArrayBuffer.empty[NumberPartParser]
+
+    // Start accumulating in the prefixes array, switch to suffix once the numeric part has been parsed
+    var parsers = prefixParsers
+    var subPatternComplete: Boolean = false
+    while (format.hasNext() && !subPatternComplete) {
+      format.next() match {
         case '\'' =>
           parseQuote(format) match {
-            case Right(quoteParser) => parserParts :+= quoteParser
+            case Right(quoteParser) => parsers.append(quoteParser)
             case Left(err)          => throw NumberFormatError(err)
           }
         case c if numericDigitChars.contains(c) =>
           format.stepBack()
-          parserParts ++= parseNumberWithPossibleExponent(format)
-          hasDigitsParsingPart = true
-        case char @ ('-' | '+') => parserParts :+= parseSign(char)
+          numericPartParsers.addAll(parseNumberWithPossibleExponent(format))
+          // We've done the number parsing part, the rest of the pattern is the suffix
+          parsers = suffixParsers
+        case char @ ('-' | '+') => parsers.append(parseSign(char))
         case char @ '%' =>
-          parserParts :+= char.toString ^^^ Some(PercentagePart())
+          parsers.append(
+            char.toString ^^^ Some(PercentagePart())
+          )
         case char @ '‰' =>
-          parserParts :+= char.toString ^^^ Some(PerMillePart())
-        case char @ '¤' => parserParts :+= char.toString ^^^ None
-        // todo: Need to parse sub-patterns separated by ';'.
+          parsers.append(
+            char.toString ^^^ Some(PerMillePart())
+          )
+        case char @ '¤' =>
+          parsers.append(
+            char.toString ^^^ None
+          )
+        case ';' => subPatternComplete = true
         // todo: Need to deal with special padding chars
         case char =>
           // http://www.unicode.org/reports/tr35/tr35-numbers.html#Special_Pattern_Characters
           // "Many characters in a pattern are taken literally; they are matched during parsing and output
           //  unchanged during formatting"
-          parserParts :+= char.toString ^^^ None // Be permissive.
+          parsers.append(
+            char.toString ^^^ None // Be permissive.
+          )
       }
     }
 
-    if (!hasDigitsParsingPart) {
+    if (numericPartParsers.isEmpty) {
       throw NumberFormatError(
         "Number format does not contain any digit characters."
       )
     }
 
-    getParserForNumberParts(parserParts)
+    LdmlNumericSubPattern(
+      prefixParsers.toArray,
+      numericPartParsers.toArray,
+      suffixParsers.toArray
+    )
   }
 
-  private def getParserForNumberParts(
-      parserParts: Array[Parser[Option[ParsedNumberPart]]]
-  ): Parser[BigDecimal] =
-    Parser { p =>
-      val parsedNumber: ParsedNumber = ParsedNumber()
-      var parsingError: Option[Failure] = None
-      var currentInputPosition: Input = p
+  private def getParserForSubPatterns(
+      positivePattern: LdmlNumericSubPattern,
+      negativePattern: Option[LdmlNumericSubPattern]
+  ): Parser[BigDecimal] = {
+    negativePattern
+      .map(negative =>
+        (positivePattern.toParser() | negative.toParser())
+          ^^ mapNumberPartsToParsedNumber
+      )
+      .getOrElse(positivePattern.toParser() ^^ mapNumberPartsToParsedNumber)
+      .map(parsedNumber => parsedNumber.toBigDecimal())
+  }
 
-      for (numericPartParser <- parserParts) {
-        if (parsingError.isEmpty) {
-          numericPartParser(currentInputPosition) match {
-            case Success(numberPart, rest) =>
-              // https://www.unicode.org/reports/tr35/tr35-numbers.html#Parsing_Numbers
-              // "If more than one sign, currency symbol, exponent, or percent/per mille occurs in the input,
-              //  the first found should be used."
-              numberPart match {
-                case Some(s @ SignPart(_)) =>
-                  if (parsedNumber.sign.isEmpty) parsedNumber.sign = Some(s)
-                case Some(i @ IntegerPart(_)) => parsedNumber.integer = Some(i)
-                case Some(f @ FractionalPart(_)) =>
-                  parsedNumber.fraction = Some(f)
-                case Some(e @ ExponentPart(_)) =>
-                  if (parsedNumber.exponent.isEmpty)
-                    parsedNumber.exponent = Some(e)
-                case Some(factor: ScalingFactorPart) =>
-                  if (parsedNumber.scalingFactor.isEmpty)
-                    parsedNumber.scalingFactor = Some(factor)
-                case None =>
-              }
-              currentInputPosition = rest
-            case error @ Failure(_, rest) =>
-              currentInputPosition = rest
-              parsingError = Some(error)
-          }
-        }
+  private def mapNumberPartsToParsedNumber(
+      numberParts: Array[ParsedNumberPart]
+  ): ParsedNumber = {
+    val parsedNumber: ParsedNumber = ParsedNumber()
+    for (numberPart <- numberParts) {
+      // https://www.unicode.org/reports/tr35/tr35-numbers.html#Parsing_Numbers
+      // "If more than one sign, currency symbol, exponent, or percent/per mille occurs in the input,
+      //  the first found should be used."
+      numberPart match {
+        case s @ SignPart(_) =>
+          if (parsedNumber.sign.isEmpty) parsedNumber.sign = Some(s)
+        case i @ IntegerPart(_) => parsedNumber.integer = Some(i)
+        case f @ FractionalPart(_) =>
+          parsedNumber.fraction = Some(f)
+        case e @ ExponentPart(_) =>
+          if (parsedNumber.exponent.isEmpty)
+            parsedNumber.exponent = Some(e)
+        case factor: ScalingFactorPart =>
+          if (parsedNumber.scalingFactor.isEmpty)
+            parsedNumber.scalingFactor = Some(factor)
       }
-
-      parsingError
-        .getOrElse(Success(parsedNumber.toBigDecimal(), currentInputPosition))
     }
+    parsedNumber
+  }
 }

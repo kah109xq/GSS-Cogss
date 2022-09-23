@@ -4,11 +4,21 @@ import org.scalatest.FunSuite
 
 class LdmlNumberFormatParserTest extends FunSuite {
 
-  test("Parsing a basic number works") {
+  test("Parsing a Basic Number Works") {
     val numberFormatParser = LdmlNumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("0.#E0")
     val actual = parser.parse("3.4E2")
     assert(actual == Right(340.0), actual)
+  }
+
+  test("Parsing a Value with a Negative Sub-Pattern Succeeds") {
+    val numberFormatParser = LdmlNumberFormatParser()
+    val parser = numberFormatParser.getParserForFormat("#0.0#;(#)")
+    val actualPositive = parser.parse("3.4")
+    assert(actualPositive == Right(3.4), actualPositive)
+    val actualNegative = parser.parse("(25.91)")
+    assert(actualNegative == Right(-25.91), actualNegative)
+    // todo: Fix this negative sub-pattern pattern. It just doesn't work at all.
   }
 
   test("Parsing a number missing exponent fails") {
