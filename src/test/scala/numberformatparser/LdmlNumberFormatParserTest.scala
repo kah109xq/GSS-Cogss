@@ -18,7 +18,6 @@ class LdmlNumberFormatParserTest extends FunSuite {
     assert(actualPositive == Right(3.4), actualPositive)
     val actualNegative = parser.parse("(25.91)")
     assert(actualNegative == Right(-25.91), actualNegative)
-    // todo: Fix this negative sub-pattern pattern. It just doesn't work at all.
   }
 
   test("Parsing a number missing exponent fails") {

@@ -39,9 +39,9 @@ case class LdmlNumberFormatParser(
     * @param suffixParsers
     */
   case class LdmlNumericSubPattern(
-      var prefixParsers: Array[NumberPartParser],
-      var numericPartParsers: Array[NumberPartParser],
-      var suffixParsers: Array[NumberPartParser]
+      prefixParsers: Array[NumberPartParser],
+      numericPartParsers: Array[NumberPartParser],
+      suffixParsers: Array[NumberPartParser]
   ) {
 
     /**
@@ -436,7 +436,7 @@ case class LdmlNumberFormatParser(
     val format = ArrayCursor[Char](formatIn.toCharArray)
     var subPatterns = Array.empty[LdmlNumericSubPattern]
     while (format.hasNext()) {
-      subPatterns +:= extractSubPatternParsers(format)
+      subPatterns :+= extractSubPatternParsers(format)
     }
 
     val (
@@ -445,7 +445,7 @@ case class LdmlNumberFormatParser(
     ) = subPatterns match {
       case Array()         => throw NumberFormatError("No pattern provided.")
       case Array(pos)      => (pos, None)
-      case Array(pos, neg) => (pos, neg)
+      case Array(pos, neg) => (pos, Some(neg))
       case _ =>
         throw NumberFormatError(
           s"Found ${subPatterns.length} sub-patterns. Expected at most two (positive & negative)."
@@ -520,10 +520,25 @@ case class LdmlNumberFormatParser(
       negativePattern: Option[LdmlNumericSubPattern]
   ): Parser[BigDecimal] = {
     negativePattern
-      .map(negative =>
-        (positivePattern.toParser() | negative.toParser())
-          ^^ mapNumberPartsToParsedNumber
-      )
+      .map(negative => {
+        val finalNegativePattern = negative
+          .copy(
+            /*
+              "If there is an explicit negative subpattern, it serves only to specify the negative prefix and suffix;
+               the number of digits, minimal digits, and other characteristics are ignored in the negative subpattern.
+               That means that "#,##0.0#;(#)" has precisely the same result as "#,##0.0#;(#,##0.0#)"."
+              https://www.unicode.org/reports/tr35/tr35-31/tr35-numbers.html#Number_Format_Patterns
+             */
+            numericPartParsers = positivePattern.numericPartParsers,
+            // Add a SignPart to make sure the number is treated as negative.
+            prefixParsers =
+              ("" ^^^ Some(SignPart(false))) +: negative.prefixParsers
+          )
+        (
+          positivePattern.toParser() |
+            finalNegativePattern.toParser()
+        ) ^^ mapNumberPartsToParsedNumber
+      })
       .getOrElse(positivePattern.toParser() ^^ mapNumberPartsToParsedNumber)
       .map(parsedNumber => parsedNumber.toBigDecimal())
   }
