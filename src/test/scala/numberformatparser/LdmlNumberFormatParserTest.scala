@@ -20,6 +20,46 @@ class LdmlNumberFormatParserTest extends FunSuite {
     assert(actualNegative == Right(-25.91), actualNegative)
   }
 
+  test("Parsing a Format with More than Two Sub-Patterns Fails") {
+    val numberFormatParser = LdmlNumberFormatParser()
+    val thrown = intercept[NumberFormatError] {
+      numberFormatParser.getParserForFormat("#0.0#;(#);xx#")
+    }
+
+    assert(
+      thrown.getMessage == "Found 3 sub-patterns. Expected at most two (positive;negative)."
+    )
+  }
+
+  test(
+    "Parsing a Positive Number With an Explicit Plus Against a Format Requiring an Explicit Plus Succeeds"
+  ) {
+    val numberFormatParser = LdmlNumberFormatParser()
+    val parser = numberFormatParser.getParserForFormat("+#0")
+    val actual = parser.parse("+53")
+    assert(actual == Right(53), actual)
+  }
+
+  test(
+    "Parsing a Negative Number Against a Format Requiring an Explicit Plus Succeeds"
+  ) {
+    val numberFormatParser = LdmlNumberFormatParser()
+    val parser = numberFormatParser.getParserForFormat("+#0")
+    val actual = parser.parse("-26")
+    assert(actual == Right(-26), actual)
+  }
+
+  test(
+    "Parsing a Positive Number Without an Explicit Plus Against a Format Requiring an Explicit Plus Fails"
+  ) {
+    val numberFormatParser = LdmlNumberFormatParser()
+    val parser = numberFormatParser.getParserForFormat("+#0")
+    val actual = parser.parse("26")
+    assert(actual.isLeft)
+    val Left(err) = actual
+    assert(err.contains("Expected explicit sign character [+-] missing"), err)
+  }
+
   test("Parsing a number missing exponent fails") {
     val numberFormatParser = LdmlNumberFormatParser()
     val parser = numberFormatParser.getParserForFormat("0.#E0")
@@ -27,6 +67,44 @@ class LdmlNumberFormatParserTest extends FunSuite {
     assert(actual.isLeft)
     val Left(err) = actual
     assert(err.contains("'E' expected but end of source found"), err)
+  }
+
+  test(
+    "Parsing a Number Without an Explicit Exponent Sign Against a Pattern Requiring one Fails"
+  ) {
+    val numberFormatParser = LdmlNumberFormatParser()
+    val parser = numberFormatParser.getParserForFormat("0.###E+0")
+    val actual = parser.parse("-1.7E1")
+    assert(actual.isLeft)
+    val Left(err) = actual
+    assert(err.contains("Expected explicit sign character [+-] missing"), err)
+  }
+
+  test(
+    "Parsing a Number With an Explicit Exponent Sign Against a Pattern Requiring one Succeeds"
+  ) {
+    val numberFormatParser = LdmlNumberFormatParser()
+    val parser = numberFormatParser.getParserForFormat("0.###E+0")
+    val actual = parser.parse("-1.7E+1")
+    assert(actual == Right(-17), actual)
+  }
+
+  test(
+    "Parsing a Number With a Negative Exponent Sign Against a Pattern Requiring one Succeeds"
+  ) {
+    val numberFormatParser = LdmlNumberFormatParser()
+    val parser = numberFormatParser.getParserForFormat("0.###E+0")
+    val actual = parser.parse("26E-1")
+    assert(actual == Right(2.6), actual)
+  }
+
+  test(
+    "Parsing a Number With an Explicit Exponent Sign Where the Pattern Does Not Require One Succeeds"
+  ) {
+    val numberFormatParser = LdmlNumberFormatParser()
+    val parser = numberFormatParser.getParserForFormat("0.###E0")
+    val actual = parser.parse("8.9E+2")
+    assert(actual == Right(890), actual)
   }
 
   test("Parsing a number not meeting minimum decimal padding fails") {

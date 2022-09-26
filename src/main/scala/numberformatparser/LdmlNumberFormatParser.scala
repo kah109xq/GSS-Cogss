@@ -24,9 +24,13 @@ case class LdmlNumberFormatParser(
 
   def numericDigitChars =
     Set('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '#', '@', ',')
+  def plusSignChars = Set('+', '\uFF0B', '\u2795')
+  def minusSignChars = Set('-')
+  def signChars = plusSignChars.union(minusSignChars)
 
   // https://www.unicode.org/reports/tr35/tr35.html#Loose_Matching
   def quoteCharsRegEx = "[\u0027\u2018\u02BB\u02BC\u2019\u05F3]".r
+  def signCharsRegEx = s"[${signChars.mkString}]".r
 
   type NumberPartParser = Parser[Option[ParsedNumberPart]]
 
@@ -92,12 +96,6 @@ case class LdmlNumberFormatParser(
       Left("Closing quotation mark missing.")
   }
 
-  def parseSign(signChar: Char): Parser[Some[SignPart]] =
-    signChar match {
-      case '+' => signChar.toString ^^^ Some(SignPart(true))
-      case '-' => signChar.toString ^^^ Some(SignPart(false))
-    }
-
   def parseNumberWithPossibleExponent(
       format: ArrayCursor[Char]
   ): Array[Parser[Option[ParsedNumberPart]]] = {
@@ -120,11 +118,8 @@ case class LdmlNumberFormatParser(
           parserParts :+= parseDigits(format, isFractionalPart)
         // `E` should only be recognised as the exponent char if it is preceded and followed by digits.
         // http://www.unicode.org/reports/tr35/tr35-numbers.html#sci
-        case 'E' if surroundedByNumericDigits(format) =>
-          val exponentDigits = parseDigits(format, false) ^^ (_.get)
-          parserParts :+= "E" ~ exponentDigits ^^ {
-            case _ ~ digits => Some(ExponentPart(digits))
-          }
+        case 'E' if surroundingCharsMatchExponentPattern(format) =>
+          parserParts :+= extractExponentPartParser(format)
         case _ =>
           numberEnded = true
           // Step back one position in the format and let the parser continue from there.
@@ -135,11 +130,74 @@ case class LdmlNumberFormatParser(
     parserParts
   }
 
-  private def surroundedByNumericDigits(positionInFormat: ArrayCursor[Char]) =
-    positionInFormat.hasPrevious() &&
-      numericDigitChars.contains(positionInFormat.peekPrevious()) &&
-      positionInFormat.hasNext() &&
+  private def extractExponentPartParser(
+      format: ArrayCursor[Char]
+  ): Parser[Some[ExponentPart]] = {
+    val signPartParser: Parser[SignPart] =
+      s"[${plusSignChars.mkString}]".r ^^^ SignPart(true) |
+        s"[${minusSignChars.mkString}]".r ^^^ SignPart(false)
+
+    val exponentWithSignParser: Parser[SignPart] = {
+      if (signChars.contains(format.peekNext())) {
+        format.next()
+        // Format requires a sign to be present.
+        "E" ~ (signPartParser | failure(
+          "Expected explicit sign character [+-] missing"
+        )) ^^ { case _ ~ s => s }
+      } else {
+        "E" ~ opt(signPartParser) ^^ {
+          // Sign is optional and positive by default
+          case _ ~ s => s.getOrElse(SignPart(true))
+        }
+      }
+    }
+
+    val exponentDigits = parseDigits(format, false) ^^ (_.get)
+
+    exponentWithSignParser ~ exponentDigits ^^ {
+      case sign ~ digits =>
+        Some(
+          ExponentPart(
+            sign.isPositive,
+            digits
+          )
+        )
+    }
+  }
+
+  private def surroundingCharsMatchExponentPattern(
+      positionInFormat: ArrayCursor[Char]
+  ): Boolean = {
+    /*
+      "The exponent character can only be interpreted as such if it occurs after at least one digit, and if it is
+       followed by at least one digit, with only an optional sign in between. A regular expression may be helpful here."
+      https://www.unicode.org/reports/tr35/tr35-31/tr35-numbers.html#Parsing_Numbers
+     */
+    if (!(positionInFormat.hasPrevious() && positionInFormat.hasNext()))
+      return false
+
+    val previousIsDigit =
+      numericDigitChars.contains(positionInFormat.peekPrevious())
+
+    if (!previousIsDigit)
+      return false
+
+    val nextIsDigit =
       numericDigitChars.contains(positionInFormat.peekNext())
+
+    if (nextIsDigit)
+      return true
+    /*
+      "To prefix positive exponents with a localized plus sign, specify '+' between the exponent and the digits:
+       "0.###E+0" will produce formats "1E+1", "1E+0", "1E-1", and so on."
+      https://www.unicode.org/reports/tr35/tr35-31/tr35-numbers.html#Number_Format_Patterns
+     */
+    val nextIsSignChar = signChars.contains(positionInFormat.peekNext())
+    val followingIsDigit = positionInFormat.hasValue(2) &&
+      numericDigitChars.contains(positionInFormat.peek(2))
+
+    nextIsSignChar && followingIsDigit
+  }
 
   def parseDigits(
       format: ArrayCursor[Char],
@@ -222,9 +280,9 @@ case class LdmlNumberFormatParser(
       digitMatcherRegex
     ) ^^ (digits =>
       if (isFractionalPart)
-        Some(FractionalPart(digits))
+        Some(FractionalDigitsPart(digits))
       else
-        Some(IntegerPart(digits))
+        Some(IntegerDigitsPart(digits))
     )
   }
 
@@ -448,7 +506,7 @@ case class LdmlNumberFormatParser(
       case Array(pos, neg) => (pos, Some(neg))
       case _ =>
         throw NumberFormatError(
-          s"Found ${subPatterns.length} sub-patterns. Expected at most two (positive & negative)."
+          s"Found ${subPatterns.length} sub-patterns. Expected at most two (positive;negative)."
         )
     }
 
@@ -464,6 +522,7 @@ case class LdmlNumberFormatParser(
 
     // Start accumulating in the prefixes array, switch to suffix once the numeric part has been parsed
     var parsers = prefixParsers
+
     var subPatternComplete: Boolean = false
     while (format.hasNext() && !subPatternComplete) {
       format.next() match {
@@ -477,7 +536,22 @@ case class LdmlNumberFormatParser(
           numericPartParsers.addAll(parseNumberWithPossibleExponent(format))
           // We've done the number parsing part, the rest of the pattern is the suffix
           parsers = suffixParsers
-        case char @ ('-' | '+') => parsers.append(parseSign(char))
+        case char if signChars.contains(char) =>
+          /*
+           We assume that if the user specifies '+' in the pattern, they are *not* asserting that all numbers matching
+           the format should be positive; this would be overly restrictive. Instead they are saying a '+' or '-' char
+           must be present in the pattern.
+
+           "An explicit "plus" format can be formed, so as to show a visible + sign when formatting a non-negative
+            number."
+           http://www.unicode.org/reports/tr35/tr35-numbers.html#Explicit_Plus
+           */
+          parsers.append(
+            signCharsRegEx ^^ {
+              case "+" => Some(SignPart(true))
+              case "-" => Some(SignPart(false))
+            } | failure("Expected explicit sign character [+-] missing")
+          )
         case char @ '%' =>
           parsers.append(
             char.toString ^^^ Some(PercentagePart())
@@ -534,6 +608,7 @@ case class LdmlNumberFormatParser(
             prefixParsers =
               ("" ^^^ Some(SignPart(false))) +: negative.prefixParsers
           )
+
         (
           positivePattern.toParser() |
             finalNegativePattern.toParser()
@@ -554,13 +629,13 @@ case class LdmlNumberFormatParser(
       numberPart match {
         case s @ SignPart(_) =>
           if (parsedNumber.sign.isEmpty) parsedNumber.sign = Some(s)
-        case i @ IntegerPart(_) => parsedNumber.integer = Some(i)
-        case f @ FractionalPart(_) =>
-          parsedNumber.fraction = Some(f)
-        case e @ ExponentPart(_) =>
+        case i @ IntegerDigitsPart(_) => parsedNumber.integerDigits = Some(i)
+        case f @ FractionalDigitsPart(_) =>
+          parsedNumber.fractionalDigits = Some(f)
+        case e @ ExponentPart(_, _) =>
           if (parsedNumber.exponent.isEmpty)
             parsedNumber.exponent = Some(e)
-        case factor: ScalingFactorPart =>
+        case factor: ScalingFactorPart => // e.g. per-mille & percent
           if (parsedNumber.scalingFactor.isEmpty)
             parsedNumber.scalingFactor = Some(factor)
       }
