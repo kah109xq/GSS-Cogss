@@ -104,7 +104,10 @@ case class LdmlNumberFormatParser(
       // Parse an (optional) sign at the beginning of the number.
       // Yes, the format may specify a different position for the sign char but we only count the *first* one we come
       // across which should enable sensible behaviour.
-      opt("+" ^^^ SignPart(true) | "-" ^^^ SignPart(false))
+      opt(
+        s"[${plusSignChars.mkString}]".r ^^^ SignPart(true) |
+          s"[${minusSignChars.mkString}]".r ^^^ SignPart(false)
+      )
     )
     var isFractionalPart = false
     while (format.hasNext() && !numberEnded) {
