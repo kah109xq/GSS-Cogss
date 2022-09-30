@@ -550,10 +550,16 @@ case class LdmlNumberFormatParser(
            http://www.unicode.org/reports/tr35/tr35-numbers.html#Explicit_Plus
            */
           parsers.append(
-            signCharsRegEx ^^ {
-              case "+" => Some(SignPart(true))
-              case "-" => Some(SignPart(false))
-            } | failure("Expected explicit sign character [+-] missing")
+            signCharsRegEx ^^ (sign =>
+              sign.toCharArray match {
+                case Array(char) if plusSignChars.contains(char) =>
+                  Some(SignPart(true))
+                case Array(char) if minusSignChars.contains(char) =>
+                  Some(SignPart(false))
+                case _ =>
+                  throw NumberFormatError(s"Unmatched sign character '$sign'")
+              }
+            ) | failure("Expected explicit sign character [+-] missing")
           )
         case char @ '%' =>
           parsers.append(
