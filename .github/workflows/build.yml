@@ -1,0 +1,35 @@
+name: Build
+on:
+  create:
+    tags:
+       - 'v*.*'
+    
+jobs:
+  docker_build_push:
+    env:
+      GIT_REF: ${{ github.ref }}
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    runs-on: ubuntu-latest
+    steps:
+    - name: Set up Scala
+      uses: actions/setup-java@v2
+      with:
+        distribution: temurin
+        java-version: 8
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    - name: Login to DockerHub
+      uses: docker/login-action@v1 
+      with:
+      username: ${{ secrets.DOCKERHUB_USERNAME }}
+      password: ${{ secrets.DOCKERHUB_TOKEN }}
+    - name: Build
+      run: sbt docker:publishLocal
+    - name: Push
+      run: |
+        vers_num="$(grep 'version :=' build.sbt | head -n1 | sed 's/.*"\(.*\)".*/\1/')"
+        push_param="gsscogs/csvw-check:v$vers_num"
+        docker push $push_param
