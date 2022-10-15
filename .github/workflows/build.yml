@@ -32,4 +32,5 @@ jobs:
       run: |
         vers_num="$(grep 'version :=' build.sbt | head -n1 | sed 's/.*"\(.*\)".*/\1/')"
         push_param="gsscogs/csvw-check:v$vers_num"
+        docker tag csvw-check $push_param
         docker push $push_param
