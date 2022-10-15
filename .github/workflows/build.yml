@@ -15,8 +15,8 @@ jobs:
     - name: Set up Scala
       uses: actions/setup-java@v2
       with:
-        distribution: temurin
-        java-version: 8
+        distribution: adopt
+        java-version: 11
     - name: Checkout
       uses: actions/checkout@v2
       with:
