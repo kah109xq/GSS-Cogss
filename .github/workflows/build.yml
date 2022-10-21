@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Extract Git Tag
-      run: echo "GIT_TAG=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_TAG
+      run: echo "GIT_TAG=${GITHUB_REF/refs\/tags\//}" >> "$GITHUB_TAG"
     - name: Write Tag to Scala Build Version
       run: sed 's/version := */version := $GITHUB_TAG/' build.sbt
     - name: Set up Scala
