@@ -13,9 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Extract Git Tag
-      run: |
-        echo $GIT_REF |
-        $GIT_REF=$(GIT_REF | sed "s/refs\/tags\/v/v/g")
+      run: git_ref="$(GIT_REF | sed 's/refs\/tags\/v/v/g')"
     - name: Write Tag to Scala Build Version
       run: sed 's/version := */version := $GIT_REF/' build.sbt
     - name: Set up Scala
