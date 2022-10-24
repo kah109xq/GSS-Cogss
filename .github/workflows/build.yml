@@ -15,7 +15,7 @@ jobs:
     - name: Extract Git Tag
       run: git_ref="$(GIT_REF | sed 's/refs\/tags\/v/v/g')"
     - name: Write Tag to Scala Build Version
-      run: sed 's/version := */version := $GIT_REF/' build.sbt
+      run: sed 's/version := */version := $git_ref/' build.sbt
     - name: Set up Scala
       uses: actions/setup-java@v2
       with:
