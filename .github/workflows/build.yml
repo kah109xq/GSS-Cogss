@@ -16,9 +16,10 @@ jobs:
       run: |
         VERS_TAG=$(echo $GIT_REF | sed 's/refs\/tags\/v//g')
         VERS_TAG="\"$VERS_TAG"\"
-        ls
     - name: Write Tag to Scala Build Version
-      run: sed -i "s/version := *.*/version := $VERS_TAG/" build.sbt
+      run: |
+        cd csvw-check
+        sed -i "s/version := *.*/version := $VERS_TAG/" build.sbt
     - name: Set up Scala
       uses: actions/setup-java@v2
       with:
