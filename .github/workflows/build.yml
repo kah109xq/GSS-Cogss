@@ -18,7 +18,7 @@ jobs:
         VERS_TAG="\"$VERS_TAG"\"
     - name: Write Tag to Scala Build Version
       run: |
-        cd csvw-check
+        ls ${{ github.workspace }}
         sed -i "s/version := *.*/version := $VERS_TAG/" build.sbt
     - name: Set up Scala
       uses: actions/setup-java@v2
