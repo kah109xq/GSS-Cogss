@@ -25,6 +25,8 @@ jobs:
       uses: actions/checkout@v2
       with:
         fetch-depth: 0
+    - name: Show output of sed to build.sbt command
+      run: sed "s/version := *.*/version := $VERS_TAG/" build.sbt
     - name: Write Tag to Scala Build Version
       run: |
         sed -i "s/version := *.*/version := $VERS_TAG/" build.sbt
