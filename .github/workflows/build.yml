@@ -21,6 +21,8 @@ jobs:
       with:
         distribution: adopt
         java-version: 11
+    - name: Show Git Tag
+      run: echo $VERS_TAG
     - name: Checkout
       uses: actions/checkout@v2
       with:
