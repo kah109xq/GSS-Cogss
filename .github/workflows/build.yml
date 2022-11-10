@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Extract Git Tag
-      run: |
+      env: |
         VERS_TAG=$(echo $GIT_REF | sed 's/refs\/tags\/v//g')
         VERS_TAG="\"$VERS_TAG"\"
     - name: Set up Scala
@@ -21,8 +21,6 @@ jobs:
       with:
         distribution: adopt
         java-version: 11
-    - name: Show Git Tag
-      run: echo $VERS_TAG
     - name: Checkout
       uses: actions/checkout@v2
       with:
