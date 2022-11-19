@@ -2,7 +2,7 @@ name: Build
 on:
   create:
     tags:
-       - 'v*.*'
+       - 'v*.*.*'
     
 jobs:
   docker_build_push:
