@@ -43,12 +43,14 @@ jobs:
         vers_num="$(grep 'version :=' build.sbt | head -n1 | sed 's/.*"\(.*\)".*/\1/')"
         
         rel_cand_substring='rc'
-        vers_num_lower_case=y=${vers_num,,}
+        vers_num_lower_case=${vers_num,,}
         
         local_param="csvw-check:$vers_num"
         push_param="gsscogs/csvw-check:v$vers_num"
+        latest_param="csvw-check:latest"
+        
         docker tag $local_param $push_param
-        if [[ "$vers_num_lower_case" != *"$rel_cand_substring"]]
-          then docker tag $push_param <user>/<image>:latest
+        if [[ "$vers_num_lower_case" != *"$rel_cand_substring"* ]]
+          then docker tag $push_param $latest_param
         fi
         docker push $push_param
