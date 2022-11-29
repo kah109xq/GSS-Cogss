@@ -53,4 +53,4 @@ jobs:
         if [[ "$vers_num_lower_case" != *"$rel_cand_substring"* ]]
           then docker tag $push_param $latest_param
         fi
-        docker push --all-tags $local_param
+        docker image push --all-tags $local_param
