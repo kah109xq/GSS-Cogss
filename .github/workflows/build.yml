@@ -37,7 +37,9 @@ jobs:
          username: ${{ secrets.DOCKERHUB_USERNAME }}
          password: ${{ secrets.DOCKERHUB_TOKEN }}
     - name: Build
-      run: sbt docker:dockerEntrypoint
+      run: |
+        dockerEntrypoint=bash
+        sbt docker:publishLocal
     - name: Push
       run: |
         vers_num="$(grep 'version :=' build.sbt | head -n1 | sed 's/.*"\(.*\)".*/\1/')"
