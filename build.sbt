@@ -11,6 +11,7 @@ autoCompilerPlugins := true
 
 enablePlugins(DockerPlugin)
 dockerBaseImage := "openjdk:11"
+set dockerEntrypoint in Docker := "bash"
 packageName in Docker := "csvw-check"
 
 libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.2"
