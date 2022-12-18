@@ -1,0 +1,58 @@
+name: Build
+on:
+  create:
+    tags:
+       - "v[0-9]+.[0-9]+.[0-9]+*"
+    
+jobs:
+  docker_build_push:
+    env:
+      GIT_REF: ${{ github.ref }}
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    runs-on: ubuntu-latest
+    steps:
+    - name: Set up Scala
+      uses: actions/setup-java@v2
+      with:
+        distribution: adopt
+        java-version: 11
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    - name: Show output of sed to build.sbt command for logs
+      run: |        
+        VERS_TAG=$(echo $GIT_REF | sed 's/refs\/tags\/v//g')
+        VERS_TAG="\"$VERS_TAG"\" 
+        sed "s/version := *.*/version := $VERS_TAG/" build.sbt
+    - name: Write Tag to Scala Build Version
+      run: |
+        VERS_TAG=$(echo $GIT_REF | sed 's/refs\/tags\/v//g')
+        VERS_TAG="\"$VERS_TAG"\"
+        sed -i "s/version := *.*/version := $VERS_TAG/" build.sbt
+    - name: Login to DockerHub
+      uses: docker/login-action@v1 
+      with:
+         username: ${{ secrets.DOCKERHUB_USERNAME }}
+         password: ${{ secrets.DOCKERHUB_TOKEN }}
+    - name: Build
+      run: |
+        sbt docker:publishLocal
+    - name: Push
+      run: |
+        vers_num="$(grep 'version :=' build.sbt | head -n1 | sed 's/.*"\(.*\)".*/\1/')"
+        
+        rel_cand_substring='rc'
+        vers_num_lower_case=${vers_num,,}
+        
+        local_param="csvw-check:$vers_num"
+        remote_param="gsscogs/csvw-check"
+        push_param="$remote_param:v$vers_num"
+        latest_param="$remote_param:latest"
+        
+        docker tag $local_param $push_param
+        if [[ "$vers_num_lower_case" != *"$rel_cand_substring"* ]]
+          then docker tag $push_param $latest_param
+        fi
+        docker image push --all-tags $remote_param
