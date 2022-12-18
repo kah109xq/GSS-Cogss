@@ -3,7 +3,6 @@ name := "csvw-check"
 organization := "ONS"
 version := "0.1"
 scalaVersion := "2.13.4"
-
 autoCompilerPlugins := true
 
 // Want to use a published library in your project?
@@ -12,6 +11,7 @@ autoCompilerPlugins := true
 enablePlugins(DockerPlugin)
 dockerBaseImage := "openjdk:11"
 dockerEntrypoint := Seq("bash")
+dockerEnvVars := Map("PATH" -> "$PATH:/opt/docker/bin")
 packageName in Docker := "csvw-check"
 
 libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.2"
