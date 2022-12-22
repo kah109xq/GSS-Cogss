@@ -474,7 +474,7 @@ case class Column private (
         ).getParserForFormat(format.flatMap(f => f.pattern).get)
       )
     } catch {
-      case e =>
+      case e: Throwable =>
         logger.debug(e)
         Left(e.getMessage)
     }

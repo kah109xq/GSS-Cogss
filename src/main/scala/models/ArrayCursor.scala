@@ -2,6 +2,16 @@ package models
 
 import scala.reflect.ClassTag
 
+/**
+  * A class to represent a cursor pointing to a particular value of an array. Expected to be used when parsing strings
+  * or similar data-types.
+  *
+  * Contains helper functions designed to make it easier to walk/peek forwards and backwards through the array of
+  * values.
+  *
+  * @param values - The values to iterate across.
+  * @tparam T - Type of each item inside `values`.
+  */
 case class ArrayCursor[T: ClassTag](private val values: Seq[T]) {
   val arrayValues: Array[T] = Array.from[T](values)
   private var currentIndex: Int = -1
