@@ -8,7 +8,7 @@ import akka.stream.scaladsl.Source
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.typesafe.scalalogging.Logger
 import org.apache.commons.csv.{CSVFormat, CSVParser, CSVRecord}
-
+import CSVValidation.traits.LoggerExtensions.LogDebugException
 import java.io.File
 import java.net.URI
 import java.nio.charset.Charset
@@ -114,8 +114,7 @@ class Validator(
         Left(GeneralCsvwLoadError(metadataError))
       case e: java.io.FileNotFoundException => Left(CascadeToOtherFilesError(e))
       case e: Throwable => {
-        logger.debug(e.getMessage)
-        logger.debug(e.getStackTrace.mkString("\n"))
+        logger.debug(e)
         Left(GeneralCsvwLoadError(e))
       }
     }
@@ -208,13 +207,11 @@ class Validator(
               err.getMessage,
               ""
             )
-            logger.debug(err.getMessage)
-            logger.debug(err.getStackTrace.mkString("\n"))
+            logger.debug(err)
             Source(List(WarningsAndErrors(errors = Array(error))))
           }
           case Left(SchemaDoesNotContainCsvError(err)) => {
-            logger.debug(err.getMessage)
-            logger.debug(err.getStackTrace.mkString("\n"))
+            logger.debug(err)
             findAndValidateCsvwSchemaFileForCsv(maybeCsvUri, uris).map(x => {
               WarningsAndErrors(
                 x.warnings :+ WarningWithCsvContext(
@@ -229,8 +226,7 @@ class Validator(
             })
           }
           case Left(CascadeToOtherFilesError(err)) => {
-            logger.debug(err.getMessage)
-            logger.debug(err.getStackTrace.mkString("\n"))
+            logger.debug(err)
             val errorsAndWarnings =
               findAndValidateCsvwSchemaFileForCsv(maybeCsvUri, uris)
             errorsAndWarnings
@@ -372,8 +368,7 @@ class Validator(
         Right(csvParser)
       } catch {
         case NonFatal(e) =>
-          logger.debug(e.getMessage)
-          logger.debug(e.getStackTrace.mkString("\n"))
+          logger.debug(e)
           Left(
             WarningsAndErrors(
               Array(
@@ -418,8 +413,7 @@ class Validator(
           degreeOfParallelismInTable
         ).recover {
           case NonFatal(err) => {
-            logger.debug(err.getMessage)
-            logger.debug(err.getStackTrace.mkString("\n"))
+            logger.debug(err)
             val warnings = Array(
               WarningWithCsvContext(
                 "source_url_mismatch",
@@ -925,8 +919,7 @@ class Validator(
       schema.tables(tableUri.toString)
     } catch {
       case NonFatal(e) =>
-        logger.debug(e.getMessage)
-        logger.debug(e.getStackTrace.mkString("\n"))
+        logger.debug(e)
         throw MetadataError(
           "Metadata does not contain requested tabular data file"
         )

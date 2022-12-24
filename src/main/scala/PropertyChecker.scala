@@ -883,7 +883,14 @@ object PropertyChecker {
       val patternNode = format.path("pattern")
       val patternString: Option[String] =
         if (patternNode.isMissingNode) None else Some(patternNode.asText())
-      NumberFormat(patternString, groupChar, decimalChar)
+
+      patternString
+        .map(pattern =>
+          LdmlNumberFormatParser(
+            groupChar.getOrElse(','),
+            decimalChar.getOrElse('.')
+          ).getParserForFormat(pattern)
+        )
     } catch {
       case e: NumberFormatError => {
         format.asInstanceOf[ObjectNode].remove("pattern")
